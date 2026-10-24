@@ -1,10 +1,6 @@
 import type { ProjectTemplate as ProjectTemplateId } from "@/shared/names"
 import type { Category } from "@/lib/types"
-import {
-  DEFAULT_CATEGORIES,
-  makeSlug,
-  type CategoryColor,
-} from "@/lib/categories"
+import { makeSlug, type CategoryColor } from "@/lib/categories"
 
 // Starting setups for a new project, modeled on GitHub Projects' featured
 // templates. Each one picks the board's columns and some starter tags.
@@ -22,8 +18,12 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "blank",
     name: "Blank board",
-    description: "Start with Backlog, In progress, In review and Done.",
-    columns: DEFAULT_CATEGORIES.map(({ name, color }) => ({ name, color })),
+    description: "Start with Backlog, In progress and Done.",
+    columns: [
+      { name: "Backlog", color: "gray" },
+      { name: "In progress", color: "amber" },
+      { name: "Done", color: "green" },
+    ],
     tags: [],
   },
   {
