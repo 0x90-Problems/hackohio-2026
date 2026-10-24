@@ -22,15 +22,14 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "blank",
     name: "Blank board",
-    description: "Start with Backlog, In progress, In review and Done.",
+    description: "A clean board, ready to customize.",
     columns: DEFAULT_CATEGORIES.map(({ name, color }) => ({ name, color })),
     tags: [],
   },
   {
     id: "team-planning",
     name: "Team planning",
-    description:
-      "Manage your team's work items, plan upcoming cycles, and understand team capacity.",
+    description: "Organize team work across cycles.",
     columns: [
       { name: "Backlog", color: "gray" },
       { name: "Ready", color: "teal" },
@@ -43,8 +42,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "kanban",
     name: "Kanban",
-    description:
-      "Visualize the status of your project and limit work in progress.",
+    description: "Track flow and limit work in progress.",
     columns: [
       { name: "Todo", color: "gray" },
       { name: "In progress", color: "amber" },
@@ -55,8 +53,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "feature-release",
     name: "Feature release",
-    description:
-      "Manage your team's prioritized work items when planning for a feature release.",
+    description: "Prioritize work for a feature release.",
     columns: [
       { name: "Backlog", color: "gray" },
       { name: "Ready", color: "teal" },
@@ -69,7 +66,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "bug-tracker",
     name: "Bug tracker",
-    description: "Track and triage your bugs.",
+    description: "Triage bugs through resolution.",
     columns: [
       { name: "New", color: "red" },
       { name: "Triaged", color: "orange" },
@@ -81,8 +78,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "iterative-development",
     name: "Iterative development",
-    description:
-      "Plan your current and upcoming iterations as you work through your prioritized backlog.",
+    description: "Plan work across iterations.",
     columns: [
       { name: "Backlog", color: "gray" },
       { name: "This iteration", color: "teal" },
@@ -94,8 +90,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "product-launch",
     name: "Product launch",
-    description:
-      "Manage work items across teams and functions when planning for a product launch.",
+    description: "Coordinate work for a product launch.",
     columns: [
       { name: "Planning", color: "gray" },
       { name: "In progress", color: "amber" },
@@ -107,8 +102,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "roadmap",
     name: "Roadmap",
-    description:
-      "Manage your team's long term plans as you plan out your roadmap.",
+    description: "Group work by time horizon.",
     columns: [
       { name: "Now", color: "red" },
       { name: "Next", color: "amber" },
@@ -119,8 +113,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
     id: "team-retrospective",
     name: "Team retrospective",
-    description:
-      "Reflect as a team on what went well, what can be improved next time, and action items.",
+    description: "Reflect, improve, and take action.",
     columns: [
       { name: "Went well", color: "green" },
       { name: "To improve", color: "orange" },

@@ -225,7 +225,8 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
 // "Pitch demo" -> "PD", "Bugs" -> "BUG". Users can change it.
 function suggestKey(name: string) {
   const words = name.split(/[^A-Za-z0-9]+/).filter(Boolean)
-  const key = words.length === 1 ? words[0].slice(0, 3) : words.map((w) => w[0]).join("")
+  const key =
+    words.length === 1 ? words[0].slice(0, 3) : words.map((w) => w[0]).join("")
   return key.toUpperCase().slice(0, 4)
 }
 
@@ -281,7 +282,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
           New project
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-5xl">
         {!template ? (
           <>
             <DialogHeader>
@@ -291,7 +292,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                 starter tags. You can change them later.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 min-[540px]:grid-cols-2 lg:grid-cols-3">
               {PROJECT_TEMPLATES.map((t, index) => (
                 <motion.button
                   key={t.id}
@@ -302,13 +303,13 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                   transition={{ duration: 0.2, delay: index * 0.03 }}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  className="flex flex-col gap-2 rounded-2xl border p-4 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="flex flex-col gap-2 rounded-2xl border p-3 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none sm:p-4"
                 >
+                  <TemplateColumns template={t} />
                   <span className="font-semibold">{t.name}</span>
                   <span className="text-xs text-muted-foreground">
                     {t.description}
                   </span>
-                  <TemplateColumns template={t} />
                 </motion.button>
               ))}
             </div>
@@ -324,7 +325,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
             <div className="flex flex-col gap-2 rounded-2xl border p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-medium text-muted-foreground">
-                  Board columns
+                  Board preview
                 </span>
                 <Button
                   type="button"
@@ -420,46 +421,75 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   )
 }
 
-// A miniature board overview so templates are distinguishable before selection.
+// Unlabeled board skeletons show each template's layout without status pills.
 function TemplateColumns({ template }: { template: ProjectTemplate }) {
   return (
     <div
       role="img"
-      aria-label={`Board preview: ${template.columns.map((column) => column.name).join(", ")}`}
-      className="grid min-h-20 gap-1 rounded-lg border bg-muted/20 p-1.5"
-      style={{
-        gridTemplateColumns: `repeat(${template.columns.length}, minmax(0, 1fr))`,
-      }}
+      aria-label={`Board preview for ${template.name}: ${template.columns.length} columns with sample tickets`}
+      className="flex h-32 min-w-0 flex-col gap-2 overflow-hidden rounded-lg border bg-muted/20 p-2"
     >
-      {template.columns.map((column, columnIndex) => (
-        <div key={column.name} className="flex min-w-0 flex-col gap-1">
-          <div className="flex min-w-0 items-center gap-1 pb-0.5">
-            <span
-              className={cn(
-                "size-1.5 shrink-0 rounded-full",
-                CATEGORY_COLORS[column.color].dot
-              )}
-            />
-            <span className="truncate text-[9px] leading-tight text-muted-foreground">
-              {column.name}
-            </span>
-          </div>
-          {[0, 1].slice(0, columnIndex % 2 === 0 ? 2 : 1).map((cardIndex) => (
-            <div
-              key={cardIndex}
-              aria-hidden="true"
-              className="flex h-5 items-center rounded border bg-card px-1"
-            >
+      <div
+        aria-hidden="true"
+        className="flex items-center gap-1.5 border-b pb-2"
+      >
+        <span className="size-3 rounded-sm bg-muted-foreground/20" />
+        <span className="h-1.5 w-1/4 rounded-full bg-muted-foreground/20" />
+        <span className="ml-auto h-1.5 w-8 rounded-full bg-muted-foreground/15" />
+        <span className="h-1.5 w-5 rounded-full bg-muted-foreground/15" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="grid min-h-0 flex-1 gap-1.5"
+        style={{
+          gridTemplateColumns: `repeat(${template.columns.length}, minmax(0, 1fr))`,
+        }}
+      >
+        {template.columns.map((column, columnIndex) => (
+          <div
+            key={column.name}
+            className="flex min-w-0 flex-col gap-1 border-r pr-1 last:border-r-0"
+          >
+            <div className="flex h-3 items-center gap-1">
               <span
                 className={cn(
-                  "h-1 rounded-full bg-muted-foreground/20",
-                  (columnIndex + cardIndex) % 2 === 0 ? "w-3/4" : "w-1/2"
+                  "size-1.5 shrink-0 rounded-full opacity-70",
+                  CATEGORY_COLORS[column.color].dot
+                )}
+              />
+              <span
+                className={cn(
+                  "h-1 rounded-full bg-muted-foreground/30",
+                  columnIndex % 2 === 0 ? "w-3/4" : "w-1/2"
                 )}
               />
             </div>
-          ))}
-        </div>
-      ))}
+            {Array.from(
+              {
+                length:
+                  columnIndex % 3 === 1 ? 1 : columnIndex % 3 === 2 ? 3 : 2,
+              },
+              (_, cardIndex) => (
+                <div
+                  key={cardIndex}
+                  className="flex min-h-0 flex-col gap-1 rounded border bg-card p-1"
+                >
+                  <span
+                    className={cn(
+                      "h-1 rounded-full bg-muted-foreground/20",
+                      (columnIndex + cardIndex) % 2 === 0 ? "w-full" : "w-2/3"
+                    )}
+                  />
+                  {cardIndex === 0 && (
+                    <span className="h-1 w-1/2 rounded-full bg-muted-foreground/15" />
+                  )}
+                  <span className="mt-auto h-1 w-1/3 rounded-full bg-muted-foreground/15" />
+                </div>
+              )
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
