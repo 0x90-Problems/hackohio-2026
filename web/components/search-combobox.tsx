@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { SearchIcon } from "lucide-react"
+import { SearchIcon } from "@/components/icons"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -67,7 +67,7 @@ export function SearchCombobox({
               className
             )}
           >
-            <SearchIcon />
+            <SearchIcon aria-hidden="true" />
             {label}
           </Button>
         )}

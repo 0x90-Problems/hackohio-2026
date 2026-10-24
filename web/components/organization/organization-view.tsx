@@ -1,7 +1,14 @@
 "use client"
 
 import { Fragment, useState } from "react"
-import { ArrowRightIcon } from "lucide-react"
+import {
+  BotIcon,
+  Building2Icon,
+  ChevronRightIcon,
+  SettingsIcon,
+  UserIcon,
+  UsersIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import { DEFAULT_TOKEN_EXPIRY_HOURS } from "@/shared/names"
@@ -58,10 +65,15 @@ export function OrganizationView() {
   const agentCount = agents.filter((a) => !a.revoked).length
 
   const flow = [
-    { kind: "Organization", content: <span className="truncate">{orgName || "Untitled"}</span> },
-    { kind: "Team", content: <span className="truncate">{currentUser.team}</span> },
+    {
+      kind: "Organization",
+      icon: Building2Icon,
+      content: <span className="truncate">{orgName || "Untitled"}</span>,
+    },
+    { kind: "Team", icon: UsersIcon, content: <span className="truncate">{currentUser.team}</span> },
     {
       kind: "User",
+      icon: UserIcon,
       content: (
         <span className="inline-flex items-center gap-1.5">
           <HumanAvatar name={currentUser.name} /> {currentUser.name}
@@ -70,6 +82,7 @@ export function OrganizationView() {
     },
     {
       kind: "Agent",
+      icon: BotIcon,
       dashed: true,
       content: (
         <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -105,9 +118,9 @@ export function OrganizationView() {
             {flow.map((box, i) => (
               <Fragment key={box.kind}>
                 {i > 0 && (
-                  <ArrowRightIcon
+                  <ChevronRightIcon
                     className="size-4 shrink-0 self-center text-muted-foreground max-md:rotate-90"
-                    aria-hidden
+                    aria-hidden="true"
                   />
                 )}
                 <div
@@ -116,7 +129,8 @@ export function OrganizationView() {
                     box.dashed && "border-dashed border-muted-foreground/60 bg-muted/50"
                   )}
                 >
-                  <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                  <span className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+                    <box.icon className="size-3.5" aria-hidden="true" />
                     {box.kind}
                   </span>
                   <span className="flex min-w-0 font-semibold">{box.content}</span>
@@ -172,7 +186,10 @@ export function OrganizationView() {
         {/* Agent rules */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Agent rules</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <SettingsIcon className="size-4" aria-hidden="true" />
+              Agent rules
+            </CardTitle>
             <CardDescription>Apply to every agent in {TEAM}.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">

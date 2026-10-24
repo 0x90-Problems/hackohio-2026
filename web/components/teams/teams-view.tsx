@@ -2,7 +2,12 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRightIcon, PlusIcon, UserPlusIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  PlusIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
@@ -90,7 +95,8 @@ export function TeamsView() {
           <CardFooter>
             <Button asChild variant="link" className="px-0 text-foreground">
               <Link href="/board">
-                Open board <ArrowRightIcon data-icon="inline-end" />
+                Open board{" "}
+                <ArrowRightIcon data-icon="inline-end" aria-hidden="true" />
               </Link>
             </Button>
           </CardFooter>
@@ -140,6 +146,7 @@ function EmptyTeamCard({ team }: { team: string }) {
   return (
     <Card className="justify-center border-2 border-dashed bg-transparent shadow-none ring-0 duration-300 animate-in fade-in">
       <CardHeader className="justify-items-center text-center">
+        <UsersIcon className="size-8 text-muted-foreground" aria-hidden="true" />
         <CardTitle className="text-lg">{team}</CardTitle>
         <CardDescription className="max-w-xs">
           Invite people. Each person connects their own agent from the Agents page.
@@ -170,7 +177,7 @@ function InviteDialog({ team }: { team: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <UserPlusIcon data-icon="inline-start" />
+          <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
           Invite people
         </Button>
       </DialogTrigger>
@@ -234,7 +241,7 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <PlusIcon data-icon="inline-start" />
+          <PlusIcon data-icon="inline-start" aria-hidden="true" />
           New team
         </Button>
       </DialogTrigger>

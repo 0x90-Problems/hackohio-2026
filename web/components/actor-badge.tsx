@@ -1,4 +1,5 @@
 import { ACTOR_TYPES } from "@/shared/names"
+import { BotIcon } from "@/components/icons"
 import type { Actor } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ export function AgentTag({ className }: { className?: string }) {
         className
       )}
     >
+      <BotIcon className="size-3" aria-hidden="true" />
       AGENT
     </Badge>
   )

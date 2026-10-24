@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "motion/react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon } from "@/components/icons"
 
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Project } from "@/lib/types"
@@ -277,7 +277,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
     >
       <DialogTrigger asChild>
         <Button>
-          <PlusIcon data-icon="inline-start" />
+          <PlusIcon data-icon="inline-start" aria-hidden="true" />
           New project
         </Button>
       </DialogTrigger>

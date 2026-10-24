@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { LockIcon } from "lucide-react"
+import { LockIcon } from "@/components/icons"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -51,7 +51,7 @@ export default function LoginPage() {
       </Card>
 
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <LockIcon className="size-3.5" />
+        <LockIcon className="size-3.5" aria-hidden="true" />
         Sign-in handled by Authelia · agents never use this screen, they use tokens
       </p>
     </main>
