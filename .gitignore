@@ -2,6 +2,7 @@
 
 # Secrets: never commit
 .env.local
+/data/lldap/
 
 # Installed packages
 node_modules/
