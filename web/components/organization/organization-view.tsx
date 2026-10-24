@@ -102,7 +102,10 @@ export function OrganizationView() {
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Organization</h1>
+        <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+          <Building2Icon className="size-6" aria-hidden="true" />
+          Organization
+        </h1>
         <p className="text-muted-foreground">
           Who owns what, and the rules every agent in the org follows.
         </p>

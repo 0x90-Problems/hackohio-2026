@@ -130,7 +130,10 @@ export function ApiView() {
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">API</h1>
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            <KeyRoundIcon className="size-6" aria-hidden="true" />
+            API
+          </h1>
           <p className="text-muted-foreground">
             Connect any agent over MCP, or script the board over HTTP.
           </p>
@@ -227,13 +230,22 @@ export function ApiView() {
         {/* API keys */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">API keys</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <KeyRoundIcon className="size-4" aria-hidden="true" />
+              API keys
+            </CardTitle>
             <CardDescription>
               For scripts and always-on agents that can&apos;t sign in through MCP.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-2">
+              {keys.length === 0 && (
+                <li className="flex flex-col items-center gap-2 py-6 text-center text-sm text-muted-foreground">
+                  <KeyRoundIcon className="size-8" aria-hidden="true" />
+                  <span>No API keys yet. Create one for a script or agent.</span>
+                </li>
+              )}
               {keys.map((key) => {
                 const owner = getUser(key.owner_id)
                 return (

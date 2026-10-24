@@ -1,4 +1,5 @@
 export {
+  Activity as ActivityIcon,
   AlertTriangle as AlertTriangleIcon,
   ArrowRight as ArrowRightIcon,
   BookOpen as BookOpenIcon,
@@ -18,6 +19,7 @@ export {
   Loader2 as Loader2Icon,
   Lock as LockIcon,
   LogOut as LogOutIcon,
+  Mail as MailIcon,
   MoreHorizontal as MoreHorizontalIcon,
   Moon as MoonIcon,
   Pencil as PencilIcon,
@@ -31,6 +33,8 @@ export {
   User as UserIcon,
   UserPlus as UserPlusIcon,
   Users as UsersIcon,
+  Wifi as WifiIcon,
+  WifiOff as WifiOffIcon,
   X as XIcon,
   XCircle as XCircleIcon,
 } from "lucide-react"

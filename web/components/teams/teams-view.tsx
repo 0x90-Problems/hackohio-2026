@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import {
   ArrowRightIcon,
+  MailIcon,
   PlusIcon,
   UserPlusIcon,
   UsersIcon,
@@ -62,7 +63,10 @@ export function TeamsView() {
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Teams</h1>
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            <UsersIcon className="size-6" aria-hidden="true" />
+            Teams
+          </h1>
           <p className="text-muted-foreground">People, and the agents working for each of them.</p>
         </div>
         <NewTeamDialog
@@ -76,7 +80,10 @@ export function TeamsView() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader className="border-b">
-            <CardTitle className="text-lg">{TEAM}</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UsersIcon className="size-4" aria-hidden="true" />
+              {TEAM}
+            </CardTitle>
             <CardAction className="text-sm text-muted-foreground">
               {members.length} people · {activeAgents.length} agents
             </CardAction>
@@ -190,7 +197,10 @@ function InviteDialog({ team }: { team: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="invite-username">Username or email</Label>
+            <Label htmlFor="invite-username" className="flex items-center gap-1.5">
+              <MailIcon className="size-4" aria-hidden="true" />
+              Username or email
+            </Label>
             <Input
               id="invite-username"
               value={username}
