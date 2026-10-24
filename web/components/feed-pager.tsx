@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/icons"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -30,7 +30,7 @@ export function FeedPager({
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
           >
-            <ChevronLeftIcon />
+            <ChevronLeftIcon aria-hidden="true" />
           </Button>
         </PaginationItem>
         <PaginationItem className="min-w-16 text-center text-sm text-muted-foreground tabular-nums">
@@ -44,7 +44,7 @@ export function FeedPager({
             disabled={page >= pageCount}
             onClick={() => onPageChange(page + 1)}
           >
-            <ChevronRightIcon />
+            <ChevronRightIcon aria-hidden="true" />
           </Button>
         </PaginationItem>
       </PaginationContent>

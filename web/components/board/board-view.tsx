@@ -12,7 +12,7 @@ import {
   PencilIcon,
   PlusIcon,
   Trash2Icon,
-} from "lucide-react"
+} from "@/components/icons"
 
 import { ACTOR_TYPES } from "@/shared/names"
 import type { Category } from "@/lib/types"
@@ -136,7 +136,10 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   className="-ml-1 flex items-center gap-2 rounded-lg px-1 text-left text-3xl font-semibold tracking-tight hover:bg-muted"
                 >
                   {project.name}
-                  <ChevronsUpDownIcon className="size-5 text-muted-foreground" />
+                  <ChevronsUpDownIcon
+                    className="size-5 text-muted-foreground"
+                    aria-hidden="true"
+                  />
                 </button>
               }
               groups={[
@@ -153,7 +156,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                             {p.key}
                           </span>
                           <span className="flex-1 truncate">{p.name}</span>
-                          {p.key === project.key && <CheckIcon />}
+                          {p.key === project.key && <CheckIcon aria-hidden="true" />}
                         </>
                       ),
                       onSelect: () => router.push(`/projects/${p.key}/board`),
@@ -166,7 +169,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                       keywords: ["projects", "all"],
                       label: (
                         <>
-                          <LayoutGridIcon /> All projects
+                          <LayoutGridIcon aria-hidden="true" /> All projects
                         </>
                       ),
                       onSelect: () => router.push("/projects"),
@@ -219,7 +222,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
               variant="outline"
               onClick={() => setEditing({ kind: "create" })}
             >
-              <PlusIcon data-icon="inline-start" />
+              <PlusIcon data-icon="inline-start" aria-hidden="true" />
               New category
             </Button>
             <NewTicketDialog
@@ -329,7 +332,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                 size="icon-xs"
                                 aria-label={`Options for ${category.name}`}
                               >
-                                <MoreHorizontalIcon />
+                                <MoreHorizontalIcon aria-hidden="true" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -338,7 +341,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                   setEditing({ kind: "edit", category })
                                 }
                               >
-                                <PencilIcon /> Rename or recolor
+                                <PencilIcon aria-hidden="true" /> Rename or recolor
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
@@ -348,7 +351,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                   setEditing({ kind: "delete", category })
                                 }
                               >
-                                <Trash2Icon /> Delete category
+                                <Trash2Icon aria-hidden="true" /> Delete category
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -421,7 +424,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   transition={SPRING}
                   className="flex min-h-96 w-56 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
                 >
-                  <PlusIcon className="size-5" />
+                  <PlusIcon className="size-5" aria-hidden="true" />
                   Add category
                 </motion.button>
               </AnimatePresence>

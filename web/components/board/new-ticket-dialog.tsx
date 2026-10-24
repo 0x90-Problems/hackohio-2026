@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { PlusIcon } from "lucide-react"
+import { PlusIcon } from "@/components/icons"
 
 import type { Category } from "@/lib/types"
 import { ColorDot } from "@/components/board/category-dialogs"
@@ -59,7 +59,7 @@ export function NewTicketDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <PlusIcon data-icon="inline-start" />
+          <PlusIcon data-icon="inline-start" aria-hidden="true" />
           New ticket
         </Button>
       </DialogTrigger>

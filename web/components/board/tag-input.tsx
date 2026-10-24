@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { PlusIcon, TagIcon, XIcon } from "lucide-react"
+import { PlusIcon, TagIcon, XIcon } from "@/components/icons"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -70,7 +70,7 @@ export function TagInput({
                 aria-label={`Remove tag ${tag}`}
                 onClick={() => onChange(tags.filter((t) => t !== tag))}
               >
-                <XIcon className="size-3" />
+                <XIcon className="size-3" aria-hidden="true" />
               </button>
             </Badge>
           </motion.span>
@@ -93,7 +93,7 @@ export function TagInput({
             aria-expanded={open}
             className="border-dashed font-normal text-muted-foreground"
           >
-            <PlusIcon />
+            <PlusIcon aria-hidden="true" />
             Add tag
           </Button>
         </PopoverTrigger>
@@ -118,7 +118,7 @@ export function TagInput({
                       value={tag}
                       onSelect={() => add(tag)}
                     >
-                      <TagIcon />
+                      <TagIcon aria-hidden="true" />
                       {tag}
                     </CommandItem>
                   ))}
@@ -132,7 +132,7 @@ export function TagInput({
                     forceMount
                     onSelect={() => add(typed)}
                   >
-                    <PlusIcon />
+                    <PlusIcon aria-hidden="true" />
                     Create “{typed}”
                   </CommandItem>
                 </CommandGroup>

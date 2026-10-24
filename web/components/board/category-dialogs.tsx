@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon } from "@/components/icons"
 
 import type { Category } from "@/lib/types"
 import {
@@ -111,7 +111,9 @@ export function CategoryDialog({
                     color === c && "ring-2 ring-foreground"
                   )}
                 >
-                  {color === c && <CheckIcon className="size-4 text-white" />}
+                  {color === c && (
+                    <CheckIcon className="size-4 text-white" aria-hidden="true" />
+                  )}
                 </button>
               ))}
             </div>

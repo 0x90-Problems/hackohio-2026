@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { CopyIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  AlertTriangleIcon,
+  CopyIcon,
+  KeyRoundIcon,
+  ShieldOffIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import {
@@ -194,6 +199,7 @@ function RevokeDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive" size="sm">
+          <ShieldOffIcon className="size-4" aria-hidden="true" />
           Revoke
         </Button>
       </DialogTrigger>
@@ -214,6 +220,7 @@ function RevokeDialog({
           </DialogClose>
           <DialogClose asChild>
             <Button variant="destructive" onClick={() => onRevoke(agent)}>
+              <ShieldOffIcon className="size-4" aria-hidden="true" />
               Revoke
             </Button>
           </DialogClose>
@@ -321,11 +328,11 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
                   onClick={copy}
                   aria-label="Copy token"
                 >
-                  <CopyIcon />
+                  <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
               <Alert>
-                <TriangleAlertIcon />
+                <AlertTriangleIcon aria-hidden="true" />
                 <AlertTitle>This token is shown once</AlertTitle>
                 <AlertDescription>
                   Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
@@ -341,7 +348,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
       </CardContent>
       <CardFooter className="flex flex-col items-stretch gap-2">
         <Button onClick={generate} disabled={!name.trim() || scopes.length === 0}>
-          <KeyRoundIcon data-icon="inline-start" />
+          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
           Generate token
         </Button>
         <p className="text-xs text-muted-foreground">

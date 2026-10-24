@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { BookOpenIcon, CopyIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  AlertTriangleIcon,
+  BookOpenIcon,
+  CopyIcon,
+  KeyRoundIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import {
@@ -138,7 +143,7 @@ export function ApiView() {
             })
           }
         >
-          <BookOpenIcon data-icon="inline-start" />
+          <BookOpenIcon data-icon="inline-start" aria-hidden="true" />
           View OpenAPI docs
         </Button>
       </div>
@@ -165,7 +170,7 @@ export function ApiView() {
                   onClick={() => copyText(MCP_CONFIG, "MCP config")}
                   aria-label="Copy MCP config"
                 >
-                  <CopyIcon />
+                  <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
               <div className="flex flex-col gap-2">
@@ -306,7 +311,7 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger asChild>
         <Button className="w-full">
-          <KeyRoundIcon data-icon="inline-start" />
+          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
           Create API key
         </Button>
       </DialogTrigger>
@@ -326,11 +331,11 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
                 onClick={() => copyText(secret, "API key")}
                 aria-label="Copy API key"
               >
-                <CopyIcon />
+                <CopyIcon aria-hidden="true" />
               </Button>
             </div>
             <Alert>
-              <TriangleAlertIcon />
+              <AlertTriangleIcon aria-hidden="true" />
               <AlertTitle>This key is shown once</AlertTitle>
               <AlertDescription>
                 Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
