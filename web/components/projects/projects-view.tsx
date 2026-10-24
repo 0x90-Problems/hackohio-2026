@@ -337,20 +337,9 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
               </div>
               <TemplateColumns template={template} />
               {template.tags.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="mr-1 text-xs text-muted-foreground">
-                    Starter tags
-                  </span>
-                  {template.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="secondary"
-                      className="font-normal"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Starter tags: {template.tags.join(", ")}
+                </p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -431,23 +420,45 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   )
 }
 
-// A template's columns as colored chips: "● Todo  ● In progress  ● Done"
+// A miniature board overview so templates are distinguishable before selection.
 function TemplateColumns({ template }: { template: ProjectTemplate }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {template.columns.map((c) => (
-        <span
-          key={c.name}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs",
-            CATEGORY_COLORS[c.color].column
-          )}
-        >
-          <span
-            className={cn("size-2 rounded-full", CATEGORY_COLORS[c.color].dot)}
-          />
-          {c.name}
-        </span>
+    <div
+      role="img"
+      aria-label={`Board preview: ${template.columns.map((column) => column.name).join(", ")}`}
+      className="grid min-h-20 gap-1 rounded-lg border bg-muted/20 p-1.5"
+      style={{
+        gridTemplateColumns: `repeat(${template.columns.length}, minmax(0, 1fr))`,
+      }}
+    >
+      {template.columns.map((column, columnIndex) => (
+        <div key={column.name} className="flex min-w-0 flex-col gap-1">
+          <div className="flex min-w-0 items-center gap-1 pb-0.5">
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                CATEGORY_COLORS[column.color].dot
+              )}
+            />
+            <span className="truncate text-[9px] leading-tight text-muted-foreground">
+              {column.name}
+            </span>
+          </div>
+          {[0, 1].slice(0, columnIndex % 2 === 0 ? 2 : 1).map((cardIndex) => (
+            <div
+              key={cardIndex}
+              aria-hidden="true"
+              className="flex h-5 items-center rounded border bg-card px-1"
+            >
+              <span
+                className={cn(
+                  "h-1 rounded-full bg-muted-foreground/20",
+                  (columnIndex + cardIndex) % 2 === 0 ? "w-3/4" : "w-1/2"
+                )}
+              />
+            </div>
+          ))}
+        </div>
       ))}
     </div>
   )
