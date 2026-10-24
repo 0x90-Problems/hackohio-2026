@@ -78,7 +78,8 @@ export function AppHeader() {
         </DropdownMenu>
 
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="size-6 rounded-md bg-primary" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-mark.png" alt="" className="size-7" aria-hidden />
           buck2agents
         </Link>
 
