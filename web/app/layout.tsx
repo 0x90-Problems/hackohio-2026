@@ -3,6 +3,7 @@ import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
 import { AppHeader } from "@/components/app-header"
+import { TabFooter } from "@/components/tab-footer"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -36,6 +37,7 @@ export default function RootLayout({
           <TooltipProvider>
             <AppHeader />
             {children}
+            <TabFooter />
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>
