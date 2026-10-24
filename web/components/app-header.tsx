@@ -81,7 +81,7 @@ export function AppHeader() {
                     active={active}
                     className={cn(
                       navigationMenuTriggerStyle(),
-                      "text-muted-foreground data-[active=true]:bg-muted data-[active=true]:text-foreground"
+                      "text-muted-foreground data-active:bg-muted data-active:text-foreground"
                     )}
                   >
                     <Link href={link.href}>{link.label}</Link>

@@ -1,0 +1,37 @@
+import { EVENT_ACTIONS, STATUS_LABELS, type TicketStatus } from "@/shared/names"
+import type { Event } from "@/lib/types"
+import { MOCK_NOW, tickets } from "@/lib/mock-data"
+
+// "just now", "6 min", "2 h", "3 d". Measured from MOCK_NOW until we use real data.
+export function timeAgo(date: Date, now: Date = MOCK_NOW) {
+  const minutes = Math.round((now.getTime() - date.getTime()) / 60_000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} h`
+  return `${Math.floor(hours / 24)} d`
+}
+
+// One readable sentence for an activity-log event.
+export function describeEvent(event: Event) {
+  const key = event.ticket_key
+  const to = event.details?.to as TicketStatus | undefined
+  switch (event.action) {
+    case EVENT_ACTIONS.TICKET_CREATED: {
+      const title = tickets.find((t) => t.key === key)?.title
+      return title ? `Created ${key} · ${title}` : `Created ${key}`
+    }
+    case EVENT_ACTIONS.TICKET_MOVED:
+      return to ? `Moved ${key} to ${STATUS_LABELS[to]}` : `Moved ${key}`
+    case EVENT_ACTIONS.COMMENT_ADDED:
+      return `Commented on ${key}`
+    case EVENT_ACTIONS.COMMIT_LINKED:
+      return `Linked commit ${event.details?.sha ?? ""} to ${key}`
+    case EVENT_ACTIONS.TICKET_CLOSED:
+      return `Closed ${key}`
+  }
+}
+
+// A stable id for an event, for React list keys.
+export const eventId = (e: Event) =>
+  `${e.action}-${e.ticket_key}-${e.created_at.getTime()}`

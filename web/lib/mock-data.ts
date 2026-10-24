@@ -272,3 +272,20 @@ export const events: Event[] = [
   moved("CLW-09", human("user_raddy"), 300, BACKLOG, IN_PROGRESS),
   moved("CLW-10", human("user_naz"), 120, BACKLOG, IN_PROGRESS),
 ]
+
+// ---------- demo only: items that "arrive live" a few seconds after a page loads ----------
+// Not in seed.js. They stand in for the real-time feed until Redis is connected.
+
+export const incomingComments: Comment[] = [
+  {
+    ticket_key: "CLW-06",
+    author: agent("agent_naz_agent"),
+    body: "Re-ran the MCP checks after the last commit. Still passing.",
+    created_at: MOCK_NOW,
+  },
+]
+
+export const incomingEvents: Event[] = [
+  ev(EVENT_ACTIONS.COMMENT_ADDED, "CLW-06", agent("agent_naz_agent"), 0),
+  moved("CLW-07", human("user_debora"), 0, IN_PROGRESS, IN_REVIEW),
+]
