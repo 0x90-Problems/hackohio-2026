@@ -22,7 +22,7 @@ error in VS Code right away.
 - `names.ts` — the main file, for the Next.js app and the backend.
 - `names.json` — the same names for anything that isn't TypeScript.
 
-To change a name, edit both files, update `db/schema.md`, and tell the team.
+To change a name, edit both files, update `docs/schema.md`, and tell the team.
 
 ## Still to confirm with Dylan
 

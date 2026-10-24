@@ -1,0 +1,12 @@
+{
+  "name": "hackohio-2026",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:setup": "node db/setup.js",
+    "db:seed": "node db/seed.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.21.0"
+  }
+}

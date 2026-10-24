@@ -1,7 +1,7 @@
 // buck2agents — shared names
 // Every part of the app (frontend, backend, MCP server, auth) imports names
 // from this file instead of typing them by hand. If a name changes, change it
-// here only. Keep this file in sync with db/schema.md.
+// here only. Keep this file in sync with docs/schema.md.
 
 // ---------- Token scopes: what an agent is allowed to do ----------
 export const SCOPES = {

@@ -1,1 +1,7 @@
 .DS_Store
+
+# Secrets: never commit
+.env.local
+
+# Installed packages
+node_modules/
