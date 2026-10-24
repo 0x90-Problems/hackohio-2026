@@ -292,7 +292,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                 starter tags. You can change them later.
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 min-[540px]:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               {PROJECT_TEMPLATES.map((t, index) => (
                 <motion.button
                   key={t.id}
@@ -421,25 +421,30 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   )
 }
 
-// Unlabeled board skeletons show each template's layout without status pills.
+// Compact sample boards show each template's structure and example work.
 function TemplateColumns({ template }: { template: ProjectTemplate }) {
+  const maxTickets = Math.max(
+    ...template.previewTickets.map((tickets) => tickets.length)
+  )
+
   return (
     <div
       role="img"
-      aria-label={`Board preview for ${template.name}: ${template.columns.length} columns with sample tickets`}
-      className="flex h-32 min-w-0 flex-col gap-2 overflow-hidden rounded-lg border bg-muted/20 p-2"
+      aria-label={`Example ${template.name} board for ${template.previewProject}. ${template.columns
+        .map(
+          (column, index) =>
+            `${column.name}: ${template.previewTickets[index].join(", ")}`
+        )
+        .join(". ")}`}
+      className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-lg border bg-muted/20 p-2"
+      style={{ minHeight: `${Math.max(160, 56 + maxTickets * 48)}px` }}
     >
-      <div
-        aria-hidden="true"
-        className="flex items-center gap-1.5 border-b pb-2"
-      >
-        <span className="size-3 rounded-sm bg-muted-foreground/20" />
-        <span className="h-1.5 w-1/4 rounded-full bg-muted-foreground/20" />
-        <span className="ml-auto h-1.5 w-8 rounded-full bg-muted-foreground/15" />
-        <span className="h-1.5 w-5 rounded-full bg-muted-foreground/15" />
+      <div className="flex min-w-0 items-center gap-2 border-b pb-2 text-[9px]">
+        <span className="truncate font-medium">{template.previewProject}</span>
+        <span className="text-muted-foreground">Board</span>
+        <span className="ml-auto shrink-0 text-muted-foreground">Filter</span>
       </div>
       <div
-        aria-hidden="true"
         className="grid min-h-0 flex-1 gap-1.5"
         style={{
           gridTemplateColumns: `repeat(${template.columns.length}, minmax(0, 1fr))`,
@@ -450,43 +455,33 @@ function TemplateColumns({ template }: { template: ProjectTemplate }) {
             key={column.name}
             className="flex min-w-0 flex-col gap-1 border-r pr-1 last:border-r-0"
           >
-            <div className="flex h-3 items-center gap-1">
+            <div className="flex min-h-5 min-w-0 items-start gap-1">
               <span
                 className={cn(
-                  "size-1.5 shrink-0 rounded-full opacity-70",
+                  "mt-0.5 size-1.5 shrink-0 rounded-full opacity-70",
                   CATEGORY_COLORS[column.color].dot
                 )}
               />
-              <span
-                className={cn(
-                  "h-1 rounded-full bg-muted-foreground/30",
-                  columnIndex % 2 === 0 ? "w-3/4" : "w-1/2"
-                )}
-              />
+              <span className="min-w-0 text-[8px] leading-tight break-words text-muted-foreground">
+                {column.name}
+              </span>
             </div>
-            {Array.from(
-              {
-                length:
-                  columnIndex % 3 === 1 ? 1 : columnIndex % 3 === 2 ? 3 : 2,
-              },
-              (_, cardIndex) => (
-                <div
-                  key={cardIndex}
-                  className="flex min-h-0 flex-col gap-1 rounded border bg-card p-1"
-                >
-                  <span
-                    className={cn(
-                      "h-1 rounded-full bg-muted-foreground/20",
-                      (columnIndex + cardIndex) % 2 === 0 ? "w-full" : "w-2/3"
-                    )}
-                  />
-                  {cardIndex === 0 && (
-                    <span className="h-1 w-1/2 rounded-full bg-muted-foreground/15" />
-                  )}
-                  <span className="mt-auto h-1 w-1/3 rounded-full bg-muted-foreground/15" />
-                </div>
-              )
-            )}
+            {template.previewTickets[columnIndex].map((ticket, cardIndex) => (
+              <div
+                key={ticket}
+                className="flex min-h-7 min-w-0 flex-col justify-between gap-1 rounded border bg-card p-1"
+              >
+                <span className="min-w-0 text-[8px] leading-tight break-words">
+                  {ticket}
+                </span>
+                <span className="text-[7px] leading-none text-muted-foreground">
+                  {template.tags[
+                    cardIndex % Math.max(template.tags.length, 1)
+                  ] ??
+                    `#${String(cardIndex + columnIndex + 1).padStart(2, "0")}`}
+                </span>
+              </div>
+            ))}
           </div>
         ))}
       </div>
