@@ -6,6 +6,7 @@ import { useTheme } from "next-themes"
 import {
   BotIcon,
   Building2Icon,
+  FolderKanbanIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   LogOutIcon,
@@ -35,7 +36,7 @@ import {
 } from "@/components/ui/navigation-menu"
 
 const NAV_LINKS = [
-  { href: "/projects", label: "Projects", icon: null },
+  { href: "/projects", label: "Projects", icon: FolderKanbanIcon },
   { href: "/teams", label: "Teams", icon: UsersIcon },
   { href: "/organization", label: "Organization", icon: Building2Icon },
   { href: "/agents", label: "Agents", icon: BotIcon },

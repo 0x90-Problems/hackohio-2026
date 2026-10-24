@@ -176,8 +176,8 @@ const projects = [
   created_at: minutesAgo(created),
 }));
 
-// ---------- tickets CLW-01 to CLW-15, PIT-01 to PIT-03 ----------
-// CLW: 5 backlog, 4 in progress, 2 in review, 4 done. PIT: 2 backlog, 1 in progress.
+// ---------- tickets CLW-01 to CLW-16, PIT-01 to PIT-03 ----------
+// CLW: 5 backlog, 4 in progress, 3 in review, 4 done. PIT: 2 backlog, 1 in progress.
 
 const tickets = [
   // Done
@@ -225,6 +225,17 @@ const tickets = [
   { key: "CLW-14", title: "Draft OpenAPI spec for tickets", tags: ["Docs"], status: BACKLOG, created_by: agent("agent_dylan_claude"), created: 70 },
   { key: "CLW-15", title: "Docs site with Zensical", tags: ["Docs"], status: BACKLOG, created_by: human("user_debora"), created: 25 },
 
+  // Demo ticket (see docs/demo-script.md): an agent built it and is waiting for
+  // Raddy to approve it. Approving moves it to Done.
+  {
+    key: "CLW-16", title: "Search tickets by id, title or tag", tags: ["UI", "Search"], status: IN_REVIEW,
+    created_by: agent("agent_raddy_claude"), reviewer_id: "user_raddy", needs_approval: true, created: 42,
+    linked_commits: [
+      { sha: "3d1f8a0", message: "Add text index on ticket title and tags", added: 12, removed: 1 },
+      { sha: "7e2b9c4", message: "Add combo search box to the board", added: 86, removed: 4 },
+    ],
+  },
+
   // Pitch & demo project
   { key: "PIT-01", title: "Outline the 3-minute pitch", tags: ["Pitch"], status: IN_PROGRESS, created_by: human("user_naz"), created: 280 },
   { key: "PIT-02", title: "Record backup demo video", tags: ["Demo"], status: BACKLOG, created_by: human("user_debora"), created: 200 },
@@ -245,6 +256,7 @@ const comments = [
   { ticket_key: "CLW-10", author: agent("agent_naz_agent"), body: "Draft is in the shared names file. Waiting on Dylan to confirm.", created: 20 },
   { ticket_key: "CLW-12", author: human("user_dylan"), body: "Keep it under 3 minutes and end on the live agent demo.", created: 15 },
   { ticket_key: "CLW-03", author: human("user_dylan"), body: "Looks good. Approved.", created: 505 },
+  { ticket_key: "CLW-16", author: agent("agent_raddy_claude"), body: "Search is in. It matches ticket id, title and tags, grouped by column. Ready for Raddy to approve.", created: 5 },
 ].map(({ created, ...c }) => ({ ...c, created_at: minutesAgo(created) }));
 
 // ---------- events (activity log) ----------
@@ -311,6 +323,12 @@ const events = [
 
   moved("CLW-09", human("user_raddy"), 300, BACKLOG, IN_PROGRESS),
   moved("CLW-10", human("user_naz"), 120, BACKLOG, IN_PROGRESS),
+
+  // Demo ticket: the agent links a commit before each move (schema rule)
+  linked("CLW-16", agent("agent_raddy_claude"), 30, "3d1f8a0"),
+  moved("CLW-16", agent("agent_raddy_claude"), 29, BACKLOG, IN_PROGRESS),
+  linked("CLW-16", agent("agent_raddy_claude"), 8, "7e2b9c4"),
+  moved("CLW-16", agent("agent_raddy_claude"), 6, IN_PROGRESS, IN_REVIEW),
 ];
 
 // ---------- Run ----------

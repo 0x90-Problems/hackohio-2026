@@ -4,7 +4,7 @@ import { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { ACTOR_TYPES, AGENT_CONNECTION, TICKET_STATUS } from "@/shared/names"
-import type { Category, Comment, Ticket } from "@/lib/types"
+import type { Category, Comment, Event, Ticket } from "@/lib/types"
 import {
   MOCK_NOW,
   agentTokens,
@@ -16,6 +16,7 @@ import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { ColorDot } from "@/components/board/category-dialogs"
+import { ChangeHistory } from "@/components/board/change-history"
 import { TagInput } from "@/components/board/tag-input"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { HistoryIcon } from "@/components/icons"
 
 const CONNECTION_LABELS = {
   [AGENT_CONNECTION.MCP]: "MCP",
@@ -60,6 +62,7 @@ export function TicketModalFromUrl({
   categories,
   tagSuggestions,
   comments,
+  events,
   newCommentIds,
   ...actions
 }: {
@@ -68,6 +71,7 @@ export function TicketModalFromUrl({
   categories: Category[]
   tagSuggestions: string[]
   comments: Comment[]
+  events: Event[]
   newCommentIds: Set<string>
 } & TicketActions) {
   const router = useRouter()
@@ -90,6 +94,7 @@ export function TicketModalFromUrl({
             categories={categories}
             tagSuggestions={tagSuggestions}
             comments={comments.filter((c) => c.ticket_key === ticket.key)}
+            events={events.filter((e) => e.ticket_key === ticket.key)}
             newCommentIds={newCommentIds}
             {...actions}
           />
@@ -116,6 +121,7 @@ function TicketDetail({
   categories,
   tagSuggestions,
   comments,
+  events,
   newCommentIds,
   onComment,
   onApprove,
@@ -127,6 +133,7 @@ function TicketDetail({
   categories: Category[]
   tagSuggestions: string[]
   comments: Comment[]
+  events: Event[]
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
@@ -195,7 +202,7 @@ function TicketDetail({
       </DialogHeader>
 
       {/* Who's involved */}
-      <dl className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm">
+      <dl className="grid grid-cols-[6.5rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm sm:grid-cols-[8rem_1fr]">
         <dt className="text-muted-foreground">Created by</dt>
         <dd>
           {agent ? (
@@ -288,6 +295,16 @@ function TicketDetail({
             No commits linked yet.
           </p>
         )}
+      </section>
+
+      <Separator />
+
+      {/* Change history: every version of the card, from the activity log */}
+      <section className="flex flex-col gap-3 p-6">
+        <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+          <HistoryIcon className="size-3.5" aria-hidden /> Change history
+        </h3>
+        <ChangeHistory events={events} categories={categories} />
       </section>
 
       <Separator />

@@ -448,6 +448,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         categories={categories}
         tagSuggestions={tagSuggestions}
         comments={store.comments}
+        events={activity}
         newCommentIds={store.newCommentIds}
         onComment={store.comment}
         onApprove={store.approve}

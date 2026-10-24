@@ -13,6 +13,8 @@ export {
   ChevronUp as ChevronUpIcon,
   ChevronsUpDown as ChevronsUpDownIcon,
   Copy as CopyIcon,
+  FolderKanban as FolderKanbanIcon,
+  History as HistoryIcon,
   Info as InfoIcon,
   KeyRound as KeyRoundIcon,
   LayoutGrid as LayoutGridIcon,
