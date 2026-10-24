@@ -1,4 +1,4 @@
-// Creates the six collections, their validation rules and their indexes,
+// Creates the seven collections, their validation rules and their indexes,
 // exactly as described in docs/schema.md.
 //
 // Safe to run more than once: existing collections get their rules updated,
@@ -11,9 +11,12 @@ import {
   ACTOR_TYPES,
   AGENT_CONNECTION,
   ALL_SCOPES,
+  CATEGORY_COLORS,
+  CATEGORY_SLUG_PATTERN,
   COLLECTIONS,
   EVENT_ACTIONS,
-  TICKET_STATUS,
+  PROJECT_KEY_PATTERN,
+  PROJECT_TEMPLATES,
   TOKEN_PREFIX,
 } from "../shared/names.ts";
 
@@ -22,6 +25,9 @@ import {
 const text = { bsonType: "string" };
 const date = { bsonType: "date" };
 const bool = { bsonType: "bool" };
+const projectKey = { bsonType: "string", pattern: PROJECT_KEY_PATTERN };
+const categorySlug = { bsonType: "string", pattern: CATEGORY_SLUG_PATTERN };
+const textList = { bsonType: "array", items: text, uniqueItems: true };
 const scopeList = {
   bsonType: "array",
   items: { enum: ALL_SCOPES },
@@ -70,6 +76,37 @@ const validators = {
     additionalProperties: false,
   },
 
+  [COLLECTIONS.PROJECTS]: {
+    bsonType: "object",
+    required: ["key", "name", "team", "categories", "created_by", "created_at"],
+    properties: {
+      key: projectKey,
+      name: text,
+      description: text,
+      team: text,
+      template: { enum: Object.values(PROJECT_TEMPLATES) },
+      // The board's columns, in order. A ticket's status is one of these slugs.
+      categories: {
+        bsonType: "array",
+        minItems: 1,
+        items: {
+          bsonType: "object",
+          required: ["slug", "name", "color", "order"],
+          properties: {
+            slug: categorySlug,
+            name: text,
+            color: { enum: [...CATEGORY_COLORS] },
+            order: { bsonType: "int", minimum: 0 },
+          },
+          additionalProperties: false,
+        },
+      },
+      starter_tags: textList,
+      created_by: actor,
+      created_at: date,
+    },
+  },
+
   [COLLECTIONS.AGENTS]: {
     bsonType: "object",
     required: ["_id", "name", "owner_id", "connection", "scopes", "revoked"],
@@ -100,12 +137,15 @@ const validators = {
 
   [COLLECTIONS.TICKETS]: {
     bsonType: "object",
-    required: ["key", "title", "status", "created_by", "needs_approval", "created_at"],
+    required: ["key", "project_key", "title", "status", "created_by", "needs_approval", "created_at"],
     properties: {
       key: text,
+      project_key: projectKey,
       title: text,
-      label: text,
-      status: { enum: Object.values(TICKET_STATUS) },
+      tags: textList,
+      // A slug from the project's categories. MongoDB can't check another
+      // document, so the API makes sure the column exists.
+      status: categorySlug,
       created_by: actor,
       reviewer_id: text,
       needs_approval: bool,
@@ -139,10 +179,11 @@ const validators = {
 
   [COLLECTIONS.EVENTS]: {
     bsonType: "object",
-    required: ["action", "ticket_key", "actor", "created_at"],
+    required: ["action", "ticket_key", "project_key", "actor", "created_at"],
     properties: {
       action: { enum: Object.values(EVENT_ACTIONS) },
       ticket_key: text,
+      project_key: projectKey,
       actor: actor,
       details: { bsonType: "object" },
       created_at: date,
@@ -154,12 +195,19 @@ const validators = {
 
 const indexes = [
   [COLLECTIONS.USERS, { auth_username: 1 }, { unique: true }],
-  [COLLECTIONS.TICKETS, { status: 1 }, {}],
+  [COLLECTIONS.PROJECTS, { key: 1 }, { unique: true }],
+  [COLLECTIONS.PROJECTS, { team: 1 }, {}],
+  [COLLECTIONS.TICKETS, { project_key: 1, status: 1 }, {}],
   [COLLECTIONS.TICKETS, { key: 1 }, { unique: true }],
+  [COLLECTIONS.TICKETS, { title: "text", tags: "text" }, { name: "ticket_search" }],
   [COLLECTIONS.COMMENTS, { ticket_key: 1 }, {}],
-  [COLLECTIONS.EVENTS, { created_at: -1 }, {}], // -1 = newest first
+  [COLLECTIONS.EVENTS, { project_key: 1, created_at: -1 }, {}], // -1 = newest first
+  [COLLECTIONS.EVENTS, { created_at: -1 }, {}],
   [COLLECTIONS.AGENT_TOKENS, { token_hash: 1 }, {}],
 ];
+
+// Indexes from older versions of this script that the ones above replace.
+const oldIndexes = [[COLLECTIONS.TICKETS, "status_1"]];
 
 // ---------- Run ----------
 
@@ -192,6 +240,14 @@ try {
         );
       });
     console.log(`index          ${name}.${indexName}${options.unique ? " (unique)" : ""}`);
+  }
+
+  for (const [name, indexName] of oldIndexes) {
+    const exists = (await db.collection(name).indexes()).some((i) => i.name === indexName);
+    if (exists) {
+      await db.collection(name).dropIndex(indexName);
+      console.log(`dropped old    ${name}.${indexName}`);
+    }
   }
 
   console.log(`\nDone. Database "${db.databaseName}" is ready.`);

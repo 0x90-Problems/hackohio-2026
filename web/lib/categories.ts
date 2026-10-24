@@ -1,4 +1,9 @@
-import { BOARD_COLUMNS, STATUS_LABELS, type TicketStatus } from "@/shared/names"
+import {
+  BOARD_COLUMNS,
+  STATUS_LABELS,
+  type CategoryColor,
+  type TicketStatus,
+} from "@/shared/names"
 import type { Category } from "@/lib/types"
 
 // Colors a category (board column) can use. No blue or purple, per the design
@@ -11,8 +16,8 @@ export const CATEGORY_COLORS = {
   green: { label: "Green", dot: "bg-green-500", column: "bg-green-50 dark:bg-green-950/30" },
   teal: { label: "Teal", dot: "bg-teal-500", column: "bg-teal-50 dark:bg-teal-950/30" },
   pink: { label: "Pink", dot: "bg-pink-500", column: "bg-pink-50 dark:bg-pink-950/30" },
-} as const
-export type CategoryColor = keyof typeof CATEGORY_COLORS
+} as const satisfies Record<CategoryColor, { label: string; dot: string; column: string }>
+export type { CategoryColor }
 export const CATEGORY_COLOR_NAMES = Object.keys(CATEGORY_COLORS) as CategoryColor[]
 
 const DEFAULT_COLORS: Record<TicketStatus, CategoryColor> = {

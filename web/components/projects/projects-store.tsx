@@ -18,6 +18,7 @@ import {
   MOCK_NOW,
   comments as allComments,
   events as allEvents,
+  projectKeyOf,
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
@@ -32,7 +33,7 @@ import { templateCategories, type ProjectTemplate } from "@/lib/templates"
 import { commentId } from "@/components/board/ticket-modal"
 
 // CLW-05 -> CLW
-export const projectKeyOf = (ticketKey: string) => ticketKey.split("-")[0]
+export { projectKeyOf }
 
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
@@ -42,16 +43,10 @@ const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
 function useProjectsState() {
   const [projects, setProjects] = useState<Project[]>(allProjects)
   const [tickets, setTickets] = useState<Ticket[]>(allTickets)
-  // Each project has its own columns
-  const [categories, setCategories] = useState<Record<string, Category[]>>(() =>
-    Object.fromEntries(allProjects.map((p) => [p.key, DEFAULT_CATEGORIES]))
-  )
   const [activity, setActivity] = useState<Event[]>(() =>
     [...allEvents].sort(newestFirst)
   )
   const [comments, setComments] = useState<Comment[]>(allComments)
-  // Tags a project's template suggests before any ticket uses them
-  const [starterTags, setStarterTags] = useState<Record<string, string[]>>({})
   // Remember what arrived after the page loaded, so only those animate in.
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set())
   const [newTicketKeys, setNewTicketKeys] = useState<Set<string>>(new Set())
@@ -64,8 +59,9 @@ function useProjectsState() {
   const now = () => new Date((clock.current += 1000))
   const me: Actor = { type: ACTOR_TYPES.HUMAN, id: CURRENT_USER_ID }
 
+  // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>
-    categories[projectKey] ?? DEFAULT_CATEGORIES
+    projects.find((p) => p.key === projectKey)?.categories ?? DEFAULT_CATEGORIES
   const categoriesOfTicket = (ticketKey: string) =>
     categoriesOf(projectKeyOf(ticketKey))
 
@@ -73,10 +69,11 @@ function useProjectsState() {
     projectKey: string,
     update: (current: Category[]) => Category[]
   ) {
-    setCategories((all) => ({
-      ...all,
-      [projectKey]: update(all[projectKey] ?? DEFAULT_CATEGORIES),
-    }))
+    setProjects((all) =>
+      all.map((p) =>
+        p.key === projectKey ? { ...p, categories: update(p.categories) } : p
+      )
+    )
   }
 
   function addComment(comment: Comment) {
@@ -84,7 +81,12 @@ function useProjectsState() {
     setNewCommentIds((ids) => new Set(ids).add(commentId(comment)))
   }
 
-  function addEvent(event: Event) {
+  // Fills in project_key from the ticket id
+  function addEvent(input: Omit<Event, "project_key">) {
+    const event: Event = {
+      ...input,
+      project_key: projectKeyOf(input.ticket_key),
+    }
     setActivity((current) => [event, ...current])
     setNewEventIds((ids) => new Set(ids).add(eventId(event)))
   }
@@ -105,7 +107,7 @@ function useProjectsState() {
   const tagsOf = (projectKey: string) =>
     [
       ...new Set([
-        ...(starterTags[projectKey] ?? []),
+        ...(projects.find((p) => p.key === projectKey)?.starter_tags ?? []),
         ...tickets
           .filter((t) => projectKeyOf(t.key) === projectKey)
           .flatMap((t) => t.tags ?? []),
@@ -122,13 +124,15 @@ function useProjectsState() {
     team: string
     template: ProjectTemplate
   }) {
-    const project: Project = { ...input, created_at: now() }
+    const project: Project = {
+      ...input,
+      template: template.id,
+      categories: templateCategories(template),
+      ...(template.tags.length > 0 && { starter_tags: template.tags }),
+      created_by: me,
+      created_at: now(),
+    }
     setProjects((current) => [...current, project])
-    setCategories((all) => ({
-      ...all,
-      [project.key]: templateCategories(template),
-    }))
-    setStarterTags((all) => ({ ...all, [project.key]: template.tags }))
     setNewProjectKeys((keys) => new Set(keys).add(project.key))
     toast.success(`Created project ${project.name}`, {
       description: `Tickets will be ${project.key}-01, ${project.key}-02 …`,
@@ -146,6 +150,7 @@ function useProjectsState() {
     const created_at = now()
     const ticket: Ticket = {
       key,
+      project_key: projectKey,
       title: input.title,
       ...(input.tags.length > 0 && { tags: input.tags }),
       status: input.status,

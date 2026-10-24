@@ -1,3 +1,4 @@
+import type { ProjectTemplate as ProjectTemplateId } from "@/shared/names"
 import type { Category } from "@/lib/types"
 import {
   DEFAULT_CATEGORIES,
@@ -10,7 +11,7 @@ import {
 // Columns named Backlog / In progress / In review / Done get the shared
 // status slugs, so Approve and Request changes keep working.
 export type ProjectTemplate = {
-  id: string
+  id: ProjectTemplateId
   name: string
   description: string
   columns: { name: string; color: CategoryColor }[]

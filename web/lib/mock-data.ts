@@ -6,6 +6,7 @@ import {
   AGENT_CONNECTION,
   DEFAULT_TOKEN_EXPIRY_HOURS,
   EVENT_ACTIONS,
+  PROJECT_TEMPLATES,
   SCOPES,
   TICKET_STATUS,
   TOKEN_PREFIX,
@@ -24,6 +25,7 @@ import type {
   Ticket,
   User,
 } from "@/lib/types"
+import { DEFAULT_CATEGORIES } from "@/lib/categories"
 
 const { BACKLOG, IN_PROGRESS, IN_REVIEW, DONE } = TICKET_STATUS
 
@@ -144,17 +146,27 @@ export const agentTokens: AgentToken[] = [
 
 // ---------- projects ----------
 
+// Same as db/seed.js. Both start from the Blank template's columns.
 export const projects: Project[] = [
-  { key: "CLW", name: "HackOHI/O build", description: "The buck2agents app we demo on Sunday.", team: TEAM, created: 1440 },
-  { key: "PIT", name: "Pitch & demo", description: "Slides, script and the live agent demo.", team: TEAM, created: 300 },
-].map(({ created, ...p }) => ({ ...p, created_at: minutesAgo(created) }))
+  { key: "CLW", name: "HackOHI/O build", description: "The buck2agents app we demo on Sunday.", created_by: human("user_dylan"), created: 1440 },
+  { key: "PIT", name: "Pitch & demo", description: "Slides, script and the live agent demo.", created_by: human("user_naz"), created: 300 },
+].map(({ created, ...p }) => ({
+  ...p,
+  team: TEAM,
+  template: PROJECT_TEMPLATES.BLANK,
+  categories: DEFAULT_CATEGORIES,
+  created_at: minutesAgo(created),
+}))
+
+// CLW-05 -> CLW
+export const projectKeyOf = (ticketKey: string) => ticketKey.split("-")[0]
 
 // The project /board opens
 export const DEFAULT_PROJECT_KEY = "CLW"
 
 // ---------- tickets CLW-01 to CLW-15, PIT-01 to PIT-03 ----------
 
-type TicketInput = Omit<Ticket, "needs_approval" | "created_at"> & {
+type TicketInput = Omit<Ticket, "needs_approval" | "created_at" | "project_key"> & {
   needs_approval?: boolean
   created: number
 }
@@ -212,6 +224,7 @@ export const tickets: Ticket[] = (
 ).map(({ created, ...t }: TicketInput) => ({
   needs_approval: false,
   ...t,
+  project_key: projectKeyOf(t.key),
   created_at: minutesAgo(created),
 }))
 
@@ -234,7 +247,14 @@ const ev = (
   actor: Actor,
   minutes: number,
   details?: Event["details"]
-): Event => ({ action, ticket_key, actor, ...(details && { details }), created_at: minutesAgo(minutes) })
+): Event => ({
+  action,
+  ticket_key,
+  project_key: projectKeyOf(ticket_key),
+  actor,
+  ...(details && { details }),
+  created_at: minutesAgo(minutes),
+})
 const moved = (key: string, actor: Actor, minutes: number, from: TicketStatus, to: TicketStatus) =>
   ev(EVENT_ACTIONS.TICKET_MOVED, key, actor, minutes, { from, to })
 const closed = (key: string, actor: Actor, minutes: number, from: TicketStatus) =>
@@ -246,6 +266,7 @@ export const events: Event[] = [
   ...tickets.map((t) => ({
     action: EVENT_ACTIONS.TICKET_CREATED,
     ticket_key: t.key,
+    project_key: t.project_key,
     actor: t.created_by,
     details: { status: BACKLOG },
     created_at: t.created_at,
@@ -253,6 +274,7 @@ export const events: Event[] = [
   ...comments.map((c) => ({
     action: EVENT_ACTIONS.COMMENT_ADDED,
     ticket_key: c.ticket_key,
+    project_key: projectKeyOf(c.ticket_key),
     actor: c.author,
     created_at: c.created_at,
   })),

@@ -1,8 +1,9 @@
 // Shapes of the documents in each collection. Field names match docs/schema.md
 // exactly, so the same types work for mock data now and MongoDB later.
-import type { CategoryColor } from "@/lib/categories"
 import type {
   ACTOR_TYPES,
+  CategoryColor,
+  ProjectTemplate,
   AgentConnection,
   EventAction,
   Scope,
@@ -59,6 +60,12 @@ export type Project = {
   name: string
   description?: string
   team: string
+  template?: ProjectTemplate
+  // The board's columns, in order
+  categories: Category[]
+  // Tags the template suggests before any ticket uses them
+  starter_tags?: string[]
+  created_by: Actor
   created_at: Date
 }
 
@@ -73,6 +80,7 @@ export type Category = {
 
 export type Ticket = {
   key: string
+  project_key: string
   title: string
   tags?: string[]
   status: string
@@ -93,6 +101,7 @@ export type Comment = {
 export type Event = {
   action: EventAction
   ticket_key: string
+  project_key: string
   actor: Actor
   details?: Record<string, string>
   created_at: Date

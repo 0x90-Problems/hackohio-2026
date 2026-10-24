@@ -1,10 +1,13 @@
 // Fills the database with sample data for team 0x90 Problems.
 // Matches the Board, Agents and Teams wireframes in docs/design/wireframes.
 //
-// WARNING: this empties all six collections first, then inserts fresh data.
-// It refuses to run against anything other than a local MongoDB.
+// WARNING: this empties all seven collections first, then inserts fresh data.
+// It refuses to run against anything other than a local MongoDB, unless you
+// add --allow-remote (for the team's shared Atlas database, after checking
+// with the team, since it replaces everyone's data).
 //
 // Run setup first, then: npm run db:seed
+// Shared database:        npm run db:seed -- --allow-remote
 import { connect } from "./connect.js";
 import {
   ACTOR_FIELDS,
@@ -13,7 +16,9 @@ import {
   COLLECTIONS,
   DEFAULT_TOKEN_EXPIRY_HOURS,
   EVENT_ACTIONS,
+  PROJECT_TEMPLATES,
   SCOPES,
+  STATUS_LABELS,
   TICKET_STATUS,
   TOKEN_PREFIX,
 } from "../shared/names.ts";
@@ -70,6 +75,9 @@ const agents = [
 ].map((a) => ({ ...a, revoked: false }));
 
 const agentById = Object.fromEntries(agents.map((a) => [a._id, a]));
+
+// CLW-05 -> CLW
+const projectKeyOf = (ticketKey) => ticketKey.split("-")[0];
 
 // ---------- actor helpers ----------
 
@@ -134,55 +142,99 @@ for (const t of agentTokens) {
   if (extra.length) throw new Error(`Token ${t.token_hash} has scopes its agent lacks: ${extra}`);
 }
 
-// ---------- tickets CLW-01 to CLW-15 ----------
-// 5 backlog, 4 in progress, 2 in review, 4 done.
+// ---------- projects: same as the website's sample data ----------
+
+// The Blank template's columns: the four default statuses.
+const DEFAULT_COLORS = { backlog: "gray", in_progress: "amber", in_review: "orange", done: "green" };
+const defaultCategories = [BACKLOG, IN_PROGRESS, IN_REVIEW, DONE].map((slug, order) => ({
+  slug,
+  name: STATUS_LABELS[slug],
+  color: DEFAULT_COLORS[slug],
+  order,
+}));
+
+const projects = [
+  {
+    key: "CLW",
+    name: "HackOHI/O build",
+    description: "The buck2agents app we demo on Sunday.",
+    created_by: human("user_dylan"),
+    created: 1440,
+  },
+  {
+    key: "PIT",
+    name: "Pitch & demo",
+    description: "Slides, script and the live agent demo.",
+    created_by: human("user_naz"),
+    created: 300,
+  },
+].map(({ created, ...p }) => ({
+  ...p,
+  team: TEAM,
+  template: PROJECT_TEMPLATES.BLANK,
+  categories: defaultCategories,
+  created_at: minutesAgo(created),
+}));
+
+// ---------- tickets CLW-01 to CLW-15, PIT-01 to PIT-03 ----------
+// CLW: 5 backlog, 4 in progress, 2 in review, 4 done. PIT: 2 backlog, 1 in progress.
 
 const tickets = [
   // Done
   { key: "CLW-01", title: "Repo and project setup", status: DONE, created_by: human("user_dylan"), created: 600 },
   { key: "CLW-02", title: "Requirements locked", status: DONE, created_by: human("user_raddy"), created: 580 },
   {
-    key: "CLW-03", title: "Pre-event wireframes", label: "Design", status: DONE,
+    key: "CLW-03", title: "Pre-event wireframes", tags: ["Design"], status: DONE,
     created_by: human("user_raddy"), reviewer_id: "user_dylan", created: 720,
     linked_commits: [{ sha: "1ec9d09", message: "pre-event wireframes", added: 3950, removed: 0 }],
   },
   {
-    key: "CLW-04", title: "Shared scope and claim names", label: "Auth", status: DONE,
+    key: "CLW-04", title: "Shared scope and claim names", tags: ["Auth"], status: DONE,
     created_by: agent("agent_raddy_claude"), reviewer_id: "user_dylan", created: 480,
     linked_commits: [{ sha: "c7ecd31", message: "shared scope/claim names", added: 148, removed: 0 }],
   },
 
   // In review
   {
-    key: "CLW-05", title: "MongoDB schema: tickets, agents", label: "Database", status: IN_REVIEW,
+    key: "CLW-05", title: "MongoDB schema: tickets, agents", tags: ["Database"], status: IN_REVIEW,
     created_by: agent("agent_raddy_claude"), reviewer_id: "user_dylan", needs_approval: true, created: 180,
     linked_commits: [{ sha: "abc1234", message: "Add tickets collection", added: 20, removed: 2 }],
   },
   {
-    key: "CLW-06", title: "MCP tool: create and move ticket", label: "MCP", status: IN_REVIEW,
+    key: "CLW-06", title: "MCP tool: create and move ticket", tags: ["MCP"], status: IN_REVIEW,
     created_by: agent("agent_dylan_claude"), reviewer_id: "user_raddy", created: 240,
     linked_commits: [{ sha: "9f3e2a1", message: "Add create_ticket and move_ticket MCP tools", added: 140, removed: 12 }],
   },
 
   // In progress
-  { key: "CLW-07", title: "Agents page: revoke button", label: "UI", status: IN_PROGRESS, created_by: human("user_debora"), created: 300 },
+  { key: "CLW-07", title: "Agents page: revoke button", tags: ["UI"], status: IN_PROGRESS, created_by: human("user_debora"), created: 300 },
   {
-    key: "CLW-08", title: "Redis pub/sub for board events", label: "Backend", status: IN_PROGRESS,
+    key: "CLW-08", title: "Redis pub/sub for board events", tags: ["Backend"], status: IN_PROGRESS,
     created_by: agent("agent_dylan_claude"), created: 150,
     linked_commits: [{ sha: "5b7c0d2", message: "Publish board events to Redis", added: 64, removed: 3 }],
   },
-  { key: "CLW-09", title: "Ticket card UI", label: "UI", status: IN_PROGRESS, created_by: human("user_raddy"), created: 400 },
+  { key: "CLW-09", title: "Ticket card UI", tags: ["UI"], status: IN_PROGRESS, created_by: human("user_raddy"), created: 400 },
   // Wireframe shows an agent for Naz here, but Naz's agent only has tickets:read,
   // so it can't create tickets. Created by Naz instead.
-  { key: "CLW-10", title: "Define agent JWT scopes", label: "Auth", status: IN_PROGRESS, created_by: human("user_naz"), created: 210 },
+  { key: "CLW-10", title: "Define agent JWT scopes", tags: ["Auth"], status: IN_PROGRESS, created_by: human("user_naz"), created: 210 },
 
   // Backlog
-  { key: "CLW-11", title: "Authelia login + 2FA", label: "Auth", status: BACKLOG, created_by: human("user_dylan"), created: 350 },
-  { key: "CLW-12", title: "Write 3-minute pitch script", label: "Pitch", status: BACKLOG, created_by: human("user_naz"), created: 330 },
-  { key: "CLW-13", title: "Live activity feed", label: "UI", status: BACKLOG, created_by: human("user_debora"), created: 90 },
-  { key: "CLW-14", title: "Draft OpenAPI spec for tickets", label: "Docs", status: BACKLOG, created_by: agent("agent_dylan_claude"), created: 70 },
-  { key: "CLW-15", title: "Docs site with Zensical", label: "Docs", status: BACKLOG, created_by: human("user_debora"), created: 25 },
-].map(({ created, ...t }) => ({ needs_approval: false, ...t, created_at: minutesAgo(created) }));
+  { key: "CLW-11", title: "Authelia login + 2FA", tags: ["Auth"], status: BACKLOG, created_by: human("user_dylan"), created: 350 },
+  { key: "CLW-12", title: "Write 3-minute pitch script", tags: ["Pitch"], status: BACKLOG, created_by: human("user_naz"), created: 330 },
+  { key: "CLW-13", title: "Live activity feed", tags: ["UI"], status: BACKLOG, created_by: human("user_debora"), created: 90 },
+  { key: "CLW-14", title: "Draft OpenAPI spec for tickets", tags: ["Docs"], status: BACKLOG, created_by: agent("agent_dylan_claude"), created: 70 },
+  { key: "CLW-15", title: "Docs site with Zensical", tags: ["Docs"], status: BACKLOG, created_by: human("user_debora"), created: 25 },
+
+  // Pitch & demo project
+  { key: "PIT-01", title: "Outline the 3-minute pitch", tags: ["Pitch"], status: IN_PROGRESS, created_by: human("user_naz"), created: 280 },
+  { key: "PIT-02", title: "Record backup demo video", tags: ["Demo"], status: BACKLOG, created_by: human("user_debora"), created: 200 },
+  { key: "PIT-03", title: "Seed clean demo tickets", tags: ["Demo", "Data"], status: BACKLOG, created_by: agent("agent_raddy_claude"), created: 60 },
+].map(({ created, ...t }) => ({
+  needs_approval: false,
+  ...t,
+  project_key: projectKeyOf(t.key),
+  created_at: minutesAgo(created),
+}));
 
 // ---------- comments ----------
 
@@ -203,6 +255,7 @@ const comments = [
 const ev = (action, ticket_key, actor, minutes, details) => ({
   action,
   ticket_key,
+  project_key: projectKeyOf(ticket_key),
   actor,
   ...(details && { details }),
   created_at: minutesAgo(minutes),
@@ -215,6 +268,7 @@ const events = [
   ...tickets.map((t) => ({
     action: EVENT_ACTIONS.TICKET_CREATED,
     ticket_key: t.key,
+    project_key: t.project_key,
     actor: t.created_by,
     details: { status: BACKLOG },
     created_at: t.created_at,
@@ -222,6 +276,7 @@ const events = [
   ...comments.map((c) => ({
     action: EVENT_ACTIONS.COMMENT_ADDED,
     ticket_key: c.ticket_key,
+    project_key: projectKeyOf(c.ticket_key),
     actor: c.author,
     created_at: c.created_at,
   })),
@@ -262,14 +317,19 @@ const events = [
 
 const { client, db, uri } = await connect();
 try {
-  // Safety check: seeding wipes data, so only allow it on this computer.
+  // Safety check: seeding wipes data, so only allow it on this computer
+  // unless --allow-remote was passed on purpose.
   const host = new URL(uri).hostname;
-  if (!["localhost", "127.0.0.1"].includes(host)) {
-    throw new Error(`Refusing to seed ${host}: seed.js only runs against a local MongoDB.`);
+  const allowRemote = process.argv.includes("--allow-remote");
+  if (!["localhost", "127.0.0.1"].includes(host) && !allowRemote) {
+    throw new Error(
+      `Refusing to seed ${host}: seed.js replaces all data. For the shared database, run "npm run db:seed -- --allow-remote".`,
+    );
   }
 
   const data = {
     [COLLECTIONS.USERS]: users,
+    [COLLECTIONS.PROJECTS]: projects,
     [COLLECTIONS.AGENTS]: agents,
     [COLLECTIONS.AGENT_TOKENS]: agentTokens,
     [COLLECTIONS.TICKETS]: tickets,

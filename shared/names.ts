@@ -35,7 +35,10 @@ export const ACTOR_FIELDS = {
   ACTING_FOR: "acting_for", // only when type is "agent"
 } as const;
 
-// ---------- Ticket status (board columns, in order) ----------
+// ---------- Ticket status (default board columns, in order) ----------
+// Each project picks its own columns (see "Projects" below). These four are
+// the Blank template's columns, and Approve / Request changes look for
+// in_review, in_progress and done when a project has them.
 export const TICKET_STATUS = {
   BACKLOG: "backlog",
   IN_PROGRESS: "in_progress",
@@ -57,6 +60,40 @@ export const STATUS_LABELS: Record<TicketStatus, string> = {
   in_review: "In review",
   done: "Done",
 };
+
+// ---------- Projects ----------
+// A team can have several projects (like GitHub repos). The project key is
+// the ticket id prefix: project CLW has tickets CLW-01, CLW-02 ...
+export const PROJECT_KEY_PATTERN = "^[A-Z][A-Z0-9]{1,5}$";
+// A column ("category") slug: lowercase words joined by _, like in_review
+export const CATEGORY_SLUG_PATTERN = "^[a-z0-9]+(_[a-z0-9]+)*$";
+
+// Colors a board column can use (no blue or purple, per the design rules).
+export const CATEGORY_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "pink",
+] as const;
+export type CategoryColor = (typeof CATEGORY_COLORS)[number];
+
+// Starting setups for a new project (web/lib/templates.ts has their columns).
+export const PROJECT_TEMPLATES = {
+  BLANK: "blank",
+  TEAM_PLANNING: "team-planning",
+  KANBAN: "kanban",
+  FEATURE_RELEASE: "feature-release",
+  BUG_TRACKER: "bug-tracker",
+  ITERATIVE_DEVELOPMENT: "iterative-development",
+  PRODUCT_LAUNCH: "product-launch",
+  ROADMAP: "roadmap",
+  TEAM_RETROSPECTIVE: "team-retrospective",
+} as const;
+export type ProjectTemplate =
+  (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
 
 // ---------- How an agent connects ----------
 export const AGENT_CONNECTION = {
@@ -80,6 +117,7 @@ export type EventAction = (typeof EVENT_ACTIONS)[keyof typeof EVENT_ACTIONS];
 export const DB_NAME = "hackathon";
 export const COLLECTIONS = {
   USERS: "users",
+  PROJECTS: "projects",
   AGENTS: "agents",
   AGENT_TOKENS: "agent_tokens",
   TICKETS: "tickets",
