@@ -455,6 +455,8 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         onRequestChanges={store.requestChanges}
         onMove={store.moveTicket}
         onTagsChange={store.setTags}
+        onDescriptionChange={store.setDescription}
+        onColorChange={store.setTicketColor}
       />
 
       {editing?.kind === "create" && (

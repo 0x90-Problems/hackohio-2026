@@ -151,7 +151,12 @@ function useProjectsState() {
   // (the chat assistant) acting for them.
   function createTicket(
     projectKey: string,
-    input: { title: string; status: string; tags: string[] },
+    input: {
+      title: string
+      status: string
+      tags: string[]
+      due_date?: string
+    },
     actor: Actor = me
   ) {
     const numbers = ticketsRef.current
@@ -165,6 +170,7 @@ function useProjectsState() {
       title: input.title,
       ...(input.tags.length > 0 && { tags: input.tags }),
       status: input.status,
+      ...(input.due_date && { due_date: input.due_date }),
       created_by: actor,
       needs_approval: false,
       created_at,
@@ -202,6 +208,34 @@ function useProjectsState() {
   function setTags(ticketKey: string, tags: string[]) {
     setTickets((current) =>
       current.map((t) => (t.key === ticketKey ? { ...t, tags } : t))
+    )
+  }
+
+  function setDescription(ticketKey: string, description: string) {
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.key === ticketKey ? { ...ticket, description } : ticket
+      )
+    )
+  }
+
+  function setTicketColor(ticketKey: string, card_color?: CategoryColor) {
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.key === ticketKey ? { ...ticket, card_color } : ticket
+      )
+    )
+  }
+
+  function setDueDate(ticketKey: string, due_date: string) {
+    setTickets((current) =>
+      current.map((ticket) => {
+        if (ticket.key !== ticketKey) return ticket
+        if (due_date) return { ...ticket, due_date }
+        const withoutDueDate = { ...ticket }
+        delete withoutDueDate.due_date
+        return withoutDueDate
+      })
     )
   }
 
@@ -310,6 +344,9 @@ function useProjectsState() {
     createTicket,
     moveTicket,
     setTags,
+    setDescription,
+    setTicketColor,
+    setDueDate,
     createCategory,
     updateCategory,
     deleteCategory,
