@@ -3,10 +3,8 @@ import { motion } from "motion/react"
 import type { Category, Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { ActorBadge } from "@/components/actor-badge"
-import { LiveDot } from "@/components/live-dot"
 import {
   Card,
-  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -27,9 +25,6 @@ export function LiveActivity({
     <Card className="lg:sticky lg:top-20">
       <CardHeader>
         <CardTitle>Live activity</CardTitle>
-        <CardAction>
-          <LiveDot label="Streaming" />
-        </CardAction>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)]">

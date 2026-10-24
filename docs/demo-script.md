@@ -27,6 +27,8 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 | 1:30 | Point at the agent's comment | "It even explains what it did." |
 | 1:40 | Click **Approve** | The popup says "Approved CLW-16 · Moved to Done". |
 | 1:45 | Press **Esc** to close | The card is now in **Done** and the top of **Live activity** says Raddy closed CLW-16. "A human made the final call, and it's on the record." |
+| 1:50 | Click **Ask the assistant** (bottom right), then the suggestion **Move CLW-12 to In progress** | The card moves on the board and Live activity shows "Board assistant · for Raddy". "You can also just ask. The assistant is an agent too, acting for me, so it's on the record like any other agent." |
+| 1:55 | Type **approve CLW-16** | It says agents can't approve tickets: "Even our own assistant can't close tickets. That's the human's job." |
 | 2:00 | Drag any Backlog card to **In progress** | "Humans use the same board: drag and drop, custom columns, tags." |
 | 2:15 | Click the project name (**HackOHI/O build ⇅**), pick **Pitch & demo**, then open it again and pick **All projects** | "One team, many projects, each with its own board. Templates like Kanban or Bug tracker set up the columns for you." |
 | 2:35 | Open **Agents** | "And you control every agent here: what it may do, and a Revoke button that cuts it off right away." |
@@ -37,6 +39,7 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 - **Page shows "This site can't be reached":** the site stopped. Run step 1 again, then reload.
 - **CLW-16 is already in Done:** reload the page (the sample data resets).
 - **ngrok link fails on OSU Wi-Fi:** use `--region us` (step 5) or your phone's hotspot.
+- **The assistant says "offline mode":** that's fine for the demo; it understands the suggestions shown in the chat. For real AI answers, add an Anthropic API key (see below).
 - **Anything else:** present from localhost on your own laptop. Everything in this script works without internet.
 
 ## Where the demo data lives
@@ -46,3 +49,13 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
   ```bash
   cd ~/Documents/GitHub/hackohio-2026 && npm run db:seed -- --allow-remote
   ```
+
+## Real AI for the assistant (optional)
+
+Without a key the chat runs in offline mode. To use Claude, create `web/.env.local` with this one line (your key from https://console.anthropic.com, under API keys), then restart `npm run dev`:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+The chat header then says "powered by Claude". Never commit this file; git already ignores it.

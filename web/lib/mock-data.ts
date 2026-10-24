@@ -79,7 +79,19 @@ export const agents: Agent[] = [
     connection: AGENT_CONNECTION.API_KEY,
     scopes: [SCOPES.TICKETS_READ],
   },
+  {
+    // The chat assistant at the bottom of the website. It acts for the person
+    // using it, and like every agent it can't approve or close tickets.
+    _id: "agent_raddy_assistant",
+    name: "Board assistant",
+    owner_id: "user_raddy",
+    connection: AGENT_CONNECTION.API_KEY,
+    scopes: [SCOPES.TICKETS_READ, SCOPES.TICKETS_WRITE, SCOPES.COMMENTS_WRITE],
+  },
 ].map((a) => ({ ...a, revoked: false }))
+
+// The agent behind the chat assistant (components/assistant)
+export const ASSISTANT_AGENT_ID = "agent_raddy_assistant"
 
 // ---------- lookups ----------
 

@@ -39,10 +39,18 @@ const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
 
 // Holds every project's board in one place, so moves, categories and tags
-// survive switching pages. Still mock data: a reload starts over.
+// survive switching pages. Mounted once in app/layout.tsx. Still mock data:
+// a reload starts over.
 function useProjectsState() {
   const [projects, setProjects] = useState<Project[]>(allProjects)
-  const [tickets, setTickets] = useState<Ticket[]>(allTickets)
+  const [tickets, setTicketsState] = useState<Ticket[]>(allTickets)
+  // Always-current copy, so several actions in a row (like the assistant
+  // creating two tickets at once) see each other's changes.
+  const ticketsRef = useRef(tickets)
+  function setTickets(update: (current: Ticket[]) => Ticket[]) {
+    ticketsRef.current = update(ticketsRef.current)
+    setTicketsState(ticketsRef.current)
+  }
   const [activity, setActivity] = useState<Event[]>(() =>
     [...allEvents].sort(newestFirst)
   )
@@ -139,11 +147,14 @@ function useProjectsState() {
     })
   }
 
+  // `actor` is who did it: the signed-in person by default, or an agent
+  // (the chat assistant) acting for them.
   function createTicket(
     projectKey: string,
-    input: { title: string; status: string; tags: string[] }
+    input: { title: string; status: string; tags: string[] },
+    actor: Actor = me
   ) {
-    const numbers = tickets
+    const numbers = ticketsRef.current
       .filter((t) => projectKeyOf(t.key) === projectKey)
       .map((t) => Number(t.key.split("-")[1]))
     const key = `${projectKey}-${String(Math.max(0, ...numbers) + 1).padStart(2, "0")}`
@@ -154,7 +165,7 @@ function useProjectsState() {
       title: input.title,
       ...(input.tags.length > 0 && { tags: input.tags }),
       status: input.status,
-      created_by: me,
+      created_by: actor,
       needs_approval: false,
       created_at,
     }
@@ -163,22 +174,23 @@ function useProjectsState() {
     addEvent({
       action: EVENT_ACTIONS.TICKET_CREATED,
       ticket_key: key,
-      actor: me,
+      actor,
       details: { status: input.status },
       created_at,
     })
     toast.success(`Created ${key}`, { description: input.title })
+    return key
   }
 
   // Move a ticket to another column (drag and drop, or the panel's picker)
-  function moveTicket(ticketKey: string, to: string) {
-    const ticket = tickets.find((t) => t.key === ticketKey)
+  function moveTicket(ticketKey: string, to: string, actor: Actor = me) {
+    const ticket = ticketsRef.current.find((t) => t.key === ticketKey)
     if (!ticket || ticket.status === to) return
     setStatus(ticketKey, to)
     addEvent({
       action: EVENT_ACTIONS.TICKET_MOVED,
       ticket_key: ticketKey,
-      actor: me,
+      actor,
       details: { from: ticket.status, to },
       created_at: now(),
     })
@@ -234,13 +246,13 @@ function useProjectsState() {
     toast(`Deleted category ${categoryName(slug, categoriesOf(projectKey))}`)
   }
 
-  function comment(ticketKey: string, body: string) {
+  function comment(ticketKey: string, body: string, actor: Actor = me) {
     const created_at = now()
-    addComment({ ticket_key: ticketKey, author: me, body, created_at })
+    addComment({ ticket_key: ticketKey, author: actor, body, created_at })
     addEvent({
       action: EVENT_ACTIONS.COMMENT_ADDED,
       ticket_key: ticketKey,
-      actor: me,
+      actor,
       created_at,
     })
   }
@@ -249,7 +261,7 @@ function useProjectsState() {
   const columnOr = (slug: string, ticketKey: string) =>
     categoriesOfTicket(ticketKey).some((c) => c.slug === slug)
       ? slug
-      : (tickets.find((t) => t.key === ticketKey)?.status ?? slug)
+      : (ticketsRef.current.find((t) => t.key === ticketKey)?.status ?? slug)
 
   function approve(ticketKey: string) {
     const to = columnOr(TICKET_STATUS.DONE, ticketKey)
@@ -284,6 +296,8 @@ function useProjectsState() {
   return {
     projects,
     tickets,
+    // Latest tickets, including changes made earlier in the same click
+    getTickets: () => ticketsRef.current,
     activity,
     comments,
     newEventIds,

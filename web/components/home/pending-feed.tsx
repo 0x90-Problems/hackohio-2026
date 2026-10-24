@@ -15,12 +15,10 @@ import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
 import { ticketHref } from "@/components/board/ticket-modal"
 import { FeedList, type FeedItem } from "@/components/feed-list"
-import { LiveDot } from "@/components/live-dot"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
-  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -49,9 +47,6 @@ export function PendingFeed() {
     <Card>
       <CardHeader>
         <CardTitle>Pending actions &amp; recent comments</CardTitle>
-        <CardAction>
-          <LiveDot label="Streaming" />
-        </CardAction>
       </CardHeader>
       <CardContent>
         <FeedList

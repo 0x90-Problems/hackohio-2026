@@ -3,6 +3,8 @@ import { Geist_Mono, Inter } from "next/font/google"
 
 import "./globals.css"
 import { AppHeader } from "@/components/app-header"
+import { ChatDock } from "@/components/assistant/chat-dock"
+import { ProjectsProvider } from "@/components/projects/projects-store"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -35,7 +37,12 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           <TooltipProvider>
             <AppHeader />
-            {children}
+            {/* One shared store for every page, so board changes (by people or
+                the chat assistant) survive moving between pages */}
+            <ProjectsProvider>
+              {children}
+              <ChatDock />
+            </ProjectsProvider>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-// Small pulsing dot + label for live feeds ("Live", "Streaming").
+// Small pulsing dot + label for live feeds ("Live").
 export function LiveDot({ label, className }: { label: string; className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
