@@ -28,7 +28,8 @@ import {
   type CategoryColor,
 } from "@/lib/categories"
 import { eventId } from "@/lib/format"
-import { commentId } from "@/components/board/ticket-sheet"
+import { templateCategories, type ProjectTemplate } from "@/lib/templates"
+import { commentId } from "@/components/board/ticket-modal"
 
 // CLW-05 -> CLW
 export const projectKeyOf = (ticketKey: string) => ticketKey.split("-")[0]
@@ -49,6 +50,8 @@ function useProjectsState() {
     [...allEvents].sort(newestFirst)
   )
   const [comments, setComments] = useState<Comment[]>(allComments)
+  // Tags a project's template suggests before any ticket uses them
+  const [starterTags, setStarterTags] = useState<Record<string, string[]>>({})
   // Remember what arrived after the page loaded, so only those animate in.
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set())
   const [newTicketKeys, setNewTicketKeys] = useState<Set<string>>(new Set())
@@ -98,15 +101,34 @@ function useProjectsState() {
     )
   }
 
-  function createProject(input: {
+  // Every tag used on a project's tickets, plus its template's starter tags
+  const tagsOf = (projectKey: string) =>
+    [
+      ...new Set([
+        ...(starterTags[projectKey] ?? []),
+        ...tickets
+          .filter((t) => projectKeyOf(t.key) === projectKey)
+          .flatMap((t) => t.tags ?? []),
+      ]),
+    ].sort()
+
+  function createProject({
+    template,
+    ...input
+  }: {
     name: string
     key: string
     description?: string
     team: string
+    template: ProjectTemplate
   }) {
     const project: Project = { ...input, created_at: now() }
     setProjects((current) => [...current, project])
-    setCategories((all) => ({ ...all, [project.key]: DEFAULT_CATEGORIES }))
+    setCategories((all) => ({
+      ...all,
+      [project.key]: templateCategories(template),
+    }))
+    setStarterTags((all) => ({ ...all, [project.key]: template.tags }))
     setNewProjectKeys((keys) => new Set(keys).add(project.key))
     toast.success(`Created project ${project.name}`, {
       description: `Tickets will be ${project.key}-01, ${project.key}-02 …`,
@@ -264,6 +286,7 @@ function useProjectsState() {
     newCommentIds,
     newProjectKeys,
     categoriesOf,
+    tagsOf,
     createProject,
     createTicket,
     moveTicket,

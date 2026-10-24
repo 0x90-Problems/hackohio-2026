@@ -32,7 +32,8 @@
 
 ## All pages
 - Clickable cards lift slightly with a shadow on hover.
-- The ticket detail panel uses shadcn `Sheet` so it slides in from the right.
+- The ticket detail opens in a centered modal (shadcn `Dialog`) at /projects/[key]/board/ticket/[id]. Closing it returns to the board.
+- Search boxes use the "combo search box" design: shadcn Combobox (Popover + Command). Reuse `components/search-combobox.tsx`.
 - Board: new items in the Live activity panel slide in from the top. When a ticket's status changes, the card animates to its new column using motion's layout animation.
 
 ## Data

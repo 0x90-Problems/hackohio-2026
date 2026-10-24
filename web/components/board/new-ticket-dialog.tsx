@@ -42,7 +42,9 @@ export function NewTicketDialog({
   const [status, setStatus] = useState<string>()
   const [tags, setTags] = useState<string[]>([])
   // Default to the first column, and fall back to it if the picked one was deleted
-  const startIn = categories.some((c) => c.slug === status) ? status : categories[0]?.slug
+  const startIn = categories.some((c) => c.slug === status)
+    ? status
+    : categories[0]?.slug
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -65,7 +67,9 @@ export function NewTicketDialog({
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>New ticket</DialogTitle>
-            <DialogDescription>You can move it to another column later.</DialogDescription>
+            <DialogDescription>
+              You can move it to another column later.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="ticket-title">Title</Label>

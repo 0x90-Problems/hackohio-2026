@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
 import {
   CheckIcon,
-  ChevronDownIcon,
+  ChevronsUpDownIcon,
   LayoutGridIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -20,7 +21,8 @@ import { cn } from "@/lib/utils"
 import { LiveActivity } from "@/components/board/live-activity"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
-import { TicketSheetFromUrl } from "@/components/board/ticket-sheet"
+import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
+import { SearchCombobox } from "@/components/search-combobox"
 import {
   CategoryDialog,
   ColorDot,
@@ -40,7 +42,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -66,10 +67,15 @@ const SPRING = { type: "spring", stiffness: 400, damping: 32 } as const
 
 export function BoardView({ projectKey }: { projectKey: string }) {
   const store = useProjects()
+  const router = useRouter()
   const project = store.projects.find((p) => p.key === projectKey)
   const categories = store.categoriesOf(projectKey)
-  const tickets = store.tickets.filter((t) => projectKeyOf(t.key) === projectKey)
-  const activity = store.activity.filter((e) => projectKeyOf(e.ticket_key) === projectKey)
+  const tickets = store.tickets.filter(
+    (t) => projectKeyOf(t.key) === projectKey
+  )
+  const activity = store.activity.filter(
+    (e) => projectKeyOf(e.ticket_key) === projectKey
+  )
 
   const [filter, setFilter] = useState<Filter>("all")
   const [editing, setEditing] = useState<Editing | null>(null)
@@ -82,8 +88,8 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">No project “{projectKey}”</h1>
         <p className="text-muted-foreground">
-          It may have been made in another browser tab. Projects are sample data until we
-          connect the database.
+          It may have been made in another browser tab. Projects are sample data
+          until we connect the database.
         </p>
         <Button asChild>
           <Link href="/projects">See all projects</Link>
@@ -93,7 +99,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   }
 
   // Every tag used on this board, offered as suggestions when tagging
-  const tagSuggestions = [...new Set(tickets.flatMap((t) => t.tags ?? []))].sort()
+  const tagSuggestions = store.tagsOf(projectKey)
 
   const visible = tickets.filter(
     (t) =>
@@ -119,40 +125,85 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
-            {/* Project switcher: the title opens a list of the team's projects */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            {/* Project switcher: the title opens a search over the team's projects */}
+            <SearchCombobox
+              label="Switch project"
+              searchPlaceholder="Find a project"
+              emptyText="No project found."
+              trigger={
                 <button
                   type="button"
                   className="-ml-1 flex items-center gap-2 rounded-lg px-1 text-left text-3xl font-semibold tracking-tight hover:bg-muted"
                 >
                   {project.name}
-                  <ChevronDownIcon className="size-5 text-muted-foreground" />
+                  <ChevronsUpDownIcon className="size-5 text-muted-foreground" />
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-64">
-                <DropdownMenuLabel>Switch project</DropdownMenuLabel>
-                {store.projects
-                  .filter((p) => p.team === project.team)
-                  .map((p) => (
-                    <DropdownMenuItem key={p.key} asChild>
-                      <Link href={`/projects/${p.key}/board`}>
-                        <span className="font-mono text-xs text-muted-foreground">{p.key}</span>
-                        <span className="flex-1 truncate">{p.name}</span>
-                        {p.key === project.key && <CheckIcon />}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/projects">
-                    <LayoutGridIcon /> All projects
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              }
+              groups={[
+                {
+                  heading: project.team,
+                  items: store.projects
+                    .filter((p) => p.team === project.team)
+                    .map((p) => ({
+                      value: p.key,
+                      keywords: [p.name],
+                      label: (
+                        <>
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                            {p.key}
+                          </span>
+                          <span className="flex-1 truncate">{p.name}</span>
+                          {p.key === project.key && <CheckIcon />}
+                        </>
+                      ),
+                      onSelect: () => router.push(`/projects/${p.key}/board`),
+                    })),
+                },
+                {
+                  items: [
+                    {
+                      value: "all-projects",
+                      keywords: ["projects", "all"],
+                      label: (
+                        <>
+                          <LayoutGridIcon /> All projects
+                        </>
+                      ),
+                      onSelect: () => router.push("/projects"),
+                    },
+                  ],
+                },
+              ]}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Find a ticket by id, title or tag; grouped by column */}
+            <SearchCombobox
+              label="Search tickets…"
+              searchPlaceholder="Ticket id, title or tag"
+              emptyText="No ticket found."
+              className="w-56"
+              groups={categories.map((c) => ({
+                heading: c.name,
+                items: tickets
+                  .filter((t) => t.status === c.slug)
+                  .sort(newestFirst)
+                  .map((t) => ({
+                    value: t.key,
+                    keywords: [t.title, ...(t.tags ?? [])],
+                    label: (
+                      <>
+                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                          {t.key}
+                        </span>
+                        <span className="truncate">{t.title}</span>
+                      </>
+                    ),
+                    onSelect: () =>
+                      router.push(ticketHref(t.key), { scroll: false }),
+                  })),
+              }))}
+            />
             <ToggleGroup
               type="single"
               variant="outline"
@@ -164,7 +215,10 @@ export function BoardView({ projectKey }: { projectKey: string }) {
               <ToggleGroupItem value="humans">Humans</ToggleGroupItem>
               <ToggleGroupItem value="agents">Agents</ToggleGroupItem>
             </ToggleGroup>
-            <Button variant="outline" onClick={() => setEditing({ kind: "create" })}>
+            <Button
+              variant="outline"
+              onClick={() => setEditing({ kind: "create" })}
+            >
               <PlusIcon data-icon="inline-start" />
               New category
             </Button>
@@ -196,7 +250,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   const columnTickets = visible
                     .filter((t) => t.status === category.slug)
                     .sort(newestFirst)
-                  const total = tickets.filter((t) => t.status === category.slug).length
+                  const total = tickets.filter(
+                    (t) => t.status === category.slug
+                  ).length
                   const isTarget = dropTarget === category.slug
                   return (
                     // Columns fade up one after another on load, and slide in/out
@@ -205,22 +261,37 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                       key={category.slug}
                       layout
                       initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0, scale: isTarget ? 1.015 : 1 }}
-                      exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
-                      transition={{ ...SPRING, delay: dragging ? 0 : index * 0.04 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        scale: isTarget ? 1.015 : 1,
+                      }}
+                      exit={{
+                        opacity: 0,
+                        scale: 0.9,
+                        transition: { duration: 0.15 },
+                      }}
+                      transition={{
+                        ...SPRING,
+                        delay: dragging ? 0 : index * 0.04,
+                      }}
                       className="w-72 shrink-0"
                     >
                       <section
                         aria-label={category.name}
                         onDragOver={(e) => {
-                          if (!e.dataTransfer.types.includes(TICKET_DRAG_TYPE)) return
+                          if (!e.dataTransfer.types.includes(TICKET_DRAG_TYPE))
+                            return
                           e.preventDefault()
                           e.dataTransfer.dropEffect = "move"
                           setDropTarget(category.slug)
                         }}
                         onDragLeave={(e) => {
                           // Ignore leaving into a child element of this column
-                          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null)
+                          if (
+                            !e.currentTarget.contains(e.relatedTarget as Node)
+                          )
+                            setDropTarget(null)
                         }}
                         onDrop={(e) => {
                           const key = e.dataTransfer.getData(TICKET_DRAG_TYPE)
@@ -235,7 +306,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                       >
                         <h2 className="flex items-center gap-2 px-1 text-sm font-semibold">
                           <ColorDot color={category.color} />
-                          <span className="min-w-0 flex-1 truncate">{category.name}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {category.name}
+                          </span>
                           {/* The count rolls to its new value */}
                           <AnimatePresence mode="popLayout" initial={false}>
                             <motion.span
@@ -261,7 +334,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                onSelect={() => setEditing({ kind: "edit", category })}
+                                onSelect={() =>
+                                  setEditing({ kind: "edit", category })
+                                }
                               >
                                 <PencilIcon /> Rename or recolor
                               </DropdownMenuItem>
@@ -269,7 +344,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                               <DropdownMenuItem
                                 variant="destructive"
                                 disabled={categories.length === 1}
-                                onSelect={() => setEditing({ kind: "delete", category })}
+                                onSelect={() =>
+                                  setEditing({ kind: "delete", category })
+                                }
                               >
                                 <Trash2Icon /> Delete category
                               </DropdownMenuItem>
@@ -285,7 +362,11 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                               key={ticket.key}
                               layoutId={ticket.key}
                               layout="position"
-                              initial={isNew ? { opacity: 0, scale: 0.85, y: -8 } : false}
+                              initial={
+                                isNew
+                                  ? { opacity: 0, scale: 0.85, y: -8 }
+                                  : false
+                              }
                               animate={{
                                 opacity: dragging === ticket.key ? 0.4 : 1,
                                 scale: dragging === ticket.key ? 0.97 : 1,
@@ -297,7 +378,10 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                               <div
                                 draggable
                                 onDragStart={(e) => {
-                                  e.dataTransfer.setData(TICKET_DRAG_TYPE, ticket.key)
+                                  e.dataTransfer.setData(
+                                    TICKET_DRAG_TYPE,
+                                    ticket.key
+                                  )
                                   e.dataTransfer.effectAllowed = "move"
                                   setDragging(ticket.key)
                                 }}
@@ -348,10 +432,14 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       </div>
 
       <aside className="min-w-0">
-        <LiveActivity events={activity} newIds={store.newEventIds} categories={categories} />
+        <LiveActivity
+          events={activity}
+          newIds={store.newEventIds}
+          categories={categories}
+        />
       </aside>
 
-      <TicketSheetFromUrl
+      <TicketModalFromUrl
         projectKey={projectKey}
         tickets={tickets}
         categories={categories}
@@ -374,7 +462,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       {editing?.kind === "edit" && (
         <CategoryDialog
           category={editing.category}
-          onSave={(changes) => store.updateCategory(projectKey, editing.category.slug, changes)}
+          onSave={(changes) =>
+            store.updateCategory(projectKey, editing.category.slug, changes)
+          }
           onClose={() => setEditing(null)}
         />
       )}
@@ -382,8 +472,12 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         <DeleteCategoryDialog
           category={editing.category}
           others={categories.filter((c) => c.slug !== editing.category.slug)}
-          ticketCount={tickets.filter((t) => t.status === editing.category.slug).length}
-          onDelete={(moveTo) => store.deleteCategory(projectKey, editing.category.slug, moveTo)}
+          ticketCount={
+            tickets.filter((t) => t.status === editing.category.slug).length
+          }
+          onDelete={(moveTo) =>
+            store.deleteCategory(projectKey, editing.category.slug, moveTo)
+          }
           onClose={() => setEditing(null)}
         />
       )}

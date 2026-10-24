@@ -30,10 +30,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export function ColorDot({ color, className }: { color: CategoryColor; className?: string }) {
+export function ColorDot({
+  color,
+  className,
+}: {
+  color: CategoryColor
+  className?: string
+}) {
   return (
     <span
-      className={cn("size-2.5 shrink-0 rounded-full", CATEGORY_COLORS[color].dot, className)}
+      className={cn(
+        "size-2.5 shrink-0 rounded-full",
+        CATEGORY_COLORS[color].dot,
+        className
+      )}
       aria-hidden
     />
   )
@@ -65,7 +75,9 @@ export function CategoryDialog({
       <DialogContent>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>{category ? "Edit category" : "New category"}</DialogTitle>
+            <DialogTitle>
+              {category ? "Edit category" : "New category"}
+            </DialogTitle>
             <DialogDescription>
               Categories are the columns on the board.
             </DialogDescription>

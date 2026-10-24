@@ -13,7 +13,7 @@ import {
 import { timeAgo } from "@/lib/format"
 import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
-import { ticketHref } from "@/components/board/ticket-sheet"
+import { ticketHref } from "@/components/board/ticket-modal"
 import { FeedList, type FeedItem } from "@/components/feed-list"
 import { LiveDot } from "@/components/live-dot"
 import { Badge } from "@/components/ui/badge"

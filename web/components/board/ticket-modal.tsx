@@ -3,11 +3,7 @@
 import { useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import {
-  ACTOR_TYPES,
-  AGENT_CONNECTION,
-  TICKET_STATUS,
-} from "@/shared/names"
+import { ACTOR_TYPES, AGENT_CONNECTION, TICKET_STATUS } from "@/shared/names"
 import type { Category, Comment, Ticket } from "@/lib/types"
 import {
   MOCK_NOW,
@@ -34,13 +30,13 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 
 const CONNECTION_LABELS = {
@@ -58,7 +54,7 @@ export type TicketActions = {
 
 // Opens the sheet for the ticket named in the address
 // (/projects/CLW/board/ticket/CLW-05). Closing it goes back to the board.
-export function TicketSheetFromUrl({
+export function TicketModalFromUrl({
   projectKey,
   tickets,
   categories,
@@ -79,13 +75,15 @@ export function TicketSheetFromUrl({
   const ticket = tickets.find((t) => t.key === key)
 
   return (
-    <Sheet
+    // A centered modal over the board. Closing it (x, Esc, clicking outside)
+    // goes back to the board's address.
+    <Dialog
       open={!!ticket}
       onOpenChange={(open) =>
         !open && router.push(`/projects/${projectKey}/board`, { scroll: false })
       }
     >
-      <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
+      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
         {ticket && (
           <TicketDetail
             ticket={ticket}
@@ -96,8 +94,8 @@ export function TicketSheetFromUrl({
             {...actions}
           />
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -134,8 +132,10 @@ function TicketDetail({
   const [draft, setDraft] = useState("")
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
-  const agent = creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
-  const owner = creator.type === ACTOR_TYPES.AGENT ? getUser(creator.acting_for) : undefined
+  const agent =
+    creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
+  const owner =
+    creator.type === ACTOR_TYPES.AGENT ? getUser(creator.acting_for) : undefined
   const reviewer = ticket.reviewer_id ? getUser(ticket.reviewer_id) : undefined
   // Scopes come from the agent's current token: not revoked and not expired.
   const token = agent
@@ -161,16 +161,23 @@ function TicketDetail({
 
   return (
     <>
-      <SheetHeader className="gap-2 border-b p-6">
-        <SheetDescription className="font-mono text-xs">
+      <DialogHeader className="gap-2 border-b p-6 pr-14">
+        <DialogDescription className="font-mono text-xs">
           {ticket.key}
-        </SheetDescription>
-        <SheetTitle className="text-2xl font-semibold tracking-tight">
+        </DialogDescription>
+        <DialogTitle className="text-2xl font-semibold tracking-tight">
           {ticket.title}
-        </SheetTitle>
+        </DialogTitle>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={ticket.status} onValueChange={(status) => onMove(ticket.key, status)}>
-            <SelectTrigger size="sm" aria-label="Move to column" className="w-auto">
+          <Select
+            value={ticket.status}
+            onValueChange={(status) => onMove(ticket.key, status)}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label="Move to column"
+              className="w-auto"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -181,9 +188,11 @@ function TicketDetail({
               ))}
             </SelectContent>
           </Select>
-          {ticket.needs_approval && <Badge variant="outline">Needs human approval</Badge>}
+          {ticket.needs_approval && (
+            <Badge variant="outline">Needs human approval</Badge>
+          )}
         </div>
-      </SheetHeader>
+      </DialogHeader>
 
       {/* Who's involved */}
       <dl className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm">
@@ -223,7 +232,9 @@ function TicketDetail({
         )}
 
         <dt className="self-start pt-2 text-muted-foreground">
-          <Label htmlFor="ticket-tags" className="font-normal">Tags</Label>
+          <Label htmlFor="ticket-tags" className="font-normal">
+            Tags
+          </Label>
         </dt>
         <dd>
           <TagInput
@@ -260,8 +271,12 @@ function TicketDetail({
                 key={commit.sha}
                 className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
               >
-                <code className="font-mono text-xs font-semibold">{commit.sha}</code>
-                <span className="min-w-0 flex-1 truncate">{commit.message}</span>
+                <code className="font-mono text-xs font-semibold">
+                  {commit.sha}
+                </code>
+                <span className="min-w-0 flex-1 truncate">
+                  {commit.message}
+                </span>
                 <span className="shrink-0 font-mono text-xs text-muted-foreground">
                   +{commit.added} −{commit.removed}
                 </span>
@@ -269,7 +284,9 @@ function TicketDetail({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No commits linked yet.</p>
+          <p className="text-sm text-muted-foreground">
+            No commits linked yet.
+          </p>
         )}
       </section>
 
@@ -292,13 +309,20 @@ function TicketDetail({
                 key={id}
                 className={cn(
                   "flex flex-col gap-1.5 rounded-lg border p-3",
-                  byAgent && "border-dashed border-muted-foreground/50 bg-muted/40",
-                  newCommentIds.has(id) && "duration-300 animate-in fade-in slide-in-from-top-2"
+                  byAgent &&
+                    "border-dashed border-muted-foreground/50 bg-muted/40",
+                  newCommentIds.has(id) &&
+                    "animate-in duration-300 fade-in slide-in-from-top-2"
                 )}
               >
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <ActorBadge actor={comment.author} className="text-xs text-foreground" />
-                  <span className="shrink-0">{timeAgo(comment.created_at)}</span>
+                  <ActorBadge
+                    actor={comment.author}
+                    className="text-xs text-foreground"
+                  />
+                  <span className="shrink-0">
+                    {timeAgo(comment.created_at)}
+                  </span>
                 </div>
                 <p className="text-sm">{comment.body}</p>
               </li>
@@ -329,7 +353,7 @@ function TicketDetail({
         </div>
       </section>
 
-      <SheetFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-background p-6">
+      <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2">
         <Button disabled={!inReview} onClick={() => onApprove(ticket.key)}>
           Approve
         </Button>
@@ -341,7 +365,7 @@ function TicketDetail({
             Approve and Request changes work once the ticket is In review.
           </p>
         )}
-      </SheetFooter>
+      </DialogFooter>
     </>
   )
 }

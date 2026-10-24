@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "motion/react"
 import { PlusIcon } from "lucide-react"
 
@@ -10,8 +11,10 @@ import type { Project } from "@/lib/types"
 import { TEAM } from "@/lib/mock-data"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { timeAgo } from "@/lib/format"
+import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
+import { SearchCombobox } from "@/components/search-combobox"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,7 +27,6 @@ import {
 } from "@/components/ui/card"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -49,6 +51,7 @@ const TEAMS = [TEAM]
 // Like a GitHub org's repo list: one card per project, each opening its board.
 export function ProjectsView() {
   const { projects } = useProjects()
+  const router = useRouter()
   const [team, setTeam] = useState(TEAM)
   const shown = projects.filter((p) => p.team === team)
 
@@ -64,7 +67,7 @@ export function ProjectsView() {
             Each project has its own board, columns, tags and tickets.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {TEAMS.length > 1 && (
             <Select value={team} onValueChange={setTeam}>
               <SelectTrigger aria-label="Team">
@@ -79,6 +82,30 @@ export function ProjectsView() {
               </SelectContent>
             </Select>
           )}
+          <SearchCombobox
+            label="Search projects…"
+            searchPlaceholder="Project name or key"
+            emptyText="No project found."
+            align="end"
+            groups={[
+              {
+                heading: team,
+                items: shown.map((p) => ({
+                  value: p.key,
+                  keywords: [p.name, p.description ?? ""],
+                  label: (
+                    <>
+                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                        {p.key}
+                      </span>
+                      <span className="truncate">{p.name}</span>
+                    </>
+                  ),
+                  onSelect: () => router.push(`/projects/${p.key}/board`),
+                })),
+              },
+            ]}
+          />
           <NewProjectDialog defaultTeam={team} />
         </div>
       </div>
@@ -195,19 +222,18 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
   )
 }
 
-// "PITCH DEMO" -> "PD", "HackOHI/O build" -> "HB". Users can change it.
-const suggestKey = (name: string) =>
-  name
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 4)
+// "Pitch demo" -> "PD", "Bugs" -> "BUG". Users can change it.
+function suggestKey(name: string) {
+  const words = name.split(/[^A-Za-z0-9]+/).filter(Boolean)
+  const key = words.length === 1 ? words[0].slice(0, 3) : words.map((w) => w[0]).join("")
+  return key.toUpperCase().slice(0, 4)
+}
 
 function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   const { projects, createProject } = useProjects()
   const [open, setOpen] = useState(false)
+  // Step 1 picks a template, step 2 fills in the details
+  const [template, setTemplate] = useState<ProjectTemplate | null>(null)
   const [name, setName] = useState("")
   const [key, setKey] = useState("")
   const [keyEdited, setKeyEdited] = useState(false)
@@ -217,9 +243,10 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   const finalKey = keyEdited ? key : suggestKey(name)
   const keyTaken = projects.some((p) => p.key === finalKey)
   const keyValid = /^[A-Z][A-Z0-9]{1,5}$/.test(finalKey)
-  const canSubmit = name.trim() && keyValid && !keyTaken
+  const canSubmit = template && name.trim() && keyValid && !keyTaken
 
   function reset() {
+    setTemplate(null)
     setName("")
     setKey("")
     setKeyEdited(false)
@@ -234,99 +261,194 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
       key: finalKey,
       ...(description.trim() && { description: description.trim() }),
       team,
+      template,
     })
     reset()
     setOpen(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) reset()
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <PlusIcon data-icon="inline-start" />
           New project
         </Button>
       </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>
-              It gets its own board with Backlog, In progress, In review and
-              Done.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="project-name">Name</Label>
-            <Input
-              id="project-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Mobile app"
-              autoFocus
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="project-key">Key</Label>
-            <Input
-              id="project-key"
-              value={finalKey}
-              onChange={(e) => {
-                setKeyEdited(true)
-                setKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-              }}
-              placeholder="MA"
-              className="font-mono uppercase"
-              aria-invalid={!!finalKey && (!keyValid || keyTaken)}
-            />
-            <p
-              className={cn(
-                "text-xs text-muted-foreground",
-                keyTaken && "text-destructive"
+      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+        {!template ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>New project</DialogTitle>
+              <DialogDescription>
+                Pick a template. It sets up the board&apos;s columns and some
+                starter tags. You can change them later.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {PROJECT_TEMPLATES.map((t, index) => (
+                <motion.button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTemplate(t)}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: index * 0.03 }}
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex flex-col gap-2 rounded-2xl border p-4 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                >
+                  <span className="font-semibold">{t.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t.description}
+                  </span>
+                  <TemplateColumns template={t} />
+                </motion.button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <form onSubmit={submit} className="flex flex-col gap-4">
+            <DialogHeader>
+              <DialogTitle>
+                New {template.name.toLowerCase()} project
+              </DialogTitle>
+              <DialogDescription>{template.description}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2 rounded-2xl border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Board columns
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="xs"
+                  onClick={() => setTemplate(null)}
+                >
+                  Change template
+                </Button>
+              </div>
+              <TemplateColumns template={template} />
+              {template.tags.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="mr-1 text-xs text-muted-foreground">
+                    Starter tags
+                  </span>
+                  {template.tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="secondary"
+                      className="font-normal"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
               )}
-            >
-              {keyTaken
-                ? `${finalKey} is already used by another project.`
-                : `Ticket ids start with this: ${finalKey || "KEY"}-01. 2–6 letters or numbers.`}
-            </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="project-description">Description</Label>
-            <Textarea
-              id="project-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this project for? (optional)"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="project-team">Team</Label>
-            <Select value={team} onValueChange={setTeam}>
-              <SelectTrigger id="project-team" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TEAMS.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-name">Name</Label>
+              <Input
+                id="project-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Mobile app"
+                autoFocus
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-key">Key</Label>
+              <Input
+                id="project-key"
+                value={finalKey}
+                onChange={(e) => {
+                  setKeyEdited(true)
+                  setKey(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
+                }}
+                placeholder="MA"
+                className="font-mono uppercase"
+                aria-invalid={!!finalKey && (!keyValid || keyTaken)}
+              />
+              <p
+                className={cn(
+                  "text-xs text-muted-foreground",
+                  keyTaken && "text-destructive"
+                )}
+              >
+                {keyTaken
+                  ? `${finalKey} is already used by another project.`
+                  : `Ticket ids start with this: ${finalKey || "KEY"}-01. 2–6 letters or numbers.`}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-description">Description</Label>
+              <Textarea
+                id="project-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="What is this project for? (optional)"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="project-team">Team</Label>
+              <Select value={team} onValueChange={setTeam}>
+                <SelectTrigger id="project-team" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEAMS.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setTemplate(null)}
+              >
+                Back
               </Button>
-            </DialogClose>
-            <Button type="submit" disabled={!canSubmit}>
-              Create project
-            </Button>
-          </DialogFooter>
-        </form>
+              <Button type="submit" disabled={!canSubmit}>
+                Create project
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+// A template's columns as colored chips: "● Todo  ● In progress  ● Done"
+function TemplateColumns({ template }: { template: ProjectTemplate }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {template.columns.map((c) => (
+        <span
+          key={c.name}
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs",
+            CATEGORY_COLORS[c.color].column
+          )}
+        >
+          <span
+            className={cn("size-2 rounded-full", CATEGORY_COLORS[c.color].dot)}
+          />
+          {c.name}
+        </span>
+      ))}
+    </div>
   )
 }

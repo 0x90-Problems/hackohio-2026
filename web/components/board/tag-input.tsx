@@ -1,14 +1,28 @@
 "use client"
 
-import { useId, useState } from "react"
+import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { XIcon } from "lucide-react"
+import { PlusIcon, TagIcon, XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
-// Edits a list of tags. Type a tag and press Enter (or a comma) to add it;
-// click the x on a tag to remove it. Existing tags are offered as suggestions.
+// Edits a list of tags with the team's combo search box: "Add tag" opens a
+// search over the tags this project already uses, or creates a new one.
+// Click the x on a tag to remove it.
 export function TagInput({
   id,
   tags,
@@ -20,75 +34,113 @@ export function TagInput({
   onChange: (tags: string[]) => void
   suggestions?: string[]
 }) {
-  const [text, setText] = useState("")
-  const listId = useId()
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const typed = search.trim()
+  const options = suggestions.filter((s) => !tags.includes(s))
+  const exists = [...tags, ...suggestions].some(
+    (t) => t.toLowerCase() === typed.toLowerCase()
+  )
 
-  function add(raw: string) {
-    const tag = raw.trim()
-    setText("")
-    if (!tag || tags.some((t) => t.toLowerCase() === tag.toLowerCase())) return
-    onChange([...tags, tag])
+  function add(tag: string) {
+    if (!tags.some((t) => t.toLowerCase() === tag.toLowerCase()))
+      onChange([...tags, tag])
+    setSearch("")
+    setOpen(false)
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {/* Tags pop in when added and shrink away when removed */}
-          <AnimatePresence initial={false} mode="popLayout">
-            {tags.map((tag) => (
-              <motion.span
-                key={tag}
-                layout
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.6 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+    <div className="flex flex-wrap items-center gap-1.5">
+      {/* Tags pop in when added and shrink away when removed */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {tags.map((tag) => (
+          <motion.span
+            key={tag}
+            layout
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.6 }}
+            transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          >
+            <Badge variant="secondary" className="pr-1 font-normal">
+              {tag}
+              <button
+                type="button"
+                className="rounded-full p-0.5 hover:bg-foreground/10"
+                aria-label={`Remove tag ${tag}`}
+                onClick={() => onChange(tags.filter((t) => t !== tag))}
               >
-                <Badge variant="secondary" className="pr-1 font-normal">
-                  {tag}
-                  <button
-                    type="button"
-                    className="rounded-full p-0.5 hover:bg-foreground/10"
-                    aria-label={`Remove tag ${tag}`}
-                    onClick={() => onChange(tags.filter((t) => t !== tag))}
+                <XIcon className="size-3" />
+              </button>
+            </Badge>
+          </motion.span>
+        ))}
+      </AnimatePresence>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) setSearch("")
+        }}
+      >
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            size="xs"
+            role="combobox"
+            aria-expanded={open}
+            className="border-dashed font-normal text-muted-foreground"
+          >
+            <PlusIcon />
+            Add tag
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-60 p-0">
+          <Command>
+            <CommandInput
+              placeholder="Search or create a tag"
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList>
+              {(!typed || exists) && (
+                <CommandEmpty>
+                  {typed ? "No matching tags." : "No tags yet. Type one."}
+                </CommandEmpty>
+              )}
+              {options.length > 0 && (
+                <CommandGroup heading="Tags in this project">
+                  {options.map((tag) => (
+                    <CommandItem
+                      key={tag}
+                      value={tag}
+                      onSelect={() => add(tag)}
+                    >
+                      <TagIcon />
+                      {tag}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              {typed && !exists && (
+                <CommandGroup heading="New tag" forceMount>
+                  {/* forceMount keeps "Create" visible even though it doesn't match the filter */}
+                  <CommandItem
+                    value={`create ${typed}`}
+                    forceMount
+                    onSelect={() => add(typed)}
                   >
-                    <XIcon className="size-3" />
-                  </button>
-                </Badge>
-              </motion.span>
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-      <Input
-        id={id}
-        value={text}
-        list={listId}
-        placeholder="Add a tag and press Enter"
-        onChange={(e) => {
-          // Typing a comma adds the tag right away
-          const value = e.target.value
-          if (value.endsWith(",")) add(value.slice(0, -1))
-          else setText(value)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault()
-            add(text)
-          } else if (e.key === "Backspace" && !text && tags.length) {
-            onChange(tags.slice(0, -1))
-          }
-        }}
-        onBlur={() => text && add(text)}
-      />
-      <datalist id={listId}>
-        {suggestions
-          .filter((s) => !tags.includes(s))
-          .map((s) => (
-            <option key={s} value={s} />
-          ))}
-      </datalist>
+                    <PlusIcon />
+                    Create “{typed}”
+                  </CommandItem>
+                </CommandGroup>
+              )}
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
