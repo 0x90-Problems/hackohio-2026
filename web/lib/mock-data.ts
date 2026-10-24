@@ -20,6 +20,7 @@ import type {
   Comment,
   Event,
   HumanActor,
+  Project,
   Ticket,
   User,
 } from "@/lib/types"
@@ -141,7 +142,17 @@ export const agentTokens: AgentToken[] = [
   }),
 ]
 
-// ---------- tickets CLW-01 to CLW-15 ----------
+// ---------- projects ----------
+
+export const projects: Project[] = [
+  { key: "CLW", name: "HackOHI/O build", description: "The buck2agents app we demo on Sunday.", team: TEAM, created: 1440 },
+  { key: "PIT", name: "Pitch & demo", description: "Slides, script and the live agent demo.", team: TEAM, created: 300 },
+].map(({ created, ...p }) => ({ ...p, created_at: minutesAgo(created) }))
+
+// The project /board opens
+export const DEFAULT_PROJECT_KEY = "CLW"
+
+// ---------- tickets CLW-01 to CLW-15, PIT-01 to PIT-03 ----------
 
 type TicketInput = Omit<Ticket, "needs_approval" | "created_at"> & {
   needs_approval?: boolean
@@ -192,6 +203,11 @@ export const tickets: Ticket[] = (
     { key: "CLW-13", title: "Live activity feed", tags: ["UI"], status: BACKLOG, created_by: human("user_debora"), created: 90 },
     { key: "CLW-14", title: "Draft OpenAPI spec for tickets", tags: ["Docs"], status: BACKLOG, created_by: agent("agent_dylan_claude"), created: 70 },
     { key: "CLW-15", title: "Docs site with Zensical", tags: ["Docs"], status: BACKLOG, created_by: human("user_debora"), created: 25 },
+
+    // Pitch & demo project
+    { key: "PIT-01", title: "Outline the 3-minute pitch", tags: ["Pitch"], status: IN_PROGRESS, created_by: human("user_naz"), created: 280 },
+    { key: "PIT-02", title: "Record backup demo video", tags: ["Demo"], status: BACKLOG, created_by: human("user_debora"), created: 200 },
+    { key: "PIT-03", title: "Seed clean demo tickets", tags: ["Demo", "Data"], status: BACKLOG, created_by: agent("agent_raddy_claude"), created: 60 },
   ] satisfies TicketInput[]
 ).map(({ created, ...t }: TicketInput) => ({
   needs_approval: false,

@@ -56,9 +56,10 @@ export type TicketActions = {
   onTagsChange: (ticketKey: string, tags: string[]) => void
 }
 
-// Opens the sheet for the ticket named in the address (/board/ticket/CLW-05).
-// Closing it goes back to /board.
+// Opens the sheet for the ticket named in the address
+// (/projects/CLW/board/ticket/CLW-05). Closing it goes back to the board.
 export function TicketSheetFromUrl({
+  projectKey,
   tickets,
   categories,
   tagSuggestions,
@@ -66,6 +67,7 @@ export function TicketSheetFromUrl({
   newCommentIds,
   ...actions
 }: {
+  projectKey: string
   tickets: Ticket[]
   categories: Category[]
   tagSuggestions: string[]
@@ -79,7 +81,9 @@ export function TicketSheetFromUrl({
   return (
     <Sheet
       open={!!ticket}
-      onOpenChange={(open) => !open && router.push("/board", { scroll: false })}
+      onOpenChange={(open) =>
+        !open && router.push(`/projects/${projectKey}/board`, { scroll: false })
+      }
     >
       <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         {ticket && (
@@ -97,10 +101,12 @@ export function TicketSheetFromUrl({
   )
 }
 
-export const ticketHref = (key: string) => `/board/ticket/${encodeURIComponent(key)}`
+// CLW-05 -> /projects/CLW/board/ticket/CLW-05
+export const ticketHref = (key: string) =>
+  `/projects/${key.split("-")[0]}/board/ticket/${encodeURIComponent(key)}`
 
 function ticketKeyFromPath(pathname: string) {
-  const match = pathname.match(/^\/board\/ticket\/([^/]+)/)
+  const match = pathname.match(/\/board\/ticket\/([^/]+)$/)
   return match ? decodeURIComponent(match[1]) : null
 }
 

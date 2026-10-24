@@ -1,6 +1,7 @@
+import { motion } from "motion/react"
+
 import type { Category, Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
-import { cn } from "@/lib/utils"
 import { ActorBadge } from "@/components/actor-badge"
 import { LiveDot } from "@/components/live-dot"
 import {
@@ -36,19 +37,26 @@ export function LiveActivity({
             {events.map((event) => {
               const id = eventId(event)
               return (
-                <li
+                // New events slide down from the top; older ones glide down to make room
+                <motion.li
                   key={id}
-                  className={cn(
-                    "flex flex-col gap-1 py-2.5",
-                    newIds.has(id) && "duration-300 animate-in fade-in slide-in-from-top-2"
-                  )}
+                  layout="position"
+                  initial={newIds.has(id) ? { opacity: 0, y: -12 } : false}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                  className="flex flex-col gap-1 py-2.5"
                 >
                   <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                    <ActorBadge actor={event.actor} className="text-xs text-foreground" />
-                    <span className="shrink-0">· {timeAgo(event.created_at)}</span>
+                    <ActorBadge
+                      actor={event.actor}
+                      className="text-xs text-foreground"
+                    />
+                    <span className="shrink-0">
+                      · {timeAgo(event.created_at)}
+                    </span>
                   </div>
                   <p className="text-sm">{describeEvent(event, categories)}</p>
-                </li>
+                </motion.li>
               )
             })}
           </ul>

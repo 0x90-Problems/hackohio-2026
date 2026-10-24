@@ -1,4 +1,8 @@
-// /board shows only the board, which the layout renders.
+import { redirect } from "next/navigation"
+
+import { DEFAULT_PROJECT_KEY } from "@/lib/mock-data"
+
+// Old address: /board now lives at /projects/<key>/board
 export default function BoardPage() {
-  return null
+  redirect(`/projects/${DEFAULT_PROJECT_KEY}/board`)
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useId, useState } from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { XIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -33,19 +34,31 @@ export function TagInput({
     <div className="flex flex-col gap-2">
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="pr-1 font-normal">
-              {tag}
-              <button
-                type="button"
-                className="rounded-full p-0.5 hover:bg-foreground/10"
-                aria-label={`Remove tag ${tag}`}
-                onClick={() => onChange(tags.filter((t) => t !== tag))}
+          {/* Tags pop in when added and shrink away when removed */}
+          <AnimatePresence initial={false} mode="popLayout">
+            {tags.map((tag) => (
+              <motion.span
+                key={tag}
+                layout
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
               >
-                <XIcon className="size-3" />
-              </button>
-            </Badge>
-          ))}
+                <Badge variant="secondary" className="pr-1 font-normal">
+                  {tag}
+                  <button
+                    type="button"
+                    className="rounded-full p-0.5 hover:bg-foreground/10"
+                    aria-label={`Remove tag ${tag}`}
+                    onClick={() => onChange(tags.filter((t) => t !== tag))}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                </Badge>
+              </motion.span>
+            ))}
+          </AnimatePresence>
         </div>
       )}
       <Input

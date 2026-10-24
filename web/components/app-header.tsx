@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/navigation-menu"
 
 const NAV_LINKS = [
-  { href: "/board", label: "Board" },
+  { href: "/projects", label: "Projects" },
   { href: "/teams", label: "Teams" },
   { href: "/organization", label: "Organization" },
   { href: "/agents", label: "Agents" },

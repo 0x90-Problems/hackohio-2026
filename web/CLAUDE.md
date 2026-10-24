@@ -18,7 +18,9 @@
 
 ## Animation rules
 - Use tw-animate-css (already installed) for all simple animations. Keep them short: 150–300ms.
-- Use the `motion` npm package ONLY for ticket cards moving between board columns (layout animation). Do not add any other animation libraries.
+- Use the `motion` npm package (import from "motion/react") for richer effects: ticket cards moving between columns (layoutId), columns and cards entering/leaving (AnimatePresence), staggered fade-ups (project cards, board columns), tag pills, and the live activity list. Keep springs snappy (stiffness ~400, damping ~30).
+- Do not add any other animation libraries, and do not install Motion UI / motion registry components; build effects with the `motion` package directly.
+- Pages under /projects are wrapped in `MotionConfig reducedMotion="user"` (in `ProjectsProvider`). Wrap any new motion page the same way.
 - Every animation must respect `prefers-reduced-motion`.
 
 ## Homepage

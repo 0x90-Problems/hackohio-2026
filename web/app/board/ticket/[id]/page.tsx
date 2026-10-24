@@ -1,13 +1,9 @@
-import type { Metadata } from "next"
+import { redirect } from "next/navigation"
 
-// /board/ticket/CLW-05: the layout's board opens this ticket's side panel.
-export async function generateMetadata({
+// Old address: /board/ticket/CLW-05 -> /projects/CLW/board/ticket/CLW-05
+export default async function OldTicketPage({
   params,
-}: PageProps<"/board/ticket/[id]">): Promise<Metadata> {
+}: PageProps<"/board/ticket/[id]">) {
   const { id } = await params
-  return { title: `${decodeURIComponent(id)} · Board · buck2agents` }
-}
-
-export default function TicketPage() {
-  return null
+  redirect(`/projects/${id.split("-")[0]}/board/ticket/${id}`)
 }
