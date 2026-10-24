@@ -6,6 +6,7 @@ import { useTheme } from "next-themes"
 import {
   BotIcon,
   Building2Icon,
+  FolderKanbanIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   LogOutIcon,
@@ -35,7 +36,7 @@ import {
 } from "@/components/ui/navigation-menu"
 
 const NAV_LINKS = [
-  { href: "/projects", label: "Projects", icon: null },
+  { href: "/projects", label: "Projects", icon: FolderKanbanIcon },
   { href: "/teams", label: "Teams", icon: UsersIcon },
   { href: "/organization", label: "Organization", icon: Building2Icon },
   { href: "/agents", label: "Agents", icon: BotIcon },
@@ -52,7 +53,7 @@ export function AppHeader() {
   if (NO_HEADER.includes(pathname)) return null
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
+    <header className="border-b bg-background/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-3 px-4">
         {/* Left: app launcher + logo */}
         <DropdownMenu>
