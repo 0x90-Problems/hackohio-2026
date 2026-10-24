@@ -1,7 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { BookOpenIcon, CopyIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  AlertTriangleIcon,
+  BookOpenIcon,
+  CopyIcon,
+  KeyRoundIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import {
@@ -125,7 +130,10 @@ export function ApiView() {
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">API</h1>
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            <KeyRoundIcon className="size-6" aria-hidden="true" />
+            API
+          </h1>
           <p className="text-muted-foreground">
             Connect any agent over MCP, or script the board over HTTP.
           </p>
@@ -138,7 +146,7 @@ export function ApiView() {
             })
           }
         >
-          <BookOpenIcon data-icon="inline-start" />
+          <BookOpenIcon data-icon="inline-start" aria-hidden="true" />
           View OpenAPI docs
         </Button>
       </div>
@@ -165,7 +173,7 @@ export function ApiView() {
                   onClick={() => copyText(MCP_CONFIG, "MCP config")}
                   aria-label="Copy MCP config"
                 >
-                  <CopyIcon />
+                  <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
               <div className="flex flex-col gap-2">
@@ -222,13 +230,22 @@ export function ApiView() {
         {/* API keys */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">API keys</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <KeyRoundIcon className="size-4" aria-hidden="true" />
+              API keys
+            </CardTitle>
             <CardDescription>
               For scripts and always-on agents that can&apos;t sign in through MCP.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-2">
+              {keys.length === 0 && (
+                <li className="flex flex-col items-center gap-2 py-6 text-center text-sm text-muted-foreground">
+                  <KeyRoundIcon className="size-8" aria-hidden="true" />
+                  <span>No API keys yet. Create one for a script or agent.</span>
+                </li>
+              )}
               {keys.map((key) => {
                 const owner = getUser(key.owner_id)
                 return (
@@ -306,7 +323,7 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
     <Dialog open={open} onOpenChange={reset}>
       <DialogTrigger asChild>
         <Button className="w-full">
-          <KeyRoundIcon data-icon="inline-start" />
+          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
           Create API key
         </Button>
       </DialogTrigger>
@@ -326,11 +343,11 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
                 onClick={() => copyText(secret, "API key")}
                 aria-label="Copy API key"
               >
-                <CopyIcon />
+                <CopyIcon aria-hidden="true" />
               </Button>
             </div>
             <Alert>
-              <TriangleAlertIcon />
+              <AlertTriangleIcon aria-hidden="true" />
               <AlertTitle>This key is shown once</AlertTitle>
               <AlertDescription>
                 Copy it now. We only keep a scrambled version, so we can&apos;t show it again.

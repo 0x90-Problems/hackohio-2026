@@ -1,7 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { CopyIcon, KeyRoundIcon, TriangleAlertIcon } from "lucide-react"
+import {
+  AlertTriangleIcon,
+  ActivityIcon,
+  BotIcon,
+  CopyIcon,
+  KeyRoundIcon,
+  ShieldOffIcon,
+  WifiOffIcon,
+  WifiIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import {
@@ -88,7 +97,10 @@ export function AgentsView() {
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold tracking-tight">Agents</h1>
+        <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+          <BotIcon className="size-6" aria-hidden="true" />
+          Agents
+        </h1>
         <p className="text-muted-foreground">
           Every agent belongs to a person. Revoke one and its token stops working right away.
         </p>
@@ -102,7 +114,12 @@ export function AgentsView() {
                 <TableHead className="pl-4">Agent</TableHead>
                 <TableHead>Owner</TableHead>
                 <TableHead>Scopes</TableHead>
-                <TableHead>Last active</TableHead>
+                <TableHead>
+                  <span className="inline-flex items-center gap-1.5">
+                    <ActivityIcon className="size-4" aria-hidden="true" />
+                    Last active
+                  </span>
+                </TableHead>
                 <TableHead className="pr-4 text-right">Access</TableHead>
               </TableRow>
             </TableHeader>
@@ -148,7 +165,12 @@ function AgentRow({
           <ActorBadge
             actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, acting_for: agent.owner_id }}
           />
-          <span className="text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+            {agent.connection === AGENT_CONNECTION.MCP ? (
+              <WifiIcon className="size-3.5" aria-hidden="true" />
+            ) : (
+              <KeyRoundIcon className="size-3.5" aria-hidden="true" />
+            )}
             {CONNECTION_LABELS[agent.connection]}
           </span>
         </div>
@@ -172,7 +194,10 @@ function AgentRow({
       </TableCell>
       <TableCell className="pr-4 text-right">
         {agent.revoked ? (
-          <Badge variant="outline">Revoked</Badge>
+          <Badge variant="outline">
+            <WifiOffIcon className="size-3" aria-hidden="true" />
+            Revoked
+          </Badge>
         ) : (
           <RevokeDialog agent={agent} ownerName={owner?.name} onRevoke={onRevoke} />
         )}
@@ -194,6 +219,7 @@ function RevokeDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive" size="sm">
+          <ShieldOffIcon className="size-4" aria-hidden="true" />
           Revoke
         </Button>
       </DialogTrigger>
@@ -214,6 +240,7 @@ function RevokeDialog({
           </DialogClose>
           <DialogClose asChild>
             <Button variant="destructive" onClick={() => onRevoke(agent)}>
+              <ShieldOffIcon className="size-4" aria-hidden="true" />
               Revoke
             </Button>
           </DialogClose>
@@ -321,11 +348,11 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
                   onClick={copy}
                   aria-label="Copy token"
                 >
-                  <CopyIcon />
+                  <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
               <Alert>
-                <TriangleAlertIcon />
+                <AlertTriangleIcon aria-hidden="true" />
                 <AlertTitle>This token is shown once</AlertTitle>
                 <AlertDescription>
                   Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
@@ -341,7 +368,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
       </CardContent>
       <CardFooter className="flex flex-col items-stretch gap-2">
         <Button onClick={generate} disabled={!name.trim() || scopes.length === 0}>
-          <KeyRoundIcon data-icon="inline-start" />
+          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
           Generate token
         </Button>
         <p className="text-xs text-muted-foreground">

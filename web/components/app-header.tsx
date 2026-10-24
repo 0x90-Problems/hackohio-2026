@@ -3,7 +3,16 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
-import { LayoutGridIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react"
+import {
+  BotIcon,
+  Building2Icon,
+  KeyRoundIcon,
+  LayoutGridIcon,
+  LogOutIcon,
+  MoonIcon,
+  SunIcon,
+  UsersIcon,
+} from "@/components/icons"
 
 import { currentUser } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -26,11 +35,11 @@ import {
 } from "@/components/ui/navigation-menu"
 
 const NAV_LINKS = [
-  { href: "/projects", label: "Projects" },
-  { href: "/teams", label: "Teams" },
-  { href: "/organization", label: "Organization" },
-  { href: "/agents", label: "Agents" },
-  { href: "/api", label: "API" },
+  { href: "/projects", label: "Projects", icon: null },
+  { href: "/teams", label: "Teams", icon: UsersIcon },
+  { href: "/organization", label: "Organization", icon: Building2Icon },
+  { href: "/agents", label: "Agents", icon: BotIcon },
+  { href: "/api", label: "API", icon: KeyRoundIcon },
 ]
 
 // Pages that show without the header.
@@ -49,7 +58,7 @@ export function AppHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Open app launcher">
-              <LayoutGridIcon />
+              <LayoutGridIcon aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
@@ -58,7 +67,10 @@ export function AppHeader() {
             </DropdownMenuItem>
             {NAV_LINKS.map((link) => (
               <DropdownMenuItem key={link.href} asChild>
-                <Link href={link.href}>{link.label}</Link>
+                <Link href={link.href}>
+                  {link.icon && <link.icon className="size-4" aria-hidden="true" />}
+                  {link.label}
+                </Link>
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -84,7 +96,10 @@ export function AppHeader() {
                       "text-muted-foreground data-active:bg-muted data-active:text-foreground"
                     )}
                   >
-                    <Link href={link.href}>{link.label}</Link>
+                    <Link href={link.href} className="gap-2">
+                      {link.icon && <link.icon className="size-5" aria-hidden="true" />}
+                      {link.label}
+                    </Link>
                   </NavigationMenuLink>
                 </NavigationMenuItem>
               )
@@ -111,12 +126,16 @@ export function AppHeader() {
             <DropdownMenuItem
               onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >
-              {resolvedTheme === "dark" ? <SunIcon /> : <MoonIcon />}
+              {resolvedTheme === "dark" ? (
+                <SunIcon aria-hidden="true" />
+              ) : (
+                <MoonIcon aria-hidden="true" />
+              )}
               {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/login">
-                <LogOutIcon />
+                <LogOutIcon aria-hidden="true" />
                 Log out
               </Link>
             </DropdownMenuItem>

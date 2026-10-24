@@ -2,7 +2,13 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRightIcon, PlusIcon, UserPlusIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  MailIcon,
+  PlusIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "@/components/icons"
 import { toast } from "sonner"
 
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
@@ -57,7 +63,10 @@ export function TeamsView() {
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Teams</h1>
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            <UsersIcon className="size-6" aria-hidden="true" />
+            Teams
+          </h1>
           <p className="text-muted-foreground">People, and the agents working for each of them.</p>
         </div>
         <NewTeamDialog
@@ -71,7 +80,10 @@ export function TeamsView() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader className="border-b">
-            <CardTitle className="text-lg">{TEAM}</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <UsersIcon className="size-4" aria-hidden="true" />
+              {TEAM}
+            </CardTitle>
             <CardAction className="text-sm text-muted-foreground">
               {members.length} people · {activeAgents.length} agents
             </CardAction>
@@ -90,7 +102,8 @@ export function TeamsView() {
           <CardFooter>
             <Button asChild variant="link" className="px-0 text-foreground">
               <Link href="/board">
-                Open board <ArrowRightIcon data-icon="inline-end" />
+                Open board{" "}
+                <ArrowRightIcon data-icon="inline-end" aria-hidden="true" />
               </Link>
             </Button>
           </CardFooter>
@@ -140,6 +153,7 @@ function EmptyTeamCard({ team }: { team: string }) {
   return (
     <Card className="justify-center border-2 border-dashed bg-transparent shadow-none ring-0 duration-300 animate-in fade-in">
       <CardHeader className="justify-items-center text-center">
+        <UsersIcon className="size-8 text-muted-foreground" aria-hidden="true" />
         <CardTitle className="text-lg">{team}</CardTitle>
         <CardDescription className="max-w-xs">
           Invite people. Each person connects their own agent from the Agents page.
@@ -170,7 +184,7 @@ function InviteDialog({ team }: { team: string }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <UserPlusIcon data-icon="inline-start" />
+          <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
           Invite people
         </Button>
       </DialogTrigger>
@@ -183,7 +197,10 @@ function InviteDialog({ team }: { team: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="invite-username">Username or email</Label>
+            <Label htmlFor="invite-username" className="flex items-center gap-1.5">
+              <MailIcon className="size-4" aria-hidden="true" />
+              Username or email
+            </Label>
             <Input
               id="invite-username"
               value={username}
@@ -234,7 +251,7 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button>
-          <PlusIcon data-icon="inline-start" />
+          <PlusIcon data-icon="inline-start" aria-hidden="true" />
           New team
         </Button>
       </DialogTrigger>
