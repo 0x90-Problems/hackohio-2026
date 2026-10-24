@@ -1,4 +1,4 @@
-import type { Event } from "@/lib/types"
+import type { Category, Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge } from "@/components/actor-badge"
@@ -16,9 +16,11 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 export function LiveActivity({
   events,
   newIds,
+  categories,
 }: {
   events: Event[]
   newIds: Set<string>
+  categories?: Category[]
 }) {
   return (
     <Card className="lg:sticky lg:top-20">
@@ -45,7 +47,7 @@ export function LiveActivity({
                     <ActorBadge actor={event.actor} className="text-xs text-foreground" />
                     <span className="shrink-0">· {timeAgo(event.created_at)}</span>
                   </div>
-                  <p className="text-sm">{describeEvent(event)}</p>
+                  <p className="text-sm">{describeEvent(event, categories)}</p>
                 </li>
               )
             })}

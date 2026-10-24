@@ -1,11 +1,11 @@
 // Shapes of the documents in each collection. Field names match docs/schema.md
 // exactly, so the same types work for mock data now and MongoDB later.
+import type { CategoryColor } from "@/lib/categories"
 import type {
   ACTOR_TYPES,
   AgentConnection,
   EventAction,
   Scope,
-  TicketStatus,
 } from "@/shared/names"
 
 export type HumanActor = { type: typeof ACTOR_TYPES.HUMAN; id: string }
@@ -52,11 +52,20 @@ export type LinkedCommit = {
   removed: number
 }
 
+// A board column. Tickets point at one through `status` (the category slug).
+// The four TICKET_STATUS words are the starting categories; people can add more.
+export type Category = {
+  slug: string
+  name: string
+  color: CategoryColor
+  order: number
+}
+
 export type Ticket = {
   key: string
   title: string
-  label?: string
-  status: TicketStatus
+  tags?: string[]
+  status: string
   created_by: Actor
   reviewer_id?: string
   needs_approval: boolean

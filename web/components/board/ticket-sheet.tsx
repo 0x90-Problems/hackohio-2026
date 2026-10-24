@@ -1,15 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 
 import {
   ACTOR_TYPES,
   AGENT_CONNECTION,
-  STATUS_LABELS,
   TICKET_STATUS,
 } from "@/shared/names"
-import type { Comment, Ticket } from "@/lib/types"
+import type { Category, Comment, Ticket } from "@/lib/types"
 import {
   MOCK_NOW,
   agentTokens,
@@ -20,10 +19,19 @@ import {
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
+import { ColorDot } from "@/components/board/category-dialogs"
+import { TagInput } from "@/components/board/tag-input"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
@@ -44,35 +52,41 @@ export type TicketActions = {
   onComment: (ticketKey: string, body: string) => void
   onApprove: (ticketKey: string) => void
   onRequestChanges: (ticketKey: string) => void
+  onMove: (ticketKey: string, status: string) => void
+  onTagsChange: (ticketKey: string, tags: string[]) => void
 }
 
-// Opens the sheet for the ticket named in the address (?ticket=CLW-05).
-// Closing it removes ?ticket= again. Kept separate so only this part waits
-// for the URL; the rest of the board can still be prerendered.
+// Opens the sheet for the ticket named in the address (/board/ticket/CLW-05).
+// Closing it goes back to /board.
 export function TicketSheetFromUrl({
   tickets,
+  categories,
+  tagSuggestions,
   comments,
   newCommentIds,
   ...actions
 }: {
   tickets: Ticket[]
+  categories: Category[]
+  tagSuggestions: string[]
   comments: Comment[]
   newCommentIds: Set<string>
 } & TicketActions) {
   const router = useRouter()
-  const pathname = usePathname()
-  const key = useSearchParams().get("ticket")
+  const key = ticketKeyFromPath(usePathname())
   const ticket = tickets.find((t) => t.key === key)
 
   return (
     <Sheet
       open={!!ticket}
-      onOpenChange={(open) => !open && router.replace(pathname, { scroll: false })}
+      onOpenChange={(open) => !open && router.push("/board", { scroll: false })}
     >
       <SheetContent className="gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         {ticket && (
           <TicketDetail
             ticket={ticket}
+            categories={categories}
+            tagSuggestions={tagSuggestions}
             comments={comments.filter((c) => c.ticket_key === ticket.key)}
             newCommentIds={newCommentIds}
             {...actions}
@@ -83,18 +97,31 @@ export function TicketSheetFromUrl({
   )
 }
 
+export const ticketHref = (key: string) => `/board/ticket/${encodeURIComponent(key)}`
+
+function ticketKeyFromPath(pathname: string) {
+  const match = pathname.match(/^\/board\/ticket\/([^/]+)/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export const commentId = (c: Comment) =>
   `${c.ticket_key}-${c.author.id}-${c.created_at.getTime()}-${c.body.length}`
 
 function TicketDetail({
   ticket,
+  categories,
+  tagSuggestions,
   comments,
   newCommentIds,
   onComment,
   onApprove,
   onRequestChanges,
+  onMove,
+  onTagsChange,
 }: {
   ticket: Ticket
+  categories: Category[]
+  tagSuggestions: string[]
   comments: Comment[]
   newCommentIds: Set<string>
 } & TicketActions) {
@@ -131,15 +158,23 @@ function TicketDetail({
       <SheetHeader className="gap-2 border-b p-6">
         <SheetDescription className="font-mono text-xs">
           {ticket.key}
-          {ticket.label && ` · ${ticket.label}`}
         </SheetDescription>
         <SheetTitle className="text-2xl font-semibold tracking-tight">
           {ticket.title}
         </SheetTitle>
-        <div className="flex flex-wrap gap-2">
-          <Badge className="bg-foreground text-background">
-            {STATUS_LABELS[ticket.status]}
-          </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={ticket.status} onValueChange={(status) => onMove(ticket.key, status)}>
+            <SelectTrigger size="sm" aria-label="Move to column" className="w-auto">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((c) => (
+                <SelectItem key={c.slug} value={c.slug}>
+                  <ColorDot color={c.color} /> {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {ticket.needs_approval && <Badge variant="outline">Needs human approval</Badge>}
         </div>
       </SheetHeader>
@@ -180,6 +215,18 @@ function TicketDetail({
             </dd>
           </>
         )}
+
+        <dt className="self-start pt-2 text-muted-foreground">
+          <Label htmlFor="ticket-tags" className="font-normal">Tags</Label>
+        </dt>
+        <dd>
+          <TagInput
+            id="ticket-tags"
+            tags={ticket.tags ?? []}
+            onChange={(tags) => onTagsChange(ticket.key, tags)}
+            suggestions={tagSuggestions}
+          />
+        </dd>
 
         <dt className="text-muted-foreground">Reviewer</dt>
         <dd>

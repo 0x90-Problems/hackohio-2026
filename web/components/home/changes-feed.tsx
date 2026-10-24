@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 
 import type { Event } from "@/lib/types"
-import { MOCK_NOW, events, incomingEvents } from "@/lib/mock-data"
+import { MOCK_NOW, events } from "@/lib/mock-data"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
@@ -29,18 +28,7 @@ const initialRows: Row[] = events
 
 export function ChangesFeed() {
   const loading = useMockLoading()
-  const [rows, setRows] = useState<Row[]>(initialRows)
-
-  // Demo: new events stream in one at a time after the page loads.
-  useEffect(() => {
-    if (loading) return
-    const timers = incomingEvents.map((event, i) =>
-      setTimeout(() => {
-        setRows((current) => [{ id: eventId(event), event, isNew: true }, ...current])
-      }, 3000 + i * 3000)
-    )
-    return () => timers.forEach(clearTimeout)
-  }, [loading])
+  const rows = initialRows
 
   return (
     <Card>

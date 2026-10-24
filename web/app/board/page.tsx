@@ -1,11 +1,4 @@
-import type { Metadata } from "next"
-
-import { BoardView } from "@/components/board/board-view"
-
-export const metadata: Metadata = {
-  title: "Board · buck2agents",
-}
-
+// /board shows only the board, which the layout renders.
 export default function BoardPage() {
-  return <BoardView />
+  return null
 }

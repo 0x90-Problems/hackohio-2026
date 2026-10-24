@@ -7,6 +7,8 @@ const repoRoot = path.join(import.meta.dirname, "..")
 const nextConfig: NextConfig = {
   turbopack: { root: repoRoot },
   outputFileTracingRoot: repoRoot,
+  // Let teammates open the dev server through an ngrok tunnel
+  allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok-free.dev"],
 }
 
 export default nextConfig

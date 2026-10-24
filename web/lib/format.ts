@@ -1,5 +1,6 @@
-import { EVENT_ACTIONS, STATUS_LABELS, type TicketStatus } from "@/shared/names"
-import type { Event } from "@/lib/types"
+import { EVENT_ACTIONS } from "@/shared/names"
+import type { Category, Event } from "@/lib/types"
+import { categoryName } from "@/lib/categories"
 import { MOCK_NOW, tickets } from "@/lib/mock-data"
 
 // "just now", "6 min", "2 h", "3 d". Measured from MOCK_NOW until we use real data.
@@ -13,16 +14,16 @@ export function timeAgo(date: Date, now: Date = MOCK_NOW) {
 }
 
 // One readable sentence for an activity-log event.
-export function describeEvent(event: Event) {
+export function describeEvent(event: Event, categories?: Category[]) {
   const key = event.ticket_key
-  const to = event.details?.to as TicketStatus | undefined
+  const to = event.details?.to
   switch (event.action) {
     case EVENT_ACTIONS.TICKET_CREATED: {
       const title = tickets.find((t) => t.key === key)?.title
       return title ? `Created ${key} · ${title}` : `Created ${key}`
     }
     case EVENT_ACTIONS.TICKET_MOVED:
-      return to ? `Moved ${key} to ${STATUS_LABELS[to]}` : `Moved ${key}`
+      return to ? `Moved ${key} to ${categoryName(to, categories)}` : `Moved ${key}`
     case EVENT_ACTIONS.COMMENT_ADDED:
       return `Commented on ${key}`
     case EVENT_ACTIONS.COMMIT_LINKED:

@@ -3,7 +3,9 @@
 import { useState } from "react"
 import { PlusIcon } from "lucide-react"
 
-import { tickets as allTickets } from "@/lib/mock-data"
+import type { Category } from "@/lib/types"
+import { ColorDot } from "@/components/board/category-dialogs"
+import { TagInput } from "@/components/board/tag-input"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,24 +27,29 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-const LABELS = [...new Set(allTickets.flatMap((t) => (t.label ? [t.label] : [])))].sort()
-
 // "+ New ticket" button and its form. Calls onCreate with what was typed.
 export function NewTicketDialog({
+  categories,
+  tagSuggestions,
   onCreate,
 }: {
-  onCreate: (input: { title: string; label?: string }) => void
+  categories: Category[]
+  tagSuggestions: string[]
+  onCreate: (input: { title: string; status: string; tags: string[] }) => void
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
-  const [label, setLabel] = useState<string>()
+  const [status, setStatus] = useState<string>()
+  const [tags, setTags] = useState<string[]>([])
+  // Default to the first column, and fall back to it if the picked one was deleted
+  const startIn = categories.some((c) => c.slug === status) ? status : categories[0]?.slug
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) return
-    onCreate({ title: title.trim(), label })
+    if (!title.trim() || !startIn) return
+    onCreate({ title: title.trim(), status: startIn, tags })
     setTitle("")
-    setLabel(undefined)
+    setTags([])
     setOpen(false)
   }
 
@@ -58,7 +65,7 @@ export function NewTicketDialog({
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>New ticket</DialogTitle>
-            <DialogDescription>It starts in Backlog. You can move it later.</DialogDescription>
+            <DialogDescription>You can move it to another column later.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="ticket-title">Title</Label>
@@ -72,19 +79,28 @@ export function NewTicketDialog({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="ticket-label">Category</Label>
-            <Select value={label} onValueChange={setLabel}>
-              <SelectTrigger id="ticket-label" className="w-full">
-                <SelectValue placeholder="Pick a category (optional)" />
+            <Label htmlFor="ticket-status">Starts in</Label>
+            <Select value={startIn} onValueChange={setStatus}>
+              <SelectTrigger id="ticket-status" className="w-full">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {LABELS.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {l}
+                {categories.map((c) => (
+                  <SelectItem key={c.slug} value={c.slug}>
+                    <ColorDot color={c.color} /> {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ticket-tags">Tags</Label>
+            <TagInput
+              id="ticket-tags"
+              tags={tags}
+              onChange={setTags}
+              suggestions={tagSuggestions}
+            />
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -92,7 +108,7 @@ export function NewTicketDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={!title.trim()}>
+            <Button type="submit" disabled={!title.trim() || !startIn}>
               Create ticket
             </Button>
           </DialogFooter>

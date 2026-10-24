@@ -1,28 +1,38 @@
 "use client"
 
-import { Suspense, useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
+import {
+  MoreHorizontalIcon,
+  PencilIcon,
+  PlusIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { LayoutGroup, MotionConfig, motion } from "motion/react"
 import { toast } from "sonner"
 
-import {
-  ACTOR_TYPES,
-  BOARD_COLUMNS,
-  EVENT_ACTIONS,
-  STATUS_LABELS,
-  TICKET_STATUS,
-  type TicketStatus,
-} from "@/shared/names"
-import type { Actor, Comment, Event, Ticket } from "@/lib/types"
+import { ACTOR_TYPES, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
+import type { Actor, Category, Comment, Event, Ticket } from "@/lib/types"
 import {
   CURRENT_USER_ID,
   MOCK_NOW,
   comments as allComments,
   events as allEvents,
-  incomingComments,
-  incomingEvents,
   tickets as allTickets,
 } from "@/lib/mock-data"
+import {
+  CATEGORY_COLORS,
+  DEFAULT_CATEGORIES,
+  categoryName,
+  makeSlug,
+  type CategoryColor,
+} from "@/lib/categories"
 import { eventId } from "@/lib/format"
+import { cn } from "@/lib/utils"
+import {
+  CategoryDialog,
+  ColorDot,
+  DeleteCategoryDialog,
+} from "@/components/board/category-dialogs"
 import { LiveActivity } from "@/components/board/live-activity"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
@@ -36,17 +46,40 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type Filter = "all" | "humans" | "agents"
+
+// Which category dialog is open, if any
+type Editing =
+  | { kind: "create" }
+  | { kind: "edit"; category: Category }
+  | { kind: "delete"; category: Category }
+
+// The drag payload type, so columns ignore anything else dropped on them
+const TICKET_DRAG_TYPE = "application/x-buck2agents-ticket"
 
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
 
 export function BoardView() {
   const [tickets, setTickets] = useState<Ticket[]>(allTickets)
-  const [activity, setActivity] = useState<Event[]>(() => [...allEvents].sort(newestFirst))
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES)
+  const [editing, setEditing] = useState<Editing | null>(null)
+  // Column a card is being dragged over, for the drop highlight
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [activity, setActivity] = useState<Event[]>(() =>
+    [...allEvents].sort(newestFirst)
+  )
   const [comments, setComments] = useState<Comment[]>(allComments)
   const [filter, setFilter] = useState<Filter>("all")
   // Remember what arrived after the page loaded, so only those animate in.
@@ -65,9 +98,15 @@ export function BoardView() {
     setNewCommentIds((ids) => new Set(ids).add(commentId(comment)))
   }
 
-  function setStatus(ticketKey: string, status: TicketStatus, changes: Partial<Ticket> = {}) {
+  function setStatus(
+    ticketKey: string,
+    status: string,
+    changes: Partial<Ticket> = {}
+  ) {
     setTickets((current) =>
-      current.map((t) => (t.key === ticketKey ? { ...t, ...changes, status } : t))
+      current.map((t) =>
+        t.key === ticketKey ? { ...t, ...changes, status } : t
+      )
     )
   }
 
@@ -76,35 +115,25 @@ export function BoardView() {
     setNewEventIds((ids) => new Set(ids).add(eventId(event)))
   }
 
-  // Demo: live events stream in. A "ticket_moved" event moves the card to its
-  // new column, and motion animates it there.
-  useEffect(() => {
-    const timers = incomingEvents.map((event, i) =>
-      setTimeout(() => {
-        addEvent(event)
-        if (event.action === EVENT_ACTIONS.COMMENT_ADDED) {
-          incomingComments
-            .filter((c) => c.ticket_key === event.ticket_key)
-            .forEach(addComment)
-        }
-        if (event.action === EVENT_ACTIONS.TICKET_MOVED && event.details?.to) {
-          setStatus(event.ticket_key, event.details.to as TicketStatus)
-        }
-      }, 3000 + i * 3000)
-    )
-    return () => timers.forEach(clearTimeout)
-  }, [])
-
-  function createTicket({ title, label }: { title: string; label?: string }) {
-    const nextNumber = Math.max(...tickets.map((t) => Number(t.key.split("-")[1]))) + 1
+  function createTicket({
+    title,
+    status,
+    tags,
+  }: {
+    title: string
+    status: string
+    tags: string[]
+  }) {
+    const nextNumber =
+      Math.max(...tickets.map((t) => Number(t.key.split("-")[1]))) + 1
     const key = `CLW-${String(nextNumber).padStart(2, "0")}`
     const created_by = me
     const created_at = now()
     const ticket: Ticket = {
       key,
       title,
-      ...(label && { label }),
-      status: TICKET_STATUS.BACKLOG,
+      ...(tags.length > 0 && { tags }),
+      status,
       created_by,
       needs_approval: false,
       created_at,
@@ -115,41 +144,125 @@ export function BoardView() {
       action: EVENT_ACTIONS.TICKET_CREATED,
       ticket_key: key,
       actor: created_by,
-      details: { status: TICKET_STATUS.BACKLOG },
+      details: { status },
       created_at,
     })
     toast.success(`Created ${key}`, { description: title })
   }
 
-  function comment(ticketKey: string, body: string) {
-    const created_at = now()
-    addComment({ ticket_key: ticketKey, author: me, body, created_at })
-    addEvent({ action: EVENT_ACTIONS.COMMENT_ADDED, ticket_key: ticketKey, actor: me, created_at })
-  }
-
-  function approve(ticketKey: string) {
-    setStatus(ticketKey, TICKET_STATUS.DONE, { needs_approval: false })
-    addEvent({
-      action: EVENT_ACTIONS.TICKET_CLOSED,
-      ticket_key: ticketKey,
-      actor: me,
-      details: { from: TICKET_STATUS.IN_REVIEW, to: TICKET_STATUS.DONE },
-      created_at: now(),
-    })
-    toast.success(`Approved ${ticketKey}`, { description: "Moved to Done" })
-  }
-
-  function requestChanges(ticketKey: string) {
-    setStatus(ticketKey, TICKET_STATUS.IN_PROGRESS)
+  // Move a ticket to another column (drag and drop, or the panel's picker)
+  function moveTicket(ticketKey: string, to: string) {
+    const ticket = tickets.find((t) => t.key === ticketKey)
+    if (!ticket || ticket.status === to) return
+    setStatus(ticketKey, to)
     addEvent({
       action: EVENT_ACTIONS.TICKET_MOVED,
       ticket_key: ticketKey,
       actor: me,
-      details: { from: TICKET_STATUS.IN_REVIEW, to: TICKET_STATUS.IN_PROGRESS },
+      details: { from: ticket.status, to },
       created_at: now(),
     })
-    toast(`Changes requested on ${ticketKey}`, { description: "Moved back to In progress" })
+    toast(`Moved ${ticketKey}`, {
+      description: `To ${categoryName(to, categories)}`,
+    })
   }
+
+  function setTags(ticketKey: string, tags: string[]) {
+    setTickets((current) =>
+      current.map((t) => (t.key === ticketKey ? { ...t, tags } : t))
+    )
+  }
+
+  function createCategory({
+    name,
+    color,
+  }: {
+    name: string
+    color: CategoryColor
+  }) {
+    const slug = makeSlug(
+      name,
+      categories.map((c) => c.slug)
+    )
+    setCategories((current) => [
+      ...current,
+      { slug, name, color, order: current.length },
+    ])
+    toast.success(`Added category ${name}`)
+  }
+
+  function updateCategory(
+    slug: string,
+    changes: { name: string; color: CategoryColor }
+  ) {
+    setCategories((current) =>
+      current.map((c) => (c.slug === slug ? { ...c, ...changes } : c))
+    )
+  }
+
+  function deleteCategory(slug: string, moveTo: string) {
+    setTickets((current) =>
+      current.map((t) => (t.status === slug ? { ...t, status: moveTo } : t))
+    )
+    setCategories((current) =>
+      current
+        .filter((c) => c.slug !== slug)
+        .map((c, order) => ({ ...c, order }))
+    )
+    toast(`Deleted category ${categoryName(slug, categories)}`)
+  }
+
+  function comment(ticketKey: string, body: string) {
+    const created_at = now()
+    addComment({ ticket_key: ticketKey, author: me, body, created_at })
+    addEvent({
+      action: EVENT_ACTIONS.COMMENT_ADDED,
+      ticket_key: ticketKey,
+      actor: me,
+      created_at,
+    })
+  }
+
+  // A shared status word if that column still exists, otherwise the ticket's current column
+  const columnOr = (slug: string, ticketKey: string) =>
+    categories.some((c) => c.slug === slug)
+      ? slug
+      : (tickets.find((t) => t.key === ticketKey)?.status ?? slug)
+
+  function approve(ticketKey: string) {
+    const to = columnOr(TICKET_STATUS.DONE, ticketKey)
+    setStatus(ticketKey, to, { needs_approval: false })
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_CLOSED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { from: TICKET_STATUS.IN_REVIEW, to },
+      created_at: now(),
+    })
+    toast.success(`Approved ${ticketKey}`, {
+      description: `Moved to ${categoryName(to, categories)}`,
+    })
+  }
+
+  function requestChanges(ticketKey: string) {
+    const to = columnOr(TICKET_STATUS.IN_PROGRESS, ticketKey)
+    setStatus(ticketKey, to)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_MOVED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { from: TICKET_STATUS.IN_REVIEW, to },
+      created_at: now(),
+    })
+    toast(`Changes requested on ${ticketKey}`, {
+      description: `Moved to ${categoryName(to, categories)}`,
+    })
+  }
+
+  // Every tag used on the board, offered as suggestions when tagging
+  const tagSuggestions = [
+    ...new Set(tickets.flatMap((t) => t.tags ?? [])),
+  ].sort()
 
   const visible = tickets.filter(
     (t) =>
@@ -173,11 +286,15 @@ export function BoardView() {
                   </BreadcrumbItem>
                   <BreadcrumbSeparator>·</BreadcrumbSeparator>
                   <BreadcrumbItem>
-                    <BreadcrumbPage className="text-muted-foreground">Project</BreadcrumbPage>
+                    <BreadcrumbPage className="text-muted-foreground">
+                      Project
+                    </BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <h1 className="text-3xl font-semibold tracking-tight">HackOHI/O build</h1>
+              <h1 className="text-3xl font-semibold tracking-tight">
+                HackOHI/O build
+              </h1>
             </div>
             <div className="flex items-center gap-3">
               <ToggleGroup
@@ -191,7 +308,18 @@ export function BoardView() {
                 <ToggleGroupItem value="humans">Humans</ToggleGroupItem>
                 <ToggleGroupItem value="agents">Agents</ToggleGroupItem>
               </ToggleGroup>
-              <NewTicketDialog onCreate={createTicket} />
+              <Button
+                variant="outline"
+                onClick={() => setEditing({ kind: "create" })}
+              >
+                <PlusIcon data-icon="inline-start" />
+                New category
+              </Button>
+              <NewTicketDialog
+                categories={categories}
+                tagSuggestions={tagSuggestions}
+                onCreate={createTicket}
+              />
             </div>
           </div>
 
@@ -205,24 +333,84 @@ export function BoardView() {
             </span>
           </div>
 
-          {/* Columns. One LayoutGroup lets a card animate from one column to another. */}
+          {/* Columns. One LayoutGroup lets a card animate from one column to another.
+              Drag a card onto another column to move it. */}
           <ScrollArea className="w-full pb-3">
             <LayoutGroup>
-              <div className="grid min-w-[60rem] grid-cols-4 gap-4">
-                {BOARD_COLUMNS.map((status) => {
+              <div className="flex gap-4">
+                {categories.map((category) => {
                   const columnTickets = visible
-                    .filter((t) => t.status === status)
+                    .filter((t) => t.status === category.slug)
                     .sort(newestFirst)
+                  const total = tickets.filter(
+                    (t) => t.status === category.slug
+                  ).length
                   return (
                     <section
-                      key={status}
-                      className="flex min-h-96 flex-col gap-3 rounded-xl bg-muted/60 p-3"
+                      key={category.slug}
+                      aria-label={category.name}
+                      onDragOver={(e) => {
+                        if (!e.dataTransfer.types.includes(TICKET_DRAG_TYPE))
+                          return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = "move"
+                        setDropTarget(category.slug)
+                      }}
+                      onDragLeave={(e) => {
+                        // Ignore leaving into a child element of this column
+                        if (!e.currentTarget.contains(e.relatedTarget as Node))
+                          setDropTarget(null)
+                      }}
+                      onDrop={(e) => {
+                        const key = e.dataTransfer.getData(TICKET_DRAG_TYPE)
+                        setDropTarget(null)
+                        if (key) moveTicket(key, category.slug)
+                      }}
+                      className={cn(
+                        "flex min-h-96 w-72 shrink-0 flex-col gap-3 rounded-xl p-3 transition-shadow duration-150",
+                        CATEGORY_COLORS[category.color].column,
+                        dropTarget === category.slug &&
+                          "ring-2 ring-foreground/40"
+                      )}
                     >
-                      <h2 className="flex items-center justify-between px-1 text-sm font-semibold">
-                        {STATUS_LABELS[status]}
+                      <h2 className="flex items-center gap-2 px-1 text-sm font-semibold">
+                        <ColorDot color={category.color} />
+                        <span className="min-w-0 flex-1 truncate">
+                          {category.name}
+                        </span>
                         <span className="text-muted-foreground tabular-nums">
                           {columnTickets.length}
                         </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={`Options for ${category.name}`}
+                            >
+                              <MoreHorizontalIcon />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                setEditing({ kind: "edit", category })
+                              }
+                            >
+                              <PencilIcon /> Rename or recolor
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              disabled={categories.length === 1}
+                              onSelect={() =>
+                                setEditing({ kind: "delete", category })
+                              }
+                            >
+                              <Trash2Icon /> Delete category
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </h2>
                       {columnTickets.map((ticket) => (
                         <motion.div
@@ -231,12 +419,42 @@ export function BoardView() {
                           layout="position"
                           transition={{ duration: 0.3, ease: "easeInOut" }}
                         >
-                          <TicketCard ticket={ticket} isNew={newTicketKeys.has(ticket.key)} />
+                          {/* Plain div for native drag and drop; motion uses its own drag props */}
+                          <div
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(
+                                TICKET_DRAG_TYPE,
+                                ticket.key
+                              )
+                              e.dataTransfer.effectAllowed = "move"
+                            }}
+                            onDragEnd={() => setDropTarget(null)}
+                            className="cursor-grab active:cursor-grabbing"
+                          >
+                            <TicketCard
+                              ticket={ticket}
+                              isNew={newTicketKeys.has(ticket.key)}
+                            />
+                          </div>
                         </motion.div>
                       ))}
+                      {total === 0 && (
+                        <p className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                          Drag tickets here
+                        </p>
+                      )}
                     </section>
                   )
                 })}
+                <button
+                  type="button"
+                  onClick={() => setEditing({ kind: "create" })}
+                  className="flex min-h-96 w-56 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                >
+                  <PlusIcon className="size-5" />
+                  Add category
+                </button>
               </div>
             </LayoutGroup>
             <ScrollBar orientation="horizontal" />
@@ -244,19 +462,50 @@ export function BoardView() {
         </div>
 
         <aside className="min-w-0">
-          <LiveActivity events={activity} newIds={newEventIds} />
+          <LiveActivity
+            events={activity}
+            newIds={newEventIds}
+            categories={categories}
+          />
         </aside>
 
-        <Suspense fallback={null}>
-          <TicketSheetFromUrl
-            tickets={tickets}
-            comments={comments}
-            newCommentIds={newCommentIds}
-            onComment={comment}
-            onApprove={approve}
-            onRequestChanges={requestChanges}
+        <TicketSheetFromUrl
+          tickets={tickets}
+          categories={categories}
+          tagSuggestions={tagSuggestions}
+          comments={comments}
+          newCommentIds={newCommentIds}
+          onComment={comment}
+          onApprove={approve}
+          onRequestChanges={requestChanges}
+          onMove={moveTicket}
+          onTagsChange={setTags}
+        />
+
+        {editing?.kind === "create" && (
+          <CategoryDialog
+            onSave={createCategory}
+            onClose={() => setEditing(null)}
           />
-        </Suspense>
+        )}
+        {editing?.kind === "edit" && (
+          <CategoryDialog
+            category={editing.category}
+            onSave={(changes) => updateCategory(editing.category.slug, changes)}
+            onClose={() => setEditing(null)}
+          />
+        )}
+        {editing?.kind === "delete" && (
+          <DeleteCategoryDialog
+            category={editing.category}
+            others={categories.filter((c) => c.slug !== editing.category.slug)}
+            ticketCount={
+              tickets.filter((t) => t.status === editing.category.slug).length
+            }
+            onDelete={(moveTo) => deleteCategory(editing.category.slug, moveTo)}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </main>
     </MotionConfig>
   )

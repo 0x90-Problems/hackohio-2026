@@ -1,19 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 
-import { STATUS_LABELS, TICKET_STATUS } from "@/shared/names"
+import { TICKET_STATUS } from "@/shared/names"
+import { categoryName } from "@/lib/categories"
 import type { Comment, Ticket } from "@/lib/types"
 import {
   CURRENT_USER_ID,
   comments,
-  incomingComments,
   tickets,
 } from "@/lib/mock-data"
 import { timeAgo } from "@/lib/format"
 import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
+import { ticketHref } from "@/components/board/ticket-sheet"
 import { FeedList, type FeedItem } from "@/components/feed-list"
 import { LiveDot } from "@/components/live-dot"
 import { Badge } from "@/components/ui/badge"
@@ -43,26 +43,7 @@ const commentRows: Row[] = [...comments]
 
 export function PendingFeed() {
   const loading = useMockLoading()
-  const [rows, setRows] = useState<Row[]>([...pendingRows, ...commentRows])
-
-  // Demo: a new comment streams in a few seconds after the page loads.
-  useEffect(() => {
-    if (loading) return
-    const timer = setTimeout(() => {
-      const fresh: Row[] = incomingComments.map((comment) => ({
-        id: commentId(comment),
-        kind: "comment",
-        comment,
-        isNew: true,
-      }))
-      setRows((current) => [
-        ...current.filter((r) => r.kind === "pending"),
-        ...fresh,
-        ...current.filter((r) => r.kind === "comment"),
-      ])
-    }, 4000)
-    return () => clearTimeout(timer)
-  }, [loading])
+  const rows: Row[] = [...pendingRows, ...commentRows]
 
   return (
     <Card>
@@ -102,11 +83,11 @@ function PendingRow({ ticket }: { ticket: Ticket }) {
         </div>
         <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
           <ActorBadge actor={ticket.created_by} />
-          <span className="shrink-0">· {STATUS_LABELS[ticket.status]}</span>
+          <span className="shrink-0">· {categoryName(ticket.status)}</span>
         </div>
       </div>
       <Button asChild variant="outline" size="sm">
-        <Link href={`/board?ticket=${ticket.key}`}>Review</Link>
+        <Link href={ticketHref(ticket.key)}>Review</Link>
       </Button>
     </div>
   )
@@ -115,7 +96,7 @@ function PendingRow({ ticket }: { ticket: Ticket }) {
 function CommentRow({ comment }: { comment: Comment }) {
   return (
     <Link
-      href={`/board?ticket=${comment.ticket_key}`}
+      href={ticketHref(comment.ticket_key)}
       className="-mx-2 flex flex-col gap-1.5 rounded-lg px-2 py-3 transition-colors hover:bg-muted/60"
     >
       <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
