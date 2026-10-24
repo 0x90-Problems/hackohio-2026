@@ -1,0 +1,15 @@
+{
+  "_note": "Same names as names.ts, for code that is not TypeScript (Python scripts, config files). Change both files together.",
+  "scopes": ["tickets:read", "tickets:write", "comments:write", "tickets:close"],
+  "claims": { "actor_type": "actor_type", "on_behalf_of": "on_behalf_of", "scopes": "scopes" },
+  "actor_types": ["human", "agent"],
+  "actor_fields": ["type", "id", "acting_for"],
+  "ticket_status": ["backlog", "in_progress", "in_review", "done"],
+  "agent_connection": ["mcp", "api_key"],
+  "event_actions": ["ticket_created", "ticket_moved", "comment_added", "commit_linked", "ticket_closed"],
+  "db_name": "hackathon",
+  "collections": ["users", "agents", "agent_tokens", "tickets", "comments", "events"],
+  "token_prefix": "clw_",
+  "default_token_expiry_hours": 24,
+  "mcp_tools": ["get_board", "create_ticket", "move_ticket", "add_comment", "link_commit", "watch_changes"]
+}
