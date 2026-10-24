@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
 import {
   CheckIcon,
+  ChevronRightIcon,
   ChevronsUpDownIcon,
   LayoutGridIcon,
   MoreHorizontalIcon,
@@ -17,11 +18,18 @@ import {
 import { ACTOR_TYPES } from "@/shared/names"
 import type { Category } from "@/lib/types"
 import { CATEGORY_COLORS } from "@/lib/categories"
+import { users } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { LiveActivity } from "@/components/board/live-activity"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
+import {
+  filterProjectTickets,
+  ProjectViews,
+  type ProjectFilters,
+  type ProjectView,
+} from "@/components/board/project-views"
 import { SearchCombobox } from "@/components/search-combobox"
 import {
   CategoryDialog,
@@ -77,11 +85,17 @@ export function BoardView({ projectKey }: { projectKey: string }) {
     (e) => projectKeyOf(e.ticket_key) === projectKey
   )
 
+  const [views, setViews] = useState<Record<string, ProjectView>>({})
+  const view = views[projectKey] ?? "board"
+  const setView = (nextView: ProjectView) =>
+    setViews((current) => ({ ...current, [projectKey]: nextView }))
+  const [filters, setFilters] = useState<ProjectFilters>({ owner: "" })
   const [filter, setFilter] = useState<Filter>("all")
   const [editing, setEditing] = useState<Editing | null>(null)
   // Column a card is being dragged over, and the card being dragged
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
+  const [activityVisible, setActivityVisible] = useState(true)
 
   if (!project) {
     return (
@@ -101,15 +115,25 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   // Every tag used on this board, offered as suggestions when tagging
   const tagSuggestions = store.tagsOf(projectKey)
 
-  const visible = tickets.filter(
-    (t) =>
-      filter === "all" ||
-      (filter === "humans" && t.created_by.type === ACTOR_TYPES.HUMAN) ||
-      (filter === "agents" && t.created_by.type === ACTOR_TYPES.AGENT)
+  const visible = filterProjectTickets(
+    tickets.filter(
+      (t) =>
+        filter === "all" ||
+        (filter === "humans" && t.created_by.type === ACTOR_TYPES.HUMAN) ||
+        (filter === "agents" && t.created_by.type === ACTOR_TYPES.AGENT)
+    ),
+    filters
   )
 
   return (
-    <main className="mx-auto grid max-w-screen-2xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <main
+      className={cn(
+        "mx-auto grid max-w-screen-2xl gap-6 px-4 py-6 transition-[grid-template-columns] duration-300 ease-in-out",
+        activityVisible
+          ? "lg:grid-cols-[minmax(0,1fr)_340px]"
+          : "lg:grid-cols-[minmax(0,1fr)_40px]"
+      )}
+    >
       <div className="flex min-w-0 flex-col gap-5">
         {/* Title row */}
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -243,9 +267,22 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           </span>
         </div>
 
+        <ProjectViews
+          tickets={tickets}
+          owners={users}
+          view={view}
+          onViewChange={setView}
+          filters={filters}
+          onFiltersChange={setFilters}
+          onOpenTicket={(ticket) =>
+            router.push(ticketHref(ticket.key), { scroll: false })
+          }
+          onDueDateChange={store.setDueDate}
+        />
+
         {/* Columns. One LayoutGroup lets a card animate from one column to another.
             Drag a card onto another column to move it. */}
-        <ScrollArea className="w-full pb-3">
+        <ScrollArea className={cn("w-full pb-3", view !== "board" && "hidden")}>
           <LayoutGroup id={projectKey}>
             <div className="flex gap-4">
               <AnimatePresence initial={false} mode="popLayout">
@@ -434,12 +471,58 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         </ScrollArea>
       </div>
 
-      <aside className="min-w-0">
-        <LiveActivity
-          events={activity}
-          newIds={store.newEventIds}
-          categories={categories}
-        />
+      <aside
+        className={cn(
+          "relative flex min-w-0 items-start",
+          activityVisible && "lg:pl-4"
+        )}
+      >
+        <div
+          className={cn(
+            "sticky top-20 flex h-[calc(100svh-6rem)] min-h-80 w-8 shrink-0 items-center justify-center",
+            activityVisible && "mr-2"
+          )}
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full border border-border/60 bg-transparent p-0 shadow-none hover:bg-transparent active:bg-transparent"
+            aria-label={
+              activityVisible
+                ? "Collapse live activity panel"
+                : "Expand live activity panel"
+            }
+            aria-expanded={activityVisible}
+            onClick={() => setActivityVisible((visible) => !visible)}
+          >
+            <motion.span
+              animate={{ rotate: activityVisible ? 0 : 180 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="flex"
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </motion.span>
+          </Button>
+        </div>
+        <AnimatePresence initial={false}>
+          {activityVisible && (
+            <motion.div
+              key="live-activity-panel"
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 12 }}
+              transition={{ duration: 0.22, ease: "easeInOut" }}
+              className="min-w-0 flex-1"
+            >
+              <LiveActivity
+                events={activity}
+                newIds={store.newEventIds}
+                categories={categories}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </aside>
 
       <TicketModalFromUrl

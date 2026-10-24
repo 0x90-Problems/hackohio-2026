@@ -1,6 +1,6 @@
 import { ACTOR_TYPES } from "@/shared/names"
 import { BotIcon } from "@/components/icons"
-import type { Actor } from "@/lib/types"
+import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -76,5 +76,23 @@ export function ActorBadge({
       <HumanAvatar name={name} />
       <span className="truncate">{name}</span>
     </span>
+  )
+}
+
+export function TicketOwnerBadge({ ticket }: { ticket: Ticket }) {
+  const ownerId =
+    ticket.owner_id ??
+    (ticket.created_by.type === ACTOR_TYPES.AGENT
+      ? ticket.created_by.acting_for
+      : ticket.created_by.id)
+  const owner = getUser(ownerId)
+
+  return owner ? (
+    <span className="inline-flex min-w-0 items-center gap-1.5 text-sm">
+      <HumanAvatar name={owner.name} />
+      <span className="truncate">{owner.name}</span>
+    </span>
+  ) : (
+    <span className="text-sm text-muted-foreground">Unassigned</span>
   )
 }
