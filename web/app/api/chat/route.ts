@@ -1,4 +1,4 @@
-// Nutty, the board assistant's AI: Claude on Amazon Bedrock. The browser sends
+// Nutty, the board assistant's AI: Claude Sonnet 4.6 on Amazon Bedrock. The browser sends
 // the conversation; this route asks Claude for the next reply and streams it
 // back as JSON lines:
 //   {"type":"text","text":"..."}                 pieces of the reply as they arrive
@@ -12,7 +12,9 @@
 // With BEDROCK_GUARDRAIL_ID set, every question and reply also goes through
 // that Bedrock Guardrail.
 import type Anthropic from "@anthropic-ai/sdk"
-import { AnthropicBedrockMantle } from "@anthropic-ai/bedrock-sdk"
+// The classic Bedrock endpoint (InvokeModel): the OSU sandbox blocks the newer
+// "Mantle" endpoint and only enables Sonnet 4.6 and Haiku 4.5 among Claude models
+import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
 import {
   ApplyGuardrailCommand,
   BedrockRuntimeClient,
@@ -22,7 +24,7 @@ import { ASSISTANT_SYSTEM_PROMPT, ASSISTANT_TOOLS } from "@/lib/assistant/tools"
 
 export const runtime = "nodejs"
 
-const MODEL = "anthropic.claude-opus-5-5"
+const MODEL = "us.anthropic.claude-sonnet-4-6"
 
 const region = () => process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
 
@@ -43,7 +45,7 @@ const guardrail = () =>
     : null
 
 // Created on first use so the site still builds and runs without AWS set up
-let client: AnthropicBedrockMantle | undefined
+let client: AnthropicBedrock | undefined
 let guardrailClient: BedrockRuntimeClient | undefined
 
 // Returns the guardrail's replacement message when it blocks the text
@@ -122,10 +124,11 @@ export async function POST(request: Request) {
     )
   }
 
-  client ??= new AnthropicBedrockMantle({ awsRegion: region() })
+  client ??= new AnthropicBedrock({ awsRegion: region() })
   const stream = client.beta.messages.stream({
     model: MODEL,
     max_tokens: 16000,
+    thinking: { type: "adaptive" },
     // Chat: short, quick answers
     output_config: { effort: "low" },
     system: ASSISTANT_SYSTEM_PROMPT,
@@ -160,18 +163,18 @@ export async function POST(request: Request) {
           stop_reason: message.stop_reason,
         })
       } catch (error) {
-        if (error instanceof AnthropicBedrockMantle.AuthenticationError) {
+        if (error instanceof AnthropicBedrock.AuthenticationError) {
           send({
             type: "error",
             message:
-              "AWS rejected the credentials. Check the AWS settings in web/.env.local.",
+              "AWS rejected the sign-in. Run `aws sso login --profile nutshell` and try again.",
           })
-        } else if (error instanceof AnthropicBedrockMantle.RateLimitError) {
+        } else if (error instanceof AnthropicBedrock.RateLimitError) {
           send({
             type: "error",
             message: "Too many requests right now. Try again in a moment.",
           })
-        } else if (error instanceof AnthropicBedrockMantle.APIError) {
+        } else if (error instanceof AnthropicBedrock.APIError) {
           send({
             type: "error",
             message: `Bedrock error (${error.status}). Try again.`,

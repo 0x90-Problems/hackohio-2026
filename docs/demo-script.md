@@ -52,23 +52,25 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 
 ## Real AI for the assistant (optional)
 
-Nutty runs Claude on Amazon Bedrock (model `anthropic.claude-opus-5-5`). Without AWS settings the chat runs in offline mode. To turn it on:
+Nutty runs Claude Sonnet 4.6 on Amazon Bedrock (model `us.anthropic.claude-sonnet-4-6`), billed to the OSU AWS sandbox account. No Anthropic API key is used. Without AWS settings the chat runs in offline mode.
 
-1. In the AWS console, open Amazon Bedrock and make sure Claude Opus 5.5 is enabled in your region.
-2. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and note its ID and version.
-3. Create `web/.env.local` with your region and **one** way to sign in, then restart `npm run dev`:
+The OSU sandbox (ISB Student 92) only allows Sonnet 4.6 and Haiku 4.5 among Claude models, and blocks Bedrock's newer "Mantle" endpoint, so the app uses the classic InvokeModel endpoint.
 
-```
-AWS_REGION=us-east-1
-# Either a Bedrock API key...
-AWS_BEARER_TOKEN_BEDROCK=...
-# ...or an IAM access key pair, or AWS_PROFILE=<profile> after `aws configure` / `aws sso login`
-# AWS_ACCESS_KEY_ID=...
-# AWS_SECRET_ACCESS_KEY=...
+To turn it on:
 
-# Optional: run every question and reply through a Bedrock Guardrail
-BEDROCK_GUARDRAIL_ID=...
-BEDROCK_GUARDRAIL_VERSION=1
-```
+1. Sign in through AWS SSO (the `nutshell` profile is already in `~/.aws/config`). Sign-ins expire after a few hours; run this again whenever Nutty drops back to offline mode or shows a sign-in error:
 
-The chat header then says "powered by Claude on AWS Bedrock". With a guardrail on, replies appear all at once instead of streaming, because each one is checked before it's shown. Never commit this file; git already ignores it.
+   ```
+   aws sso login --profile nutshell
+   ```
+
+2. `web/.env.local` needs just these two lines (no secrets), then restart `npm run dev`:
+
+   ```
+   AWS_REGION=us-east-1
+   AWS_PROFILE=nutshell
+   ```
+
+3. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and add `BEDROCK_GUARDRAIL_ID=...` and `BEDROCK_GUARDRAIL_VERSION=1` to the same file. With a guardrail on, replies appear all at once instead of streaming, because each one is checked before it's shown.
+
+The chat header then says "powered by Claude on AWS Bedrock". Never commit `web/.env.local`; git already ignores it.
