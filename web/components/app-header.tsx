@@ -13,6 +13,7 @@ import {
   LogOutIcon,
   MoonIcon,
   SunIcon,
+  UserIcon,
   UsersIcon,
 } from "@/components/icons"
 
@@ -129,6 +130,12 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/profile">
+                <UserIcon aria-hidden="true" />
+                Your profile
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
             >

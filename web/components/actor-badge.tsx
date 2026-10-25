@@ -2,6 +2,7 @@
 
 import { ACTOR_TYPES } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { BotIcon } from "@/components/icons"
 import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
@@ -48,14 +49,44 @@ export function AgentTag({ className }: { className?: string }) {
   )
 }
 
+// A person's name that opens their profile popup. Plain text when
+// `interactive` is off (inside a link, where a button can't go).
+function PersonName({
+  userId,
+  interactive,
+  children,
+}: {
+  userId: string
+  interactive: boolean
+  children: React.ReactNode
+}) {
+  const openProfile = useOpenProfile()
+  if (!interactive || !openProfile) return <>{children}</>
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        openProfile(userId)
+      }}
+      className="inline-flex min-w-0 items-center gap-1.5 rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  )
+}
+
 // Shows who did something. Humans: avatar + name.
 // Agents: AGENT tag + agent name + "for [owner]".
+// Clicking a person opens their profile, unless `interactive` is false.
 export function ActorBadge({
   actor,
   className,
+  interactive = true,
 }: {
   actor: Actor
   className?: string
+  interactive?: boolean
 }) {
   const account = useAuthUser()
   if (actor.type === ACTOR_TYPES.AGENT) {
@@ -66,22 +97,41 @@ export function ActorBadge({
         : (getUser(actor.acting_for)?.name ?? actor.acting_for)
     return (
       <span
-        className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}
+        className={cn(
+          "inline-flex min-w-0 items-center gap-1.5 text-sm",
+          className
+        )}
       >
         <AgentTag />
         <span className="truncate">
           {agentName}
-          <span className="text-muted-foreground"> · for {ownerName}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · for{" "}
+            <PersonName userId={actor.acting_for} interactive={interactive}>
+              {ownerName}
+            </PersonName>
+          </span>
         </span>
       </span>
     )
   }
 
-  const name = actor.id === account?._id ? account.name : (getUser(actor.id)?.name ?? actor.id)
+  const name =
+    actor.id === account?._id
+      ? account.name
+      : (getUser(actor.id)?.name ?? actor.id)
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}>
-      <HumanAvatar name={name} />
-      <span className="truncate">{name}</span>
+    <span
+      className={cn(
+        "inline-flex min-w-0 items-center gap-1.5 text-sm",
+        className
+      )}
+    >
+      <PersonName userId={actor.id} interactive={interactive}>
+        <HumanAvatar name={name} />
+        <span className="truncate">{name}</span>
+      </PersonName>
     </span>
   )
 }

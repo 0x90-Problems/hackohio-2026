@@ -12,6 +12,7 @@ import {
   validateSignIn,
   validateSignUp,
 } from "@/lib/board-auth"
+import { BoardScene } from "@/components/illustrations"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -56,99 +57,155 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       router.push("/")
       router.refresh()
     } catch (caught) {
-      setError(caught instanceof AuthApiError ? caught.message : "Could not reach the sign-in service.")
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "Could not reach the sign-in service."
+      )
     } finally {
       setPending(false)
     }
   }
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-4">
-      <Logo className="text-xl" markClassName="size-8" />
+    <main className="grid min-h-svh bg-muted/50 lg:grid-cols-2">
+      {/* Wide screens: the board illustration beside the form */}
+      <section className="hidden flex-col justify-between border-r bg-background p-10 lg:flex">
+        <Logo className="text-xl" markClassName="size-8" />
+        <div className="mx-auto w-full max-w-md animate-in duration-500 fade-in">
+          <BoardScene />
+          <h2 className="mt-8 text-3xl font-bold tracking-tight">
+            Your whole project, in a NutShell.
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            People and AI agents work on the same board. Every change shows who
+            made it, and agents always act for a person.
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">Built at HackOHI/O 2026</p>
+      </section>
 
-      <Card className="w-full max-w-sm animate-in duration-300 fade-in slide-in-from-bottom-2">
-        <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={onSubmit}>
-          <CardHeader>
-            <CardTitle className="text-2xl">{signup ? "Sign up" : "Log in"}</CardTitle>
-            <CardDescription>
-              {signup
-                ? "Create an account on this board."
-                : "Use the account your team lead created for you."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            {signup ? (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="name">Name</Label>
-                <Input id="name" name="name" placeholder="Naz" autoComplete="name" />
-              </div>
-            ) : null}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" name="username" placeholder="raddy" autoComplete="username" />
-            </div>
-            {signup ? (
-              <>
+      <div className="flex flex-col items-center justify-center gap-6 p-4">
+        <Logo className="text-xl lg:hidden" markClassName="size-8" />
+
+        <Card className="w-full max-w-sm animate-in duration-300 fade-in slide-in-from-bottom-2">
+          <form
+            className="flex flex-col gap-(--card-spacing)"
+            noValidate
+            onSubmit={onSubmit}
+          >
+            <CardHeader>
+              <CardTitle className="text-2xl">
+                {signup ? "Sign up" : "Log in"}
+              </CardTitle>
+              <CardDescription>
+                {signup
+                  ? "Create an account on this board."
+                  : "Use the account your team lead created for you."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+              {signup ? (
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="name">Name</Label>
                   <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="optional"
-                    autoComplete="email"
+                    id="name"
+                    name="name"
+                    placeholder="Naz"
+                    autoComplete="name"
                   />
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="team">Team</Label>
-                  <Input id="team" name="team" placeholder="optional" autoComplete="organization" />
-                </div>
-              </>
-            ) : null}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete={signup ? "new-password" : "current-password"}
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col items-stretch gap-3">
-            <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? (signup ? "Creating account…" : "Logging in…") : signup ? "Sign up" : "Log in"}
-            </Button>
-            <p className="text-center text-sm text-muted-foreground">
+              ) : null}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  name="username"
+                  placeholder="raddy"
+                  autoComplete="username"
+                />
+              </div>
               {signup ? (
                 <>
-                  Already have an account?{" "}
-                  <Link href="/login" className="text-foreground underline underline-offset-4">
-                    Log in
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="optional"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="team">Team</Label>
+                    <Input
+                      id="team"
+                      name="team"
+                      placeholder="optional"
+                      autoComplete="organization"
+                    />
+                  </div>
                 </>
-              ) : (
-                <>
-                  Need an account?{" "}
-                  <Link href="/signup" className="text-foreground underline underline-offset-4">
-                    Sign up
-                  </Link>
-                </>
-              )}
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
+              ) : null}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete={signup ? "new-password" : "current-password"}
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex-col items-stretch gap-3">
+              <Button type="submit" className="w-full" disabled={pending}>
+                {pending
+                  ? signup
+                    ? "Creating account…"
+                    : "Logging in…"
+                  : signup
+                    ? "Sign up"
+                    : "Log in"}
+              </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                {signup ? (
+                  <>
+                    Already have an account?{" "}
+                    <Link
+                      href="/login"
+                      className="text-foreground underline underline-offset-4"
+                    >
+                      Log in
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Need an account?{" "}
+                    <Link
+                      href="/signup"
+                      className="text-foreground underline underline-offset-4"
+                    >
+                      Sign up
+                    </Link>
+                  </>
+                )}
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
 
-      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-        <LockIcon className="size-3.5" />
-        Passwords stay in the directory · agents never use this screen, they use tokens
-      </p>
+        <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <LockIcon className="size-3.5" />
+          Passwords stay in the directory · agents never use this screen, they
+          use tokens
+        </p>
+      </div>
     </main>
   )
 }

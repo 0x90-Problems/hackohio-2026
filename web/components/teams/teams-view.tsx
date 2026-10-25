@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Agent, User } from "@/lib/types"
 import { TEAM, agents, users } from "@/lib/mock-data"
+import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { useProjects } from "@/components/projects/projects-store"
 import { loadSite, saveTeam, type SiteState } from "@/lib/site-db"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
@@ -43,12 +44,19 @@ import { Label } from "@/components/ui/label"
 
 // "Open" = not done, and made by this person or by their agent.
 // (Tickets have no assignee field yet, so this is the closest match.)
-function openTicketCount(userId: string, tickets: { status: string; created_by: { type: string; id: string; acting_for?: string } }[]) {
+function openTicketCount(
+  userId: string,
+  tickets: {
+    status: string
+    created_by: { type: string; id: string; acting_for?: string }
+  }[]
+) {
   return tickets.filter(
     (t) =>
       t.status !== TICKET_STATUS.DONE &&
       (t.created_by.id === userId ||
-        (t.created_by.type === ACTOR_TYPES.AGENT && t.created_by.acting_for === userId))
+        (t.created_by.type === ACTOR_TYPES.AGENT &&
+          t.created_by.acting_for === userId))
   ).length
 }
 
@@ -65,7 +73,8 @@ export function TeamsView() {
     loadSite()
       .then((site) => {
         if (cancelled) return
-        if (site.teams.length > 0) setNewTeams(site.teams.map((team) => team.name))
+        if (site.teams.length > 0)
+          setNewTeams(site.teams.map((team) => team.name))
         setDirectoryUsers(site.users.map(directoryUser))
       })
       .catch(() => {
@@ -79,12 +88,20 @@ export function TeamsView() {
   const people = [
     ...users,
     ...directoryUsers.filter(
-      (user) => !users.some((sample) => sample._id === user._id || sample.auth_username === user.auth_username)
+      (user) =>
+        !users.some(
+          (sample) =>
+            sample._id === user._id ||
+            sample.auth_username === user.auth_username
+        )
     ),
   ]
   const members = people.filter((u) => u.team === TEAM)
   const extraTeamNames = [
-    ...new Set([...newTeams, ...people.filter((user) => user.team !== TEAM).map((user) => user.team)]),
+    ...new Set([
+      ...newTeams,
+      ...people.filter((user) => user.team !== TEAM).map((user) => user.team),
+    ]),
   ]
   const activeAgents = agents.filter(
     (a) => !a.revoked && members.some((m) => m._id === a.owner_id)
@@ -98,13 +115,17 @@ export function TeamsView() {
             <UsersIcon className="size-6" aria-hidden="true" />
             Teams
           </h1>
-          <p className="text-muted-foreground">People, and the agents working for each of them.</p>
+          <p className="text-muted-foreground">
+            People, and the agents working for each of them.
+          </p>
         </div>
         <NewTeamDialog
           onCreate={(name) => {
             setNewTeams((t) => [...t, name])
             saveTeam(name)
-            toast.success(`Created ${name}`, { description: "Now invite some people." })
+            toast.success(`Created ${name}`, {
+              description: "Now invite some people.",
+            })
           }}
         />
       </div>
@@ -144,7 +165,12 @@ export function TeamsView() {
         {extraTeamNames.map((name) => {
           const teamMembers = people.filter((user) => user.team === name)
           return teamMembers.length > 0 ? (
-            <TeamCard key={name} name={name} members={teamMembers} agents={agents} />
+            <TeamCard
+              key={name}
+              name={name}
+              members={teamMembers}
+              agents={agents}
+            />
           ) : (
             <EmptyTeamCard key={name} team={name} />
           )
@@ -155,8 +181,19 @@ export function TeamsView() {
   )
 }
 
-function TeamCard({ name, members, agents: teamAgents }: { name: string; members: User[]; agents: Agent[] }) {
-  const active = teamAgents.filter((agent) => !agent.revoked && members.some((member) => member._id === agent.owner_id))
+function TeamCard({
+  name,
+  members,
+  agents: teamAgents,
+}: {
+  name: string
+  members: User[]
+  agents: Agent[]
+}) {
+  const active = teamAgents.filter(
+    (agent) =>
+      !agent.revoked && members.some((member) => member._id === agent.owner_id)
+  )
   return (
     <Card>
       <CardHeader className="border-b">
@@ -171,7 +208,11 @@ function TeamCard({ name, members, agents: teamAgents }: { name: string; members
       <CardContent>
         <ul className="flex flex-col divide-y">
           {members.map((user) => (
-            <MemberRow key={user._id} user={user} agent={active.find((agent) => agent.owner_id === user._id)} />
+            <MemberRow
+              key={user._id}
+              user={user}
+              agent={active.find((agent) => agent.owner_id === user._id)}
+            />
           ))}
         </ul>
       </CardContent>
@@ -181,22 +222,42 @@ function TeamCard({ name, members, agents: teamAgents }: { name: string; members
 
 function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
   const store = useProjects()
+  const openProfile = useOpenProfile()
   const open = openTicketCount(user._id, store.tickets)
   return (
     <li className="flex items-start gap-3 py-4">
-      <HumanAvatar name={user.name} size="lg" />
+      <button
+        type="button"
+        aria-label={`Open ${user.name}'s profile`}
+        onClick={() => openProfile?.(user._id)}
+        className="rounded-full transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <HumanAvatar name={user.name} size="lg" />
+      </button>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="font-semibold">{user.name}</span>
+          <button
+            type="button"
+            onClick={() => openProfile?.(user._id)}
+            className="text-left font-semibold hover:underline"
+          >
+            {user.name}
+          </button>
           <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
             {open} open
           </span>
         </div>
-        {user.role && <p className="text-sm text-muted-foreground">{user.role}</p>}
+        {user.role && (
+          <p className="text-sm text-muted-foreground">{user.role}</p>
+        )}
         {agent ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <ActorBadge
-              actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, acting_for: user._id }}
+              actor={{
+                type: ACTOR_TYPES.AGENT,
+                id: agent._id,
+                acting_for: user._id,
+              }}
             />
             {agent.scopes.map((scope) => (
               <ScopeBadge key={scope} scope={scope} />
@@ -213,12 +274,16 @@ function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
 // Dashed card for a team with room for more people.
 function EmptyTeamCard({ team }: { team: string }) {
   return (
-    <Card className="justify-center border-2 border-dashed bg-transparent shadow-none ring-0 duration-300 animate-in fade-in">
+    <Card className="animate-in justify-center border-2 border-dashed bg-transparent shadow-none ring-0 duration-300 fade-in">
       <CardHeader className="justify-items-center text-center">
-        <UsersIcon className="size-8 text-muted-foreground" aria-hidden="true" />
+        <UsersIcon
+          className="size-8 text-muted-foreground"
+          aria-hidden="true"
+        />
         <CardTitle className="text-lg">{team}</CardTitle>
         <CardDescription className="max-w-xs">
-          Invite people. Each person connects their own agent from the Agents page.
+          Invite people. Each person connects their own agent from the Agents
+          page.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center">
@@ -236,7 +301,9 @@ function InviteDialog({ team }: { team: string }) {
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!username.trim()) return
-    toast.success(`Invite sent to ${username.trim()}`, { description: `They'll join ${team}.` })
+    toast.success(`Invite sent to ${username.trim()}`, {
+      description: `They'll join ${team}.`,
+    })
     setUsername("")
     setRole("")
     setOpen(false)
@@ -259,7 +326,10 @@ function InviteDialog({ team }: { team: string }) {
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="invite-username" className="flex items-center gap-1.5">
+            <Label
+              htmlFor="invite-username"
+              className="flex items-center gap-1.5"
+            >
               <MailIcon className="size-4" aria-hidden="true" />
               Username or email
             </Label>
@@ -287,7 +357,11 @@ function InviteDialog({ team }: { team: string }) {
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" variant="secondary" disabled={!username.trim()}>
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={!username.trim()}
+            >
               Send invite
             </Button>
           </DialogFooter>
@@ -321,7 +395,9 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>New team</DialogTitle>
-            <DialogDescription>You can invite people after it&apos;s made.</DialogDescription>
+            <DialogDescription>
+              You can invite people after it&apos;s made.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="team-name">Team name</Label>
