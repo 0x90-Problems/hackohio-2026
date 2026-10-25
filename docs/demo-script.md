@@ -1,4 +1,4 @@
-# buck2agents demo script (3 minutes)
+# NutShell demo script (3 minutes)
 
 The story: **an AI agent did real work, a human stayed in charge.** Claude Code, acting for Raddy, built a feature (CLW-16, ticket search), linked its commits and asked for review. Raddy approves it and it moves to Done. Every step is on one board the whole team can see.
 
@@ -18,7 +18,7 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 
 | Time | Click | Say |
 |---|---|---|
-| 0:00 | **Home** page | "Teams now work alongside AI agents, but nobody can see what those agents did. buck2agents puts every human and agent action on one board." |
+| 0:00 | **Home** page | "Teams now work alongside AI agents, but nobody can see what those agents did. NutShell puts every human and agent action on one board." |
 | 0:20 | Point at **Pending actions**: "Waiting on you · CLW-16 · Search tickets by id, title or tag" | "Raddy's agent finished a feature while he was away. It needs a human to approve it." |
 | 0:35 | Click **Review** on CLW-16 | The ticket opens in the middle of the board. |
 | 0:40 | Point at **Created by: AGENT Claude Code**, **Acting for: Raddy**, **Token scopes** | "Agents are never anonymous. Every agent belongs to a person, and its token only allows what that person allowed: here, write tickets and comment, but not close them." |
@@ -27,19 +27,19 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 | 1:30 | Point at the agent's comment | "It even explains what it did." |
 | 1:40 | Click **Approve** | The popup says "Approved CLW-16 · Moved to Done". |
 | 1:45 | Press **Esc** to close | The card is now in **Done** and the top of **Live activity** says Raddy closed CLW-16. "A human made the final call, and it's on the record." |
-| 1:50 | Click **Ask the assistant** (bottom right), then the suggestion **Move CLW-12 to In progress** | The card moves on the board and Live activity shows "Board assistant · for Raddy". "You can also just ask. The assistant is an agent too, acting for me, so it's on the record like any other agent." |
+| 1:50 | Click **Ask Nutty** (bottom right), then the suggestion **Move CLW-12 to In progress** | The card moves on the board and Live activity shows "Nutty · for Raddy". "You can also just ask. The assistant is an agent too, acting for me, so it's on the record like any other agent." |
 | 1:55 | Type **approve CLW-16** | It says agents can't approve tickets: "Even our own assistant can't close tickets. That's the human's job." |
 | 2:00 | Drag any Backlog card to **In progress** | "Humans use the same board: drag and drop, custom columns, tags." |
 | 2:15 | Click the project name (**HackOHI/O build ⇅**), pick **Pitch & demo**, then open it again and pick **All projects** | "One team, many projects, each with its own board. Templates like Kanban or Bug tracker set up the columns for you." |
 | 2:35 | Open **Agents** | "And you control every agent here: what it may do, and a Revoke button that cuts it off right away." |
-| 2:50 | Back to the board | "buck2agents: let agents do the work, and keep humans in charge." |
+| 2:50 | Back to the board | "NutShell: let agents do the work, and keep humans in charge." |
 
 ## If something goes wrong
 
 - **Page shows "This site can't be reached":** the site stopped. Run step 1 again, then reload.
 - **CLW-16 is already in Done:** reload the page (the sample data resets).
 - **ngrok link fails on OSU Wi-Fi:** use `--region us` (step 5) or your phone's hotspot.
-- **The assistant says "offline mode":** that's fine for the demo; it understands the suggestions shown in the chat. For real AI answers, add an Anthropic API key (see below).
+- **The assistant says "offline mode":** that's fine for the demo; it understands the suggestions shown in the chat. For real AI answers, set up AWS Bedrock (see below).
 - **Anything else:** present from localhost on your own laptop. Everything in this script works without internet.
 
 ## Where the demo data lives
@@ -52,10 +52,23 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 
 ## Real AI for the assistant (optional)
 
-Without a key the chat runs in offline mode. To use Claude, create `web/.env.local` with this one line (your key from https://console.anthropic.com, under API keys), then restart `npm run dev`:
+Nutty runs Claude on Amazon Bedrock (model `anthropic.claude-opus-5-5`). Without AWS settings the chat runs in offline mode. To turn it on:
+
+1. In the AWS console, open Amazon Bedrock and make sure Claude Opus 5.5 is enabled in your region.
+2. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and note its ID and version.
+3. Create `web/.env.local` with your region and **one** way to sign in, then restart `npm run dev`:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+AWS_REGION=us-east-1
+# Either a Bedrock API key...
+AWS_BEARER_TOKEN_BEDROCK=...
+# ...or an IAM access key pair, or AWS_PROFILE=<profile> after `aws configure` / `aws sso login`
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
+
+# Optional: run every question and reply through a Bedrock Guardrail
+BEDROCK_GUARDRAIL_ID=...
+BEDROCK_GUARDRAIL_VERSION=1
 ```
 
-The chat header then says "powered by Claude". Never commit this file; git already ignores it.
+The chat header then says "powered by Claude on AWS Bedrock". With a guardrail on, replies appear all at once instead of streaming, because each one is checked before it's shown. Never commit this file; git already ignores it.

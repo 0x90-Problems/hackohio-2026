@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { AgentsView } from "@/components/agents/agents-view"
 
 export const metadata: Metadata = {
-  title: "Agents · buck2agents",
+  title: "Agents · NutShell",
 }
 
 export default function AgentsPage() {

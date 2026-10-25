@@ -5,7 +5,7 @@ export async function generateMetadata({
   params,
 }: PageProps<"/projects/[key]/board/ticket/[id]">): Promise<Metadata> {
   const { id } = await params
-  return { title: `${decodeURIComponent(id)} · buck2agents` }
+  return { title: `${decodeURIComponent(id)} · NutShell` }
 }
 
 export default function TicketPage() {

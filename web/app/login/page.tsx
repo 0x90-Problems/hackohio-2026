@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 export const metadata: Metadata = {
-  title: "Log in · buck2agents",
+  title: "Log in · NutShell",
 }
 
 // Authelia will handle the real login later. For now the button does nothing.
@@ -23,7 +23,7 @@ export default function LoginPage() {
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-4">
       <div className="flex items-center gap-2 text-xl font-semibold">
         <span className="size-8 rounded-lg bg-primary" aria-hidden />
-        buck2agents
+        NutShell
       </div>
 
       <Card className="w-full max-w-sm animate-in duration-300 fade-in slide-in-from-bottom-2">

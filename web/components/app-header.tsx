@@ -80,7 +80,7 @@ export function AppHeader() {
         <Link href="/" className="flex items-center gap-2 font-semibold">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-mark.png" alt="" className="size-7" aria-hidden />
-          buck2agents
+          NutShell
         </Link>
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}

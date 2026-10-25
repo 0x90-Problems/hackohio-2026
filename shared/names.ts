@@ -1,4 +1,4 @@
-// buck2agents — shared names
+// NutShell — shared names
 // Every part of the app (frontend, backend, MCP server, auth) imports names
 // from this file instead of typing them by hand. If a name changes, change it
 // here only. Keep this file in sync with docs/schema.md.

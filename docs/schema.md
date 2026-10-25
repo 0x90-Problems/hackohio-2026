@@ -63,7 +63,7 @@ One document per project. A team can have several, like GitHub repos, and each o
 |---|---|---|---|---|
 | `key` | text | yes | `CLW` | Unique. 2–6 capital letters or digits, starting with a letter. Every ticket id in the project starts with it (`CLW-05`) |
 | `name` | text | yes | `HackOHI/O build` | Shown on the Projects page and board title |
-| `description` | text | no | `The buck2agents app we demo on Sunday.` | Shown on the project card |
+| `description` | text | no | `The NutShell app we demo on Sunday.` | Shown on the project card |
 | `team` | text | yes | `0x90 Problems` | Team that owns it, same as `users.team` |
 | `template` | text | no | `blank` | The template it started from (one of the project template words) |
 | `categories` | list | yes | see below | The board's columns, in order |

@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { OrganizationView } from "@/components/organization/organization-view"
 
 export const metadata: Metadata = {
-  title: "Organization · buck2agents",
+  title: "Organization · NutShell",
 }
 
 export default function OrganizationPage() {

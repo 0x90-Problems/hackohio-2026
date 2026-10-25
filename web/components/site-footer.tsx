@@ -36,7 +36,7 @@ export function SiteFooter() {
   return (
     <footer className="mt-12 border-t bg-muted/40">
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-8 px-4 py-10">
-        <p className="text-lg font-semibold">buck2agents</p>
+        <p className="text-lg font-semibold">NutShell</p>
         <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-4">
           {COLUMNS.map((column) => (
             <nav

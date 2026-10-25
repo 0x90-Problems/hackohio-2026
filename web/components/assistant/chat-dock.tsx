@@ -41,10 +41,10 @@ const HIDDEN_ON = ["/login"]
 // Most tool rounds per question, so a confused model can't loop forever
 const MAX_ROUNDS = 8
 
-// "Ask the assistant" button in the bottom-right corner of every page. It opens
-// a chat with the Board assistant, an agent acting for you: it answers
+// "Ask Nutty" button in the bottom-right corner of every page. It opens
+// a chat with Nutty, an agent acting for you: it answers
 // questions about tickets and makes changes on the board, which show up there
-// as done by "Board assistant". Uses Claude when the server has an API key
+// as done by "Nutty". Uses Claude when the server has an API key
 // (app/api/chat), otherwise a built-in offline assistant.
 export function ChatDock() {
   const pathname = usePathname()
@@ -216,7 +216,7 @@ export function ChatDock() {
         {open && (
           <motion.section
             key="panel"
-            aria-label="Board assistant"
+            aria-label="Nutty"
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
@@ -231,14 +231,14 @@ export function ChatDock() {
               </span>
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="flex items-center gap-1.5 text-sm font-semibold">
-                  Board assistant <AgentTag />
+                  Nutty <AgentTag />
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
                   Acting for {currentUser.name} ·{" "}
                   {ai === null
                     ? "connecting…"
                     : ai
-                      ? "powered by Claude"
+                      ? "powered by Claude on AWS Bedrock"
                       : "offline mode"}
                 </span>
               </div>
@@ -261,7 +261,7 @@ export function ChatDock() {
               {messages.length === 0 && (
                 <div className="flex flex-col gap-3 text-sm">
                   <p className="text-muted-foreground">
-                    Hi {currentUser.name}! Ask me about your tickets, or tell me
+                    Hi {currentUser.name}, I&apos;m Nutty! Ask me about your tickets, or tell me
                     what to change. Everything I do shows up on the board as
                     done by an agent acting for you.
                   </p>
@@ -392,10 +392,10 @@ export function ChatDock() {
         >
           {open ? <XIcon /> : <MessageCircleIcon />}
           <span className="hidden sm:inline">
-            {open ? "Close" : "Ask the assistant"}
+            {open ? "Close" : "Ask Nutty"}
           </span>
           <span className="sr-only sm:hidden">
-            {open ? "Close assistant" : "Ask the assistant"}
+            {open ? "Close assistant" : "Ask Nutty"}
           </span>
         </Button>
       </motion.div>

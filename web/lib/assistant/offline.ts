@@ -198,7 +198,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
 
   if (/^(hi|hey|hello|help|\?)/.test(lower)) {
     return {
-      text: `Hi! I'm the board assistant. I can look things up and make changes for you. Try: ${EXAMPLES.slice(0, 4).join(" · ")}`,
+      text: `Hi! I'm Nutty, your NutShell assistant. I can look things up and make changes for you. Try: ${EXAMPLES.slice(0, 4).join(" · ")}`,
       actions: [],
     }
   }

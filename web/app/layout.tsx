@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
-  title: "buck2agents",
+  title: "NutShell",
 }
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'})

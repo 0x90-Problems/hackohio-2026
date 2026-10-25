@@ -60,7 +60,7 @@ const SERVER_URL = "http://localhost:3000"
 
 const MCP_CONFIG = `{
   "mcpServers": {
-    "buck2agents": {
+    "nutshell": {
       "url": "${SERVER_URL}/mcp",
       "headers": { "Authorization": "Bearer ${TOKEN_PREFIX}your_agent_token" }
     }
