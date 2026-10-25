@@ -17,6 +17,7 @@ import {
 } from "@/components/icons"
 
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -82,9 +83,8 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span className="size-6 rounded-md bg-primary" aria-hidden />
-          buck2agents
+        <Link href="/" className="text-foreground">
+          <Logo />
         </Link>
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}

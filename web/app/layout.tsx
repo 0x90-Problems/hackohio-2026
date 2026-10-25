@@ -9,10 +9,25 @@ import { ProjectsProvider } from "@/components/projects/projects-store"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { cn } from "@/lib/utils"
 
 export const metadata: Metadata = {
-  title: "buck2agents",
+  title: {
+    default: PRODUCT_NAME,
+    template: `%s · ${PRODUCT_NAME}`,
+  },
+  applicationName: PRODUCT_NAME,
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any", type: "image/x-icon" },
+      { url: "/icon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/logo-mark.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 }
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'})

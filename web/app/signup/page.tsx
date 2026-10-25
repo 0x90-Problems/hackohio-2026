@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 
 import { AuthScreen } from "@/components/auth/auth-screen"
+import { pageTitle } from "@/lib/brand"
 
 export const metadata: Metadata = {
-  title: "Sign up · buck2agents",
+  title: pageTitle("Sign up"),
 }
 
 export default function SignUpPage() {

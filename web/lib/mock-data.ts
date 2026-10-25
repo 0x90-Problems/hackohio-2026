@@ -158,7 +158,7 @@ export const agentTokens: AgentToken[] = [
 
 // Same as db/seed.js. Both start from the Blank template's columns.
 export const projects: Project[] = [
-  { key: "CLW", name: "HackOHI/O build", description: "The buck2agents app we demo on Sunday.", created_by: human("user_dylan"), created: 1440 },
+  { key: "CLW", name: "HackOHI/O build", description: "The Nutshell app we demo on Sunday.", created_by: human("user_dylan"), created: 1440 },
   { key: "PIT", name: "Pitch & demo", description: "Slides, script and the live agent demo.", created_by: human("user_naz"), created: 300 },
 ].map(({ created, ...p }) => ({
   ...p,

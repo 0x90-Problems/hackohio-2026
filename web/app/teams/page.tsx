@@ -1,9 +1,10 @@
 import type { Metadata } from "next"
 
 import { TeamsView } from "@/components/teams/teams-view"
+import { pageTitle } from "@/lib/brand"
 
 export const metadata: Metadata = {
-  title: "Teams · buck2agents",
+  title: pageTitle("Teams"),
 }
 
 export default function TeamsPage() {
