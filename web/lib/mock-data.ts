@@ -269,7 +269,7 @@ export const tickets: Ticket[] = (
       tags: ["High"],
       status: BACKLOG,
       created_by: human("user_dylan"),
-      fields: { Iteration: "Sprint 1", Estimate: "3" },
+      fields: { Iteration: "Sprint 1", Estimate: "3" } as Record<string, string>,
       created: 18,
     },
     { key: "ST-02", title: "Write the iteration goal", status: "ready", created_by: human("user_raddy"), created: 16 },
@@ -278,7 +278,7 @@ export const tickets: Ticket[] = (
       title: "Estimate the remaining stories",
       status: IN_PROGRESS,
       created_by: human("user_naz"),
-      fields: { Iteration: "Sprint 1" },
+      fields: { Iteration: "Sprint 1" } as Record<string, string>,
       created: 12,
     },
     {
@@ -286,7 +286,7 @@ export const tickets: Ticket[] = (
       title: "Close last sprint",
       status: DONE,
       created_by: human("user_debora"),
-      fields: { Iteration: "Sprint 0", Estimate: "1" },
+      fields: { Iteration: "Sprint 0", Estimate: "1" } as Record<string, string>,
       created: 40,
     },
 
