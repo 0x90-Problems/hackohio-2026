@@ -1,0 +1,10 @@
+NUTSHELL - Demo Screenshots
+0x90 Problems | Hack/IO 2026
+
+Make your AI teammates visible. An agent-native project board where every agent move leaves a trail.
+
+Live demo: 11:00 AM
+Try it: hackohio-2026.vercel.app
+Code: github.com/0x90-Problems
+
+The demo runs on the Vercel-hosted /mcp route. The FastMCP/AWS ECS, Authelia + LLDAP, and DocumentDB + Redis stack is planned, not yet live.
