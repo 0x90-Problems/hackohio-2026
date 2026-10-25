@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "db:setup": "node db/setup.js",
-    "db:seed": "node db/seed.js"
+    "db:seed": "node db/seed.js",
+    "demo:restore": "node db/demo-restore.js"
   },
   "dependencies": {
     "mongodb": "^6.21.0"
