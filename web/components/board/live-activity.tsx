@@ -3,6 +3,7 @@ import { motion } from "motion/react"
 import type { Category, Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { ActorBadge } from "@/components/actor-badge"
+import { EmptyState } from "@/components/illustrations"
 import {
   Card,
   CardContent,
@@ -31,7 +32,7 @@ export function LiveActivity({
       <CardContent>
         <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)] [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
           {events.length === 0 ? (
-            <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
+            <EmptyState title="No activity yet" hint="Moves, comments and commits on this board show up here." />
           ) : (
           <ul className="flex flex-col divide-y pr-3">
             {events.map((event) => {

@@ -95,7 +95,11 @@ export function ActorBadge({
   const { people, agents } = useBoardDirectory()
   if (actor.type === ACTOR_TYPES.AGENT) {
     const record = agents.find((agent) => agent._id === actor.id)
-    const agentName = visibleAgentName(actor.name, actor.id, record?.name || getAgent(actor.id)?.name)
+    const agentName = visibleAgentName(
+      actor.name,
+      actor.id,
+      record?.name || getAgent(actor.id)?.name
+    )
     const ownerName =
       (actor.acting_for === account?._id ? account.name : undefined) ||
       people.find((person) => person._id === actor.acting_for)?.name ||

@@ -98,6 +98,7 @@ function useProjectsState() {
     [...allEvents].sort(newestFirst)
   )
   const [comments, setComments] = useState<Comment[]>(allComments)
+  // Every agent saved in MongoDB, from the same load as the board
   const [boardAgents, setBoardAgents] = useState<Agent[]>([])
   // Remember what arrived after the page loaded, so only those animate in.
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set())

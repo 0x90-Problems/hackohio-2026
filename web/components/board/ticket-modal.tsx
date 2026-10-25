@@ -19,6 +19,8 @@ import {
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { visibleAgentName } from "@/lib/agent-label"
+import { useBoardDirectory } from "@/lib/use-board-directory"
+import { useProjects } from "@/components/projects/projects-store"
 import { listBoardUsers } from "@/lib/connect-agent"
 import { absoluteTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -39,6 +41,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { HistoryIcon } from "@/components/icons"
+import { EmptyState } from "@/components/illustrations"
 
 const CONNECTION_LABELS = {
   [AGENT_CONNECTION.MCP]: "MCP",
@@ -161,9 +164,22 @@ function TicketDetail({
     }
   }, [])
   const account = useAuthUser()
+  // The signed-in person can always be picked, even before the directory loads
+  const reviewerOptions =
+    account && !people.some((person) => person._id === account._id)
+      ? [...people, { _id: account._id, name: account.name }]
+      : people
   const creator = ticket.created_by
+  // Demo agents are in mock-data; real ones come from the live directory,
+  // or from MongoDB through the board load when the directory isn't reachable
+  const directory = useBoardDirectory()
+  const { boardAgents } = useProjects()
   const agent =
-    creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
+    creator.type === ACTOR_TYPES.AGENT
+      ? (getAgent(creator.id) ??
+        directory.agents.find((a) => a._id === creator.id) ??
+        boardAgents.find((a) => a._id === creator.id))
+      : undefined
   const named =
     creator.type === ACTOR_TYPES.AGENT
       ? visibleAgentName(creator.name, creator.id, agent?.name)
@@ -334,7 +350,7 @@ function TicketDetail({
               onChange={(event) => onReviewerChange(ticket.key, event.target.value)}
             >
               <option value="">None</option>
-              {people.map((user) => (
+              {reviewerOptions.map((user) => (
                 <option key={user._id} value={user._id}>
                   {user.name}
                 </option>
@@ -371,7 +387,11 @@ function TicketDetail({
             Activity &amp; comments
           </h3>
           {sorted.length === 0 && (
-            <p className="text-sm text-muted-foreground">No comments yet.</p>
+            <EmptyState
+              title="No comments yet"
+              hint="Start the conversation below."
+              className="py-2"
+            />
           )}
           <ul className="flex flex-col gap-2">
             {sorted.map((comment) => {

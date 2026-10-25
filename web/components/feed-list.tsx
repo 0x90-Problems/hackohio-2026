@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { cn } from "@/lib/utils"
 import { FeedPager } from "@/components/feed-pager"
+import { EmptyState } from "@/components/illustrations"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export type FeedItem = { id: string; isNew?: boolean }
@@ -42,18 +43,27 @@ export function FeedList<T extends FeedItem>({
   }
 
   if (items.length === 0) {
-    return <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
+    return (
+      <EmptyState
+        title="No activity yet"
+        hint="Changes from people and agents show up here."
+      />
+    )
   }
 
   return (
     <div className="flex flex-col gap-4">
       {/* key={current} remounts the list on page change, which replays the fade */}
-      <ul key={current} className="flex flex-col divide-y duration-200 animate-in fade-in">
+      <ul
+        key={current}
+        className="flex animate-in flex-col divide-y duration-200 fade-in"
+      >
         {visible.map((item) => (
           <li
             key={item.id}
             className={cn(
-              item.isNew && "duration-300 animate-in fade-in slide-in-from-top-2"
+              item.isNew &&
+                "animate-in duration-300 fade-in slide-in-from-top-2"
             )}
           >
             {renderItem(item)}
@@ -61,7 +71,11 @@ export function FeedList<T extends FeedItem>({
         ))}
       </ul>
       {pageCount > 1 && (
-        <FeedPager page={current} pageCount={pageCount} onPageChange={setPage} />
+        <FeedPager
+          page={current}
+          pageCount={pageCount}
+          onPageChange={setPage}
+        />
       )}
     </div>
   )
