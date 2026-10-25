@@ -13,7 +13,9 @@ import { toast } from "sonner"
 
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Agent, User } from "@/lib/types"
-import { TEAM, agents, tickets, users } from "@/lib/mock-data"
+import { TEAM, agents, users } from "@/lib/mock-data"
+import { usePersistentState } from "@/lib/local-store"
+import { useProjects } from "@/components/projects/projects-store"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Button } from "@/components/ui/button"
@@ -41,7 +43,7 @@ import { Label } from "@/components/ui/label"
 
 // "Open" = not done, and made by this person or by their agent.
 // (Tickets have no assignee field yet, so this is the closest match.)
-function openTicketCount(userId: string) {
+function openTicketCount(userId: string, tickets: { status: string; created_by: { type: string; id: string; acting_for?: string } }[]) {
   return tickets.filter(
     (t) =>
       t.status !== TICKET_STATUS.DONE &&
@@ -51,8 +53,8 @@ function openTicketCount(userId: string) {
 }
 
 export function TeamsView() {
-  // Teams made with "+ New team" in this session. They start empty.
-  const [newTeams, setNewTeams] = useState<string[]>([])
+  // Teams made with "+ New team". They stay after a refresh.
+  const [newTeams, setNewTeams] = usePersistentState<string[]>("buck2.teams", [])
 
   const members = users.filter((u) => u.team === TEAM)
   const activeAgents = agents.filter(
@@ -119,7 +121,8 @@ export function TeamsView() {
 }
 
 function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
-  const open = openTicketCount(user._id)
+  const store = useProjects()
+  const open = openTicketCount(user._id, store.tickets)
   return (
     <li className="flex items-start gap-3 py-4">
       <HumanAvatar name={user.name} size="lg" />

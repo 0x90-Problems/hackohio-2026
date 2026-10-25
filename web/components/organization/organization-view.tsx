@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
 import {
   BotIcon,
   Building2Icon,
@@ -14,6 +14,7 @@ import { toast } from "sonner"
 import { DEFAULT_TOKEN_EXPIRY_HOURS } from "@/shared/names"
 import { TEAM, agents, users } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { usePersistentState } from "@/lib/local-store"
 import { cn } from "@/lib/utils"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -54,10 +55,11 @@ const RULES = [
 ]
 
 export function OrganizationView() {
-  const [orgName, setOrgName] = useState(DEFAULT_ORG_NAME)
-  const [savedName, setSavedName] = useState(DEFAULT_ORG_NAME)
-  const [expiry, setExpiry] = useState(String(DEFAULT_TOKEN_EXPIRY_HOURS))
-  const [rules, setRules] = useState<Record<string, boolean>>(
+  const [orgName, setOrgName] = usePersistentState("buck2.org-name", DEFAULT_ORG_NAME)
+  const [savedName, setSavedName] = usePersistentState("buck2.org-saved-name", DEFAULT_ORG_NAME)
+  const [expiry, setExpiry] = usePersistentState("buck2.org-expiry", String(DEFAULT_TOKEN_EXPIRY_HOURS))
+  const [rules, setRules] = usePersistentState<Record<string, boolean>>(
+    "buck2.org-rules",
     Object.fromEntries(RULES.map((r) => [r.id, true]))
   )
 

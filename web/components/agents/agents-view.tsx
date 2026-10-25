@@ -27,6 +27,7 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { usePersistentState } from "@/lib/local-store"
 import { timeAgo } from "@/lib/format"
 import { SCOPE_OPTIONS, makeToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
@@ -79,7 +80,7 @@ function lastActive(agentId: string) {
 }
 
 export function AgentsView() {
-  const [agents, setAgents] = useState<Agent[]>(allAgents)
+  const [agents, setAgents] = usePersistentState<Agent[]>("buck2.agents", allAgents)
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
   function revoke(agent: Agent) {

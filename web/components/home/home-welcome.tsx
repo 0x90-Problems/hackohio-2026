@@ -4,7 +4,8 @@ import Link from "next/link"
 
 import { TICKET_STATUS } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { MOCK_NOW, TEAM, comments, tickets } from "@/lib/mock-data"
+import { TEAM } from "@/lib/mock-data"
+import { useProjects } from "@/components/projects/projects-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -12,15 +13,17 @@ const HOUR_MS = 60 * 60 * 1000
 
 export function HomeWelcome() {
   const account = useAuthUser()
+  const store = useProjects()
   if (!account) return null
 
-  const toReview = tickets.filter(
+  const now = Date.now()
+  const toReview = store.tickets.filter(
     (ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && ticket.reviewer_id === account._id
   ).length
-  const newComments = comments.filter(
+  const newComments = store.comments.filter(
     (comment) =>
       comment.author.id !== account._id &&
-      MOCK_NOW.getTime() - comment.created_at.getTime() <= HOUR_MS
+      now - comment.created_at.getTime() <= HOUR_MS
   ).length
 
   return (

@@ -16,10 +16,12 @@ export function LiveActivity({
   events,
   newIds,
   categories,
+  tickets,
 }: {
   events: Event[]
   newIds: Set<string>
   categories?: Category[]
+  tickets?: readonly { key: string; title: string }[]
 }) {
   return (
     <Card className="lg:sticky lg:top-20">
@@ -53,7 +55,7 @@ export function LiveActivity({
                       · {timeAgo(event.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm">{describeEvent(event, categories)}</p>
+                  <p className="text-sm">{describeEvent(event, categories, tickets)}</p>
                 </motion.li>
               )
             })}

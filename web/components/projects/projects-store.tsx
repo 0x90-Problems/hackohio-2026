@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
 
@@ -15,13 +15,14 @@ import type {
 } from "@/lib/types"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import {
-  MOCK_NOW,
+  CURRENT_USER_ID,
   comments as allComments,
   events as allEvents,
   projectKeyOf,
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
+import { readStorage, writeStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
   categoryName,
@@ -38,10 +39,21 @@ export { projectKeyOf }
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
 
+const BOARD_KEY = "buck2.board"
+
+type BoardSnapshot = {
+  projects: Project[]
+  tickets: Ticket[]
+  activity: Event[]
+  comments: Comment[]
+}
+
 // Holds every project's board in one place, so moves, categories and tags
-// survive switching pages. Mounted once in app/layout.tsx. Still mock data:
-// a reload starts over.
+// survive switching pages. Mounted once in app/layout.tsx. A reload restores
+// the last saved board from this browser.
 function useProjectsState() {
+  const account = useAuthUser()
+  const [ready, setReady] = useState(false)
   const [projects, setProjects] = useState<Project[]>(allProjects)
   const [tickets, setTicketsState] = useState<Ticket[]>(allTickets)
   // Always-current copy, so several actions in a row (like the assistant
@@ -61,12 +73,40 @@ function useProjectsState() {
   const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set())
   const [newProjectKeys, setNewProjectKeys] = useState<Set<string>>(new Set())
 
-  // Mock clock: each new action is one second after the last, so times stay
-  // in order and list keys stay unique. Real data will use the server's time.
-  const clock = useRef(MOCK_NOW.getTime())
-  const now = () => new Date((clock.current += 1000))
-  const account = useAuthUser()
-  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? "" }
+  // Each new action is at least 1ms after the last, so list keys stay unique.
+  const clock = useRef(Date.now())
+  const now = () => new Date((clock.current = Math.max(Date.now(), clock.current + 1)))
+  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? CURRENT_USER_ID }
+
+  useEffect(() => {
+    const saved = readStorage<BoardSnapshot>(BOARD_KEY)
+    if (saved) {
+      const nextProjects = saved.projects ?? allProjects
+      const nextTickets = saved.tickets ?? allTickets
+      const nextActivity = [...(saved.activity ?? allEvents)].sort(newestFirst)
+      const nextComments = saved.comments ?? allComments
+      ticketsRef.current = nextTickets
+      setProjects(nextProjects)
+      setTicketsState(nextTickets)
+      setActivity(nextActivity)
+      setComments(nextComments)
+      const latest = Math.max(
+        0,
+        ...nextProjects.map((item) => item.created_at.getTime()),
+        ...nextTickets.map((item) => item.created_at.getTime()),
+        ...nextActivity.map((item) => item.created_at.getTime()),
+        ...nextComments.map((item) => item.created_at.getTime())
+      )
+      if (latest > clock.current) clock.current = latest
+    }
+    setReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!ready) return
+    const snapshot: BoardSnapshot = { projects, tickets, activity, comments }
+    writeStorage(BOARD_KEY, snapshot)
+  }, [ready, projects, tickets, activity, comments])
 
   // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>
@@ -329,6 +369,7 @@ function useProjectsState() {
   }
 
   return {
+    ready,
     projects,
     tickets,
     // Latest tickets, including changes made earlier in the same click
@@ -365,7 +406,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   return (
     <ProjectsContext.Provider value={store}>
       {/* reducedMotion="user": motion skips animations when the OS asks for less motion */}
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <MotionConfig reducedMotion="user">{store.ready ? children : null}</MotionConfig>
     </ProjectsContext.Provider>
   )
 }

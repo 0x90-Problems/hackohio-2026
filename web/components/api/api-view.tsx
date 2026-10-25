@@ -24,6 +24,7 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { usePersistentState } from "@/lib/local-store"
 import { timeAgo } from "@/lib/format"
 import { mcpInstall, mcpPublicUrl } from "@/lib/mcp-install"
 import { SCOPE_OPTIONS, makeToken, maskToken } from "@/lib/tokens"
@@ -113,7 +114,7 @@ async function copyText(text: string, what: string, description?: string) {
 }
 
 export function ApiView() {
-  const [keys, setKeys] = useState<ApiKey[]>(initialKeys)
+  const [keys, setKeys] = usePersistentState<ApiKey[]>("buck2.api-keys", initialKeys)
   const [newKeyName, setNewKeyName] = useState<string>()
 
   return (

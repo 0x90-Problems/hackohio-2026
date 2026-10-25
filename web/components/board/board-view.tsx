@@ -519,6 +519,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 events={activity}
                 newIds={store.newEventIds}
                 categories={categories}
+                tickets={tickets}
               />
             </motion.div>
           )}

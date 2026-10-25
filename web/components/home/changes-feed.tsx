@@ -2,8 +2,8 @@
 
 
 import type { Event } from "@/lib/types"
-import { MOCK_NOW, events } from "@/lib/mock-data"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
+import { useProjects } from "@/components/projects/projects-store"
 import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
 import { FeedList, type FeedItem } from "@/components/feed-list"
@@ -21,14 +21,14 @@ type Row = FeedItem & { event: Event }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
-const initialRows: Row[] = events
-  .filter((e) => MOCK_NOW.getTime() - e.created_at.getTime() <= DAY_MS)
-  .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
-  .map((event) => ({ id: eventId(event), event }))
-
 export function ChangesFeed() {
+  const store = useProjects()
   const loading = useMockLoading()
-  const rows = initialRows
+  const now = Date.now()
+  const rows: Row[] = store.activity
+    .filter((event) => now - event.created_at.getTime() <= DAY_MS)
+    .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+    .map((event) => ({ id: eventId(event), event }))
 
   return (
     <Card>
@@ -50,7 +50,7 @@ export function ChangesFeed() {
                 <ActorBadge actor={event.actor} className="text-xs text-foreground" />
                 <span className="shrink-0">· {timeAgo(event.created_at)}</span>
               </div>
-              <p className="text-sm">{describeEvent(event)}</p>
+              <p className="text-sm">{describeEvent(event, undefined, store.tickets)}</p>
             </div>
           )}
         />
