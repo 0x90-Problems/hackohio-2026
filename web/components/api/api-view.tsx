@@ -65,7 +65,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   [MCP_TOOLS.ADD_COMMENT]: "Comment on a ticket",
   [MCP_TOOLS.LINK_COMMIT]: "Attach a git commit to a ticket",
   [MCP_TOOLS.WATCH_CHANGES]: "Get told when the board changes",
-  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List Nutshell board templates",
+  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List NutShell board templates",
   [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's columns and starter tags",
   [MCP_TOOLS.CREATE_PROJECT]: "Create a board from a template",
 }

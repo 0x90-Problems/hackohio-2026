@@ -1,9 +1,9 @@
 @AGENTS.md
 
-# Nutshell design rules
+# NutShell design rules
 
 ## Setup
-- This is the Nutshell Next.js app, using shadcn/ui with preset bbZZwVU (Maia style, Neutral base, Red theme, Inter font).
+- This is the NutShell Next.js app, using shadcn/ui with preset bbZZwVU (Maia style, Neutral base, Red theme, Inter font).
 - Use Radix UI as the base for all shadcn components. Never copy Base UI or React Aria versions.
 - Default to light mode. Keep dark mode working, but light is what we demo.
 - Shared names (scopes, statuses, actor types, collection names) come from `../shared/names.ts`. Import them as `"@/shared/names"`. Never type those names as strings.

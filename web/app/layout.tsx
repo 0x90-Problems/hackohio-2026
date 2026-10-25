@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist_Mono, Inter } from "next/font/google"
+import { Geist_Mono, Inter, Lato } from "next/font/google"
 
 import "./globals.css"
 import { AppHeader } from "@/components/app-header"
@@ -32,6 +32,13 @@ export const metadata: Metadata = {
 
 const inter = Inter({subsets:['latin'],variable:'--font-sans'})
 
+// Headings use Lato, the same typeface as the NutShell wordmark
+const lato = Lato({
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  variable: "--font-lato",
+})
+
 const fontMono = Geist_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
@@ -46,7 +53,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable)}
+      className={cn("antialiased", fontMono.variable, "font-sans", inter.variable, lato.variable)}
     >
       <body>
         {/* Light mode is the default; dark mode still works (press "d") */}

@@ -1,4 +1,4 @@
-// The assistant without Claude: understands a handful of phrasings and uses
+// The assistant without AI (no AWS set up): understands a handful of phrasings and uses
 // the same tools as the AI version, so the demo works with no API key and no
 // internet. Anything it doesn't understand gets a short list of examples.
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
@@ -198,7 +198,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
 
   if (/^(hi|hey|hello|help|\?)/.test(lower)) {
     return {
-      text: `Hi! I'm the board assistant. I can look things up and make changes for you. Try: ${EXAMPLES.slice(0, 4).join(" · ")}`,
+      text: `Hi! I'm Nutty, your NutShell assistant. I can look things up and make changes for you. Try: ${EXAMPLES.slice(0, 4).join(" · ")}`,
       actions: [],
     }
   }

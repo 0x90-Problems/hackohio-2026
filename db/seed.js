@@ -76,7 +76,7 @@ const agents = [
     // The chat assistant at the bottom of the website. It acts for the person
     // using it, and like every agent it can't approve or close tickets.
     _id: "agent_raddy_assistant",
-    name: "Board assistant",
+    name: "Nutty",
     owner_id: "user_raddy",
     connection: AGENT_CONNECTION.API_KEY,
     scopes: [SCOPES.TICKETS_READ, SCOPES.TICKETS_WRITE, SCOPES.COMMENTS_WRITE],
@@ -166,7 +166,7 @@ const projects = [
   {
     key: "CLW",
     name: "HackOHI/O build",
-    description: "The buck2agents app we demo on Sunday.",
+    description: "The NutShell app we demo on Sunday.",
     created_by: human("user_dylan"),
     created: 1440,
   },

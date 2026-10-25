@@ -65,7 +65,7 @@ type Editing =
   | { kind: "delete"; category: Category }
 
 // The drag payload type, so columns ignore anything else dropped on them
-const TICKET_DRAG_TYPE = "application/x-buck2agents-ticket"
+const TICKET_DRAG_TYPE = "application/x-nutshell-ticket"
 
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
