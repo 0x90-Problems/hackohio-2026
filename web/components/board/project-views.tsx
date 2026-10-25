@@ -1,14 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import type { Ticket, User } from "@/lib/types"
+import type { Category, ProjectLayout, Ticket, User } from "@/lib/types"
 import { TicketOwnerBadge } from "@/components/actor-badge"
+import { TableView } from "@/components/board/table-view"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-export const PROJECT_VIEWS = ["board", "calendar"] as const
+export type ProjectView = "board" | "table" | "calendar"
 
-export type ProjectView = (typeof PROJECT_VIEWS)[number]
+export function projectViewOptions(layout: ProjectLayout | undefined): ProjectView[] {
+  if (layout === "table") return ["table", "board", "calendar"]
+  return ["board", "calendar"]
+}
+
+export function defaultProjectView(layout: ProjectLayout | undefined): ProjectView {
+  return layout === "table" ? "table" : "board"
+}
 
 export type ProjectFilters = {
   owner: string
@@ -16,6 +24,7 @@ export type ProjectFilters = {
 
 const VIEW_LABELS: Record<ProjectView, string> = {
   board: "Board",
+  table: "Table",
   calendar: "Calendar",
 }
 
@@ -37,6 +46,9 @@ export function filterProjectTickets(
 
 export function ProjectViews({
   tickets,
+  categories,
+  fields,
+  layout,
   owners,
   view,
   onViewChange,
@@ -46,6 +58,9 @@ export function ProjectViews({
   onDueDateChange,
 }: {
   tickets: Ticket[]
+  categories: Category[]
+  fields: string[]
+  layout?: ProjectLayout
   owners: User[]
   view: ProjectView
   onViewChange: (view: ProjectView) => void
@@ -55,6 +70,7 @@ export function ProjectViews({
   onDueDateChange: (ticketKey: string, date: string) => void
 }) {
   const filteredTickets = filterProjectTickets(tickets, filters)
+  const options = projectViewOptions(layout)
 
   return (
     <section className="flex min-w-0 flex-col gap-4">
@@ -64,23 +80,23 @@ export function ProjectViews({
           aria-label="Project views"
           className="flex flex-wrap gap-1 rounded-lg border bg-muted/40 p-1"
           onKeyDown={(event) => {
-            const current = PROJECT_VIEWS.indexOf(view)
+            const current = Math.max(0, options.indexOf(view))
             let next = current
             if (event.key === "ArrowRight")
-              next = (current + 1) % PROJECT_VIEWS.length
+              next = (current + 1) % options.length
             if (event.key === "ArrowLeft")
-              next = (current - 1 + PROJECT_VIEWS.length) % PROJECT_VIEWS.length
+              next = (current - 1 + options.length) % options.length
             if (event.key === "Home") next = 0
-            if (event.key === "End") next = PROJECT_VIEWS.length - 1
+            if (event.key === "End") next = options.length - 1
             if (next !== current) {
               event.preventDefault()
-              const nextView = PROJECT_VIEWS[next]
+              const nextView = options[next]
               onViewChange(nextView)
               document.getElementById(`project-view-${nextView}`)?.focus()
             }
           }}
         >
-          {PROJECT_VIEWS.map((option) => (
+          {options.map((option) => (
             <button
               key={option}
               id={`project-view-${option}`}
@@ -119,6 +135,14 @@ export function ProjectViews({
           </select>
         </label>
       </div>
+      {view === "table" && (
+        <TableView
+          tickets={filteredTickets}
+          categories={categories}
+          fields={fields}
+          onOpenTicket={onOpenTicket}
+        />
+      )}
       {view === "calendar" && (
         <CalendarView
           tickets={filteredTickets}
@@ -190,8 +214,8 @@ function CalendarView({
         </Button>
         <h2 className="ml-2 font-semibold">{title}</h2>
       </div>
-      <div className="w-full overflow-x-auto rounded-lg border">
-        <div className="grid w-max grid-cols-[repeat(7,9rem)]">
+      <div className="w-full min-w-0 overflow-hidden rounded-lg border">
+        <div className="grid w-full grid-cols-7 [grid-template-columns:repeat(7,minmax(0,1fr))]">
           {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
             <div
               key={day}
@@ -226,7 +250,7 @@ function CalendarView({
                     setDraggingTicket(null)
                   }
                 }}
-                className="min-h-24 border-r border-b p-1.5"
+                className="min-h-24 min-w-0 overflow-hidden border-r border-b p-1.5"
               >
                 <span className="text-xs text-muted-foreground">
                   {day.getDate()}
@@ -251,7 +275,7 @@ function CalendarView({
                       >
                         {ticket.title}
                       </button>
-                      <div className="mt-1 flex flex-col gap-1 overflow-hidden text-[10px]">
+                      <div className="mt-1 flex flex-col gap-1 overflow-hidden text-xs">
                         <TicketOwnerBadge ticket={ticket} />
                       </div>
                       <input
@@ -261,7 +285,7 @@ function CalendarView({
                         onChange={(event) =>
                           onDueDateChange(ticket.key, event.target.value)
                         }
-                        className="mt-1 w-full rounded border bg-background px-1 py-0.5 text-xs"
+                        className="mt-1 w-full min-w-0 max-w-full rounded border bg-background px-1 py-0.5 text-xs"
                       />
                     </div>
                   ))}

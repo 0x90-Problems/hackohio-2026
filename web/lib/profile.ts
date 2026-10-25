@@ -4,24 +4,34 @@
 import { ACTOR_TYPES } from "@/shared/names"
 import type { Agent, Event, User } from "@/lib/types"
 import type { AuthUser } from "@/lib/board-auth"
+import { mergeAgentRecords } from "@/lib/agent-label"
 import { agents as allAgents, getUser } from "@/lib/mock-data"
 
-export type ProfileUser = Pick<
-  User,
-  "_id" | "auth_username" | "name" | "role" | "team"
->
-
-// The signed-in account is the freshest copy of its own details
-export function findUser(
-  id: string,
-  account: AuthUser | null
-): ProfileUser | null {
-  if (account && account._id === id) return account
-  return getUser(id) ?? null
+export type ProfileUser = {
+  _id: string
+  name: string
+  auth_username?: string
+  role?: string
+  team?: string
 }
 
-export const agentsOf = (userId: string): Agent[] =>
-  allAgents.filter((a) => a.owner_id === userId)
+// The signed-in account is the freshest copy of its own details, then the
+// live directory, then the demo data
+export function findUser(
+  id: string,
+  account: AuthUser | null,
+  people: { _id: string; name: string }[] = []
+): ProfileUser | null {
+  if (account && account._id === id) return account
+  const demo = getUser(id)
+  const live = people.find((p) => p._id === id)
+  if (live) return { ...demo, ...live }
+  return demo ?? null
+}
+
+// Live agents first; demo agents fill in any the directory doesn't list
+export const agentsOf = (userId: string, liveAgents: Agent[] = []): Agent[] =>
+  mergeAgentRecords(liveAgents, allAgents).filter((a) => a.owner_id === userId)
 
 export function splitActivity(userId: string, events: Event[]) {
   const own: Event[] = []

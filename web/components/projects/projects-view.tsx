@@ -11,8 +11,14 @@ import type { Project } from "@/lib/types"
 import { TEAM } from "@/lib/mock-data"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { timeAgo } from "@/lib/format"
-import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/lib/templates"
+import {
+  PICKER_DESCRIPTION,
+  PICKER_TITLE,
+  PROJECT_TEMPLATES,
+  type ProjectTemplate,
+} from "@/lib/templates"
 import { cn } from "@/lib/utils"
+import { ProjectActions } from "@/components/projects/project-actions"
 import { TemplatePreview } from "@/components/projects/template-preview"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
 import { SearchCombobox } from "@/components/search-combobox"
@@ -54,7 +60,8 @@ export function ProjectsView() {
   const { projects } = useProjects()
   const router = useRouter()
   const [team, setTeam] = useState(TEAM)
-  const shown = projects.filter((p) => p.team === team)
+  const shown = projects.filter((p) => p.team === team && !p.archived)
+  const archived = projects.filter((p) => p.team === team && p.archived)
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -91,7 +98,7 @@ export function ProjectsView() {
             groups={[
               {
                 heading: team,
-                items: shown.map((p) => ({
+                items: [...shown, ...archived].map((p) => ({
                   value: p.key,
                   keywords: [p.name, p.description ?? ""],
                   label: (
@@ -99,7 +106,7 @@ export function ProjectsView() {
                       <span className="shrink-0 font-mono text-xs text-muted-foreground">
                         {p.key}
                       </span>
-                      <span className="truncate">{p.name}</span>
+                      <span className="truncate">{p.archived ? `${p.name} (archived)` : p.name}</span>
                     </>
                   ),
                   onSelect: () => router.push(`/projects/${p.key}/board`),
@@ -232,6 +239,7 @@ function suggestKey(name: string) {
 
 function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   const { projects, createProject } = useProjects()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   // Step 1 picks a template, step 2 fills in the details
   const [template, setTemplate] = useState<ProjectTemplate | null>(null)
@@ -266,6 +274,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
     })
     reset()
     setOpen(false)
+    router.push(`/projects/${finalKey}/board`)
   }
 
   return (
@@ -282,17 +291,14 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
           New project
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-3xl">
+      <DialogContent className="max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[calc(100vw-2rem)]">
         {!template ? (
           <>
             <DialogHeader>
-              <DialogTitle>New project</DialogTitle>
-              <DialogDescription>
-                Pick a template. It sets up the board&apos;s columns and some
-                starter tags. You can change them later.
-              </DialogDescription>
+              <DialogTitle>{PICKER_TITLE}</DialogTitle>
+              <DialogDescription>{PICKER_DESCRIPTION}</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid items-stretch gap-6 2xl:grid-cols-2">
               {PROJECT_TEMPLATES.map((t, index) => (
                 <motion.button
                   key={t.id}
@@ -303,13 +309,11 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                   transition={{ duration: 0.2, delay: index * 0.03 }}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  className="flex flex-col gap-2 rounded-2xl border p-4 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="flex h-full flex-col gap-4 rounded-2xl border p-5 text-left transition-colors hover:border-foreground/30 hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                 >
-                  <span className="font-semibold">{t.name}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {t.description}
-                  </span>
                   <TemplatePreview template={t} />
+                  <span className="text-base font-semibold">{t.name}</span>
+                  <span className="text-sm text-muted-foreground">{t.description}</span>
                 </motion.button>
               ))}
             </div>

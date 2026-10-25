@@ -25,11 +25,14 @@ import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
 import {
+  defaultProjectView,
   filterProjectTickets,
+  projectViewOptions,
   ProjectViews,
   type ProjectFilters,
   type ProjectView,
 } from "@/components/board/project-views"
+import { ProjectActions } from "@/components/projects/project-actions"
 import { SearchCombobox } from "@/components/search-combobox"
 import {
   CategoryDialog,
@@ -37,6 +40,7 @@ import {
   DeleteCategoryDialog,
 } from "@/components/board/category-dialogs"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
+import { resolvedProjectFields, resolvedProjectLayout } from "@/lib/templates"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import {
   Breadcrumb,
@@ -86,7 +90,13 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   )
 
   const [views, setViews] = useState<Record<string, ProjectView>>({})
-  const view = views[projectKey] ?? "board"
+  const layout = project ? resolvedProjectLayout(project) : undefined
+  const viewOptions = projectViewOptions(layout)
+  const storedView = views[projectKey]
+  const view =
+    storedView && viewOptions.includes(storedView)
+      ? storedView
+      : defaultProjectView(layout)
   const setView = (nextView: ProjectView) =>
     setViews((current) => ({ ...current, [projectKey]: nextView }))
   const [filters, setFilters] = useState<ProjectFilters>({ owner: "" })
@@ -102,8 +112,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">No project “{projectKey}”</h1>
         <p className="text-muted-foreground">
-          It may have been made in another browser tab. Projects are sample data
-          until we connect the database.
+          This project was deleted, or it is not on the board.
         </p>
         <Button asChild>
           <Link href="/projects">See all projects</Link>
@@ -130,7 +139,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       className={cn(
         "mx-auto grid max-w-screen-2xl gap-6 px-4 py-6 transition-[grid-template-columns] duration-300 ease-in-out",
         activityVisible
-          ? "lg:grid-cols-[minmax(0,1fr)_340px]"
+          ? "lg:grid-cols-[minmax(0,1fr)_420px]"
           : "lg:grid-cols-[minmax(0,1fr)_40px]"
       )}
     >
@@ -160,6 +169,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   className="-ml-1 flex items-center gap-2 rounded-lg px-1 text-left text-3xl font-semibold tracking-tight hover:bg-muted"
                 >
                   {project.name}
+                  {project.archived ? (
+                    <span className="text-base font-normal text-muted-foreground">Archived</span>
+                  ) : null}
                   <ChevronsUpDownIcon
                     className="size-5 text-muted-foreground"
                     aria-hidden="true"
@@ -170,7 +182,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 {
                   heading: project.team,
                   items: store.projects
-                    .filter((p) => p.team === project.team)
+                    .filter((p) => p.team === project.team && (!p.archived || p.key === project.key))
                     .map((p) => ({
                       value: p.key,
                       keywords: [p.name],
@@ -202,6 +214,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 },
               ]}
             />
+            <ProjectActions project={project} onDeleted={() => router.push("/projects")} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {/* Find a ticket by id, title or tag; grouped by column */}
@@ -216,8 +229,18 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   .filter((t) => t.status === c.slug)
                   .sort(newestFirst)
                   .map((t) => ({
-                    value: t.key,
-                    keywords: [t.title, ...(t.tags ?? [])],
+                    value: [
+                      t.key,
+                      t.title,
+                      users.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
+                      t.reviewer_id ? users.find((user) => user._id === t.reviewer_id)?.name : undefined,
+                    ].filter((item): item is string => Boolean(item)).join(" "),
+                    keywords: [
+                      t.title,
+                      ...(t.tags ?? []),
+                      users.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
+                      t.reviewer_id ? users.find((user) => user._id === t.reviewer_id)?.name : undefined,
+                    ].filter((item): item is string => Boolean(item)),
                     label: (
                       <>
                         <span className="shrink-0 font-mono text-xs text-muted-foreground">
@@ -269,6 +292,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
 
         <ProjectViews
           tickets={tickets}
+          categories={categories}
+          fields={resolvedProjectFields(project)}
+          layout={layout}
           owners={users}
           view={view}
           onViewChange={setView}
@@ -280,9 +306,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           onDueDateChange={store.setDueDate}
         />
 
-        {/* Columns. One LayoutGroup lets a card animate from one column to another.
-            Drag a card onto another column to move it. */}
-        <ScrollArea className={cn("w-full pb-3", view !== "board" && "hidden")}>
+        {/* Kanban columns exist only on the board view. A table project does not mount them. */}
+        {view === "board" && (
+        <ScrollArea className="w-full pb-3">
           <LayoutGroup id={projectKey}>
             <div className="flex gap-4">
               <AnimatePresence initial={false} mode="popLayout">
@@ -469,6 +495,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           </LayoutGroup>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+        )}
       </div>
 
       <aside
@@ -541,6 +568,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         onTagsChange={store.setTags}
         onDescriptionChange={store.setDescription}
         onColorChange={store.setTicketColor}
+        onDueDateChange={store.setDueDate}
+        onReviewerChange={store.setReviewer}
+        onDelete={store.deleteTicket}
       />
 
       {editing?.kind === "create" && (

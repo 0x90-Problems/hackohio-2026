@@ -253,11 +253,7 @@ function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
         {agent ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <ActorBadge
-              actor={{
-                type: ACTOR_TYPES.AGENT,
-                id: agent._id,
-                acting_for: user._id,
-              }}
+              actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: user._id }}
             />
             {agent.scopes.map((scope) => (
               <ScopeBadge key={scope} scope={scope} />

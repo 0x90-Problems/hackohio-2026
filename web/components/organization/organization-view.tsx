@@ -117,7 +117,10 @@ export function OrganizationView() {
     },
   ]
 
+  const admin = account?.admin === true
+
   function persist(next: { name?: string; expiry?: string; rules?: Record<string, boolean> } = {}) {
+    if (!admin) return
     saveOrganization({
       name: (next.name ?? savedName).trim() || DEFAULT_ORG_NAME,
       token_expiry_hours: Number(next.expiry ?? expiry),
@@ -196,7 +199,9 @@ export function OrganizationView() {
                   id="org-name"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
+                  disabled={!admin}
                 />
+                {admin ? (
                 <Button
                   type="submit"
                   variant="secondary"
@@ -204,6 +209,7 @@ export function OrganizationView() {
                 >
                   Save
                 </Button>
+                ) : null}
               </div>
             </form>
             <dl className="flex gap-10">
@@ -235,7 +241,9 @@ export function OrganizationView() {
               <Label htmlFor="token-expiry">Agent tokens expire after</Label>
               <Select
                 value={expiry}
+                disabled={!admin}
                 onValueChange={(value) => {
+                  if (!admin) return
                   setExpiry(value)
                   persist({ expiry: value })
                   const label = EXPIRY_OPTIONS.find((o) => String(o.hours) === value)?.label
@@ -262,6 +270,7 @@ export function OrganizationView() {
                   <Checkbox
                     id={rule.id}
                     checked={rules[rule.id]}
+                    disabled={!admin}
                     onCheckedChange={(on) => {
                       const next = { ...rules, [rule.id]: on === true }
                       setRules(next)

@@ -89,7 +89,7 @@ export function AppHeader() {
         </Link>
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}
-        <NavigationMenu viewport={false} className="mx-auto hidden md:flex">
+        <NavigationMenu viewport={false} className="mx-auto hidden xl:flex">
           <NavigationMenuList>
             {NAV_LINKS.map((link) => {
               const active = pathname.startsWith(link.href)
@@ -117,7 +117,7 @@ export function AppHeader() {
         {/* Right: current user */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="ml-auto gap-2 md:ml-0">
+            <Button variant="ghost" className="ml-auto gap-2 xl:ml-0">
               <span className="text-sm">{name}</span>
               <HumanAvatar name={name} />
             </Button>

@@ -7,6 +7,7 @@ export type AuthUser = {
   auth_username: string
   name: string
   role?: string
+  admin?: boolean
   team: string
   type: "human"
 }

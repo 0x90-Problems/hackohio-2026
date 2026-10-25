@@ -19,8 +19,14 @@ function describeChange(event: Event, categories: Category[]) {
       return `Linked commit ${event.details?.sha ?? ""}`
     case EVENT_ACTIONS.TICKET_CLOSED:
       return to ? `Approved → ${categoryName(to, categories)}` : "Approved"
+    case EVENT_ACTIONS.COMMENT_ADDED:
+      return event.details?.body ? `Comment: ${event.details.body}` : "Comment added"
+    case EVENT_ACTIONS.TICKET_UPDATED:
+      return event.details?.body ?? "Edited"
+    case EVENT_ACTIONS.TICKET_DELETED:
+      return "Deleted"
     default:
-      return "Changed"
+      return event.details?.body ?? "Changed"
   }
 }
 
@@ -36,7 +42,7 @@ export function ChangeHistory({
 }) {
   // Comments have their own section, so they aren't versions of the card
   const versions = events
-    .filter((e) => e.action !== EVENT_ACTIONS.COMMENT_ADDED)
+    .filter((e) => e.action !== EVENT_ACTIONS.COMMENT_ADDED || Boolean(e.details?.body))
     .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
     .map((event, i) => ({ event, version: i + 1 }))
     .reverse()

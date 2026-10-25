@@ -263,7 +263,7 @@ export function ChatDock() {
                     ? "connecting…"
                     : ai
                       ? "powered by Amazon Nova on AWS Bedrock"
-                      : "offline mode"}
+                      : "answering from the board on this device"}
                 </span>
               </div>
               <Button

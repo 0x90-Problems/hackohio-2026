@@ -27,9 +27,13 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { McpInstallActions } from "@/components/mcp-install-actions"
+import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
+import { ConnectAgentError, connectAgent, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import { SCOPE_OPTIONS, makeToken } from "@/lib/tokens"
+import type { McpInstallLinks } from "@/lib/mcp-install"
+import { SCOPE_OPTIONS } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -81,18 +85,27 @@ function lastActive(agentId: string) {
 
 export function AgentsView() {
   const [agents, setAgents] = useState<Agent[]>(allAgents)
+  const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     let cancelled = false
-    loadBoard()
-      .then((board) => {
+    listBoardUsers()
+      .then((users) => {
+        if (!cancelled) setPeople(users)
+      })
+      .catch(() => {
+        // Owner names fall back to the signed-in person and the sample directory.
+      })
+    Promise.all([
+      loadBoard().catch(() => null),
+      listBoardAgents().catch(() => []),
+    ])
+      .then(([board, live]) => {
         if (cancelled) return
-        if (board.agents.length > 0) {
-          setAgents(board.agents)
-          return
-        }
-        allAgents.forEach(saveAgent)
+        const saved = board?.agents ?? []
+        if (saved.length === 0) allAgents.forEach(saveAgent)
+        setAgents(mergeAgentRecords(saved.length > 0 ? saved : allAgents, live))
       })
       .catch(() => {
         toast.error("Couldn't load agents from the database")
@@ -102,11 +115,24 @@ export function AgentsView() {
     }
   }, [])
 
-  function revoke(agent: Agent) {
+  async function revoke(agent: Agent) {
+    try {
+      await revokeAgentAccess(agent._id)
+    } catch (error) {
+      const message = error instanceof ConnectAgentError ? error.message : "Couldn't revoke that agent"
+      if (!message.includes("was not found") && !message.includes("Sign in again")) {
+        toast.error(message)
+        return
+      }
+      if (message.includes("Sign in again")) {
+        toast.error(message)
+        return
+      }
+    }
     const next = { ...agent, revoked: true }
     setAgents((current) => current.map((a) => (a._id === agent._id ? next : a)))
     saveAgent(next)
-    toast(`Revoked ${agent.name}`, { description: "Its token stopped working." })
+    toast.success(`Revoked ${visibleAgentName(agent.name, agent._id)}`, { description: "Its token stopped working." })
   }
 
   function connect(agent: Agent) {
@@ -150,6 +176,7 @@ export function AgentsView() {
                   key={agent._id}
                   agent={agent}
                   isNew={newIds.has(agent._id)}
+                  people={people}
                   onRevoke={revoke}
                 />
               ))}
@@ -166,13 +193,19 @@ export function AgentsView() {
 function AgentRow({
   agent,
   isNew,
+  people,
   onRevoke,
 }: {
   agent: Agent
   isNew: boolean
+  people: { _id: string; name: string }[]
   onRevoke: (agent: Agent) => void
 }) {
-  const owner = getUser(agent.owner_id)
+  const account = useAuthUser()
+  const ownerName =
+    people.find((person) => person._id === agent.owner_id)?.name ??
+    getUser(agent.owner_id)?.name ??
+    (account?._id === agent.owner_id ? account.name : undefined)
   const active = lastActive(agent._id)
   return (
     <TableRow
@@ -184,7 +217,7 @@ function AgentRow({
       <TableCell className="pl-4">
         <div className={cn("flex flex-col gap-1", agent.revoked && "opacity-60")}>
           <ActorBadge
-            actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, acting_for: agent.owner_id }}
+            actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: agent.owner_id }}
           />
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             {agent.connection === AGENT_CONNECTION.MCP ? (
@@ -197,10 +230,12 @@ function AgentRow({
         </div>
       </TableCell>
       <TableCell>
-        {owner && (
+        {ownerName ? (
           <span className="inline-flex items-center gap-1.5">
-            <HumanAvatar name={owner.name} /> {owner.name}
+            <HumanAvatar name={ownerName} /> {ownerName}
           </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">Unknown owner</span>
         )}
       </TableCell>
       <TableCell>
@@ -219,8 +254,10 @@ function AgentRow({
             <WifiOffIcon className="size-3" aria-hidden="true" />
             Revoked
           </Badge>
+        ) : account?._id === agent.owner_id ? (
+          <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />
         ) : (
-          <RevokeDialog agent={agent} ownerName={owner?.name} onRevoke={onRevoke} />
+          <span className="text-sm text-muted-foreground">Active</span>
         )}
       </TableCell>
     </TableRow>
@@ -247,7 +284,7 @@ function RevokeDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Revoke {agent.name}
+            Revoke {visibleAgentName(agent.name, agent._id)}
             {ownerName && ` for ${ownerName}`}?
           </DialogTitle>
           <DialogDescription>
@@ -279,28 +316,36 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
   ])
   const [name, setName] = useState("")
   const [token, setToken] = useState<string>()
+  const [install, setInstall] = useState<McpInstallLinks>()
+  const [pending, setPending] = useState(false)
   const account = useAuthUser()
 
   function toggle(scope: Scope, on: boolean) {
     setScopes((current) => (on ? [...current, scope] : current.filter((s) => s !== scope)))
   }
 
-  function generate() {
+  async function generate() {
     const agentName = name.trim()
-    if (!account || !agentName) return
-    const slug = agentName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
-    // Keep the scopes in the same order as the checklist.
+    if (!account || !agentName || pending) return
     const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
-    setToken(makeToken(account.auth_username))
-    onConnect({
-      _id: `agent_${account.auth_username}_${slug}_${Date.now()}`,
-      name: agentName,
-      owner_id: account._id,
-      connection: AGENT_CONNECTION.MCP,
-      scopes: ordered,
-      revoked: false,
-    })
-    setName("")
+    setPending(true)
+    try {
+      const connected = await connectAgent({
+        name: agentName,
+        ownerId: account._id,
+        username: account.auth_username,
+        scopes: ordered,
+        connection: AGENT_CONNECTION.MCP,
+      })
+      setToken(connected.secret)
+      setInstall(connected.install)
+      onConnect(connected.agent)
+      setName("")
+    } catch (error) {
+      toast.error(error instanceof ConnectAgentError ? error.message : "Couldn't connect that agent")
+    } finally {
+      setPending(false)
+    }
   }
 
   async function copy() {
@@ -374,6 +419,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
                   <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
+              {install ? <McpInstallActions install={install} /> : null}
               <Alert>
                 <AlertTriangleIcon aria-hidden="true" />
                 <AlertTitle>This token is shown once</AlertTitle>
@@ -390,9 +436,9 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
         </div>
       </CardContent>
       <CardFooter className="flex flex-col items-stretch gap-2">
-        <Button onClick={generate} disabled={!name.trim() || scopes.length === 0}>
+        <Button onClick={generate} disabled={!account || !name.trim() || scopes.length === 0 || pending}>
           <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
-          Generate token
+          {pending ? "Connecting…" : "Generate token"}
         </Button>
         <p className="text-xs text-muted-foreground">
           Expires after {DEFAULT_TOKEN_EXPIRY_HOURS} h. Set in Organization.

@@ -33,7 +33,7 @@ export function PendingFeed() {
   const loading = useMockLoading()
   const pendingRows: Row[] = account
     ? store.tickets
-        .filter((ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && ticket.reviewer_id === account._id)
+        .filter((ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && (!ticket.reviewer_id || ticket.reviewer_id === account._id))
         .map((ticket) => ({ id: `pending-${ticket.key}`, kind: "pending", ticket }))
     : []
   const commentRows: Row[] = [...store.comments]

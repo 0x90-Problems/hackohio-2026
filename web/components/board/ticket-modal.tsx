@@ -1,34 +1,34 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import { ACTOR_TYPES, AGENT_CONNECTION, TICKET_STATUS } from "@/shared/names"
+import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
 import type { Category, Comment, Event, Ticket } from "@/lib/types"
 import {
   CATEGORY_COLORS,
   CATEGORY_COLOR_NAMES,
   type CategoryColor,
 } from "@/lib/categories"
-import { MOCK_NOW, agentTokens, getAgent, getUser } from "@/lib/mock-data"
+import {
+  MOCK_NOW,
+  agentTokens,
+  getAgent,
+  getUser,
+  users,
+} from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { visibleAgentName } from "@/lib/agent-label"
+import { listBoardUsers } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
-import { ColorDot } from "@/components/board/category-dialogs"
 import { ChangeHistory } from "@/components/board/change-history"
 import { TagInput } from "@/components/board/tag-input"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
@@ -55,6 +55,9 @@ export type TicketActions = {
   onTagsChange: (ticketKey: string, tags: string[]) => void
   onDescriptionChange: (ticketKey: string, description: string) => void
   onColorChange: (ticketKey: string, color?: CategoryColor) => void
+  onDueDateChange: (ticketKey: string, dueDate: string) => void
+  onReviewerChange: (ticketKey: string, reviewerId: string) => void
+  onDelete: (ticketKey: string) => void
 }
 
 // Opens the sheet for the ticket named in the address
@@ -133,6 +136,9 @@ function TicketDetail({
   onTagsChange,
   onDescriptionChange,
   onColorChange,
+  onDueDateChange,
+  onReviewerChange,
+  onDelete,
 }: {
   ticket: Ticket
   categories: Category[]
@@ -142,14 +148,43 @@ function TicketDetail({
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
+  const [people, setPeople] = useState<{ _id: string; name: string }[]>(() => users.map((user) => ({ _id: user._id, name: user.name })))
+  useEffect(() => {
+    let cancelled = false
+    listBoardUsers()
+      .then((loaded) => {
+        if (cancelled || loaded.length === 0) return
+        setPeople((current) => {
+          const known = new Set(current.map((person) => person._id))
+          return [...current, ...loaded.filter((person) => !known.has(person._id))]
+        })
+      })
+      .catch(() => {
+        // The sample directory still fills the reviewer list.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const account = useAuthUser()
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
   const agent =
     creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
+  const named =
+    creator.type === ACTOR_TYPES.AGENT
+      ? visibleAgentName(creator.name, creator.id, agent?.name)
+      : undefined
+  const agentName = named && named !== "Agent" ? named : undefined
   const owner =
     creator.type === ACTOR_TYPES.AGENT ? getUser(creator.acting_for) : undefined
-  const reviewer = ticket.reviewer_id ? getUser(ticket.reviewer_id) : undefined
+  const ownerName =
+    creator.type === ACTOR_TYPES.AGENT
+      ? (creator.acting_for === account?._id ? account.name : owner?.name)
+      : undefined
+  const creatorId = creator.type === ACTOR_TYPES.AGENT ? creator.acting_for : creator.id
+  const ownTicket = account?._id === creatorId
+  const canDelete = account?.admin === true || ownTicket
   // Scopes come from the agent's current token: not revoked and not expired.
   const token = agent
     ? agentTokens.find(
@@ -182,25 +217,23 @@ function TicketDetail({
           {ticket.title}
         </DialogTitle>
         <div className="flex flex-wrap items-center gap-2">
-          <Select
+          <select
+            aria-label="Move to column"
+            className="h-8 rounded-md border bg-background px-2 text-sm"
             value={ticket.status}
-            onValueChange={(status) => onMove(ticket.key, status)}
+            onChange={(event) => {
+              const status = event.target.value
+              if (status !== ticket.status) onMove(ticket.key, status)
+            }}
           >
-            <SelectTrigger
-              size="sm"
-              aria-label="Move to column"
-              className="w-auto"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((c) => (
-                <SelectItem key={c.slug} value={c.slug}>
-                  <ColorDot color={c.color} /> {c.name}
-                </SelectItem>
+            {categories
+              .filter((c) => c.slug === ticket.status || c.slug !== TICKET_STATUS.DONE || !ticket.needs_approval)
+              .map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
               ))}
-            </SelectContent>
-          </Select>
+          </select>
           {ticket.needs_approval && (
             <Badge variant="outline">Needs human approval</Badge>
           )}
@@ -223,20 +256,26 @@ function TicketDetail({
         <dl className="grid grid-cols-[6.5rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm sm:grid-cols-[8rem_1fr]">
           <dt className="text-muted-foreground">Created by</dt>
           <dd>
-            {agent ? (
+            {agentName ? (
               <span className="inline-flex items-center gap-1.5">
-                <AgentTag /> {agent.name}
+                <AgentTag /> {agentName}
               </span>
             ) : (
               <ActorBadge actor={creator} />
             )}
           </dd>
 
-          {owner && (
+          {creator.type === ACTOR_TYPES.AGENT && (
             <>
               <dt className="text-muted-foreground">Acting for</dt>
               <dd className="inline-flex items-center gap-1.5">
-                <HumanAvatar name={owner.name} /> {owner.name}
+                {ownerName ? (
+                  <>
+                    <HumanAvatar name={ownerName} /> {ownerName}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Unknown owner</span>
+                )}
               </dd>
             </>
           )}
@@ -245,7 +284,7 @@ function TicketDetail({
             <>
               <dt className="text-muted-foreground">Agent setup</dt>
               <dd>
-                {agent.name} · via {CONNECTION_LABELS[agent.connection]}
+                {visibleAgentName(agent.name, agent._id)} · via {CONNECTION_LABELS[agent.connection]}
               </dd>
               <dt className="text-muted-foreground">Token scopes</dt>
               <dd className="flex flex-wrap gap-1.5">
@@ -307,13 +346,29 @@ function TicketDetail({
 
           <dt className="text-muted-foreground">Reviewer</dt>
           <dd>
-            {reviewer ? (
-              <span className="inline-flex items-center gap-1.5">
-                <HumanAvatar name={reviewer.name} /> {reviewer.name}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">None</span>
-            )}
+            <select
+              aria-label="Reviewer"
+              className="h-8 max-w-full rounded-md border bg-background px-2 text-sm"
+              value={ticket.reviewer_id ?? ""}
+              onChange={(event) => onReviewerChange(ticket.key, event.target.value)}
+            >
+              <option value="">None</option>
+              {people.map((user) => (
+                <option key={user._id} value={user._id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+          </dd>
+          <dt className="text-muted-foreground">Due date</dt>
+          <dd>
+            <input
+              aria-label="Due date"
+              type="date"
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={ticket.due_date ?? ""}
+              onChange={(event) => onDueDateChange(ticket.key, event.target.value)}
+            />
           </dd>
         </dl>
 
@@ -324,7 +379,22 @@ function TicketDetail({
           <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
             <HistoryIcon className="size-3.5" aria-hidden /> Change history
           </h3>
-          <ChangeHistory events={events} categories={categories} />
+          <ChangeHistory
+            events={[
+              ...events,
+              ...comments
+                .filter((comment) => !events.some((event) => event.action === EVENT_ACTIONS.COMMENT_ADDED && event.details?.body === comment.body))
+                .map((comment) => ({
+                  action: EVENT_ACTIONS.COMMENT_ADDED,
+                  ticket_key: comment.ticket_key,
+                  project_key: comment.ticket_key.split("-")[0] ?? "",
+                  actor: comment.author,
+                  details: { body: comment.body },
+                  created_at: comment.created_at,
+                })),
+            ]}
+            categories={categories}
+          />
         </section>
 
         <Separator />
@@ -431,7 +501,18 @@ function TicketDetail({
       </aside>
 
       <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2 md:col-span-2">
-        <Button disabled={!inReview} onClick={() => onApprove(ticket.key)}>
+        {canDelete ? (
+          <Button
+            variant="destructive"
+            className="col-span-2"
+            onClick={() => {
+              if (window.confirm(`Delete ${ticket.key}? This cannot be undone.`)) onDelete(ticket.key)
+            }}
+          >
+            Delete
+          </Button>
+        ) : null}
+        <Button disabled={!inReview || ownTicket} onClick={() => onApprove(ticket.key)}>
           Approve
         </Button>
         <Button variant="outline" disabled={!inReview} onClick={requestChanges}>

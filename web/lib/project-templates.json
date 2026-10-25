@@ -1,0 +1,144 @@
+{
+  "productName": "Nutshell",
+  "picker": {
+    "title": "New project",
+    "description": "Pick a template. It sets the layout to a board, a table, or a roadmap, and sets up the columns and some starter tags. You can change them later."
+  },
+  "templates": [
+    {
+      "id": "blank",
+      "layout": "board",
+      "name": "Blank board",
+      "description": "Start with Backlog, In progress and Done.",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Backlog", "color": "gray" },
+        { "name": "In progress", "color": "amber" },
+        { "name": "Done", "color": "green" }
+      ],
+      "tags": [],
+      "fields": []
+    },
+    {
+      "id": "team-planning",
+      "layout": "table",
+      "name": "Team planning",
+      "description": "Manage your team's work items, plan upcoming cycles, and understand team capacity.",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Backlog", "color": "gray" },
+        { "name": "Ready", "color": "teal" },
+        { "name": "In progress", "color": "amber" },
+        { "name": "In review", "color": "orange" },
+        { "name": "Done", "color": "green" }
+      ],
+      "tags": ["High", "Medium", "Low"],
+      "fields": ["Iteration", "Estimate"]
+    },
+    {
+      "id": "kanban",
+      "layout": "board",
+      "name": "Kanban",
+      "description": "Visualize the status of your project and limit work in progress.",
+      "footer": "No dates yet",
+      "wipColumn": "In progress",
+      "columns": [
+        { "name": "Todo", "color": "gray" },
+        { "name": "In progress", "color": "amber" },
+        { "name": "Done", "color": "green" }
+      ],
+      "tags": [],
+      "fields": []
+    },
+    {
+      "id": "feature-release",
+      "layout": "table",
+      "name": "Feature release",
+      "description": "Manage your team's prioritized work items when planning for a feature release.",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Backlog", "color": "gray" },
+        { "name": "Prioritized", "color": "teal" },
+        { "name": "In progress", "color": "amber" },
+        { "name": "In review", "color": "orange" },
+        { "name": "Done", "color": "green" }
+      ],
+      "tags": ["Must have", "Should have", "Nice to have"],
+      "fields": ["Estimate", "Target date"]
+    },
+    {
+      "id": "bug-tracker",
+      "layout": "table",
+      "name": "Bug tracker",
+      "description": "Track and triage your bugs.",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Todo", "color": "gray" },
+        { "name": "High priority", "color": "red" },
+        { "name": "Low priority", "color": "orange" },
+        { "name": "Closed", "color": "green" }
+      ],
+      "tags": ["Bug"],
+      "fields": []
+    },
+    {
+      "id": "iterative-development",
+      "layout": "board",
+      "name": "Iterative development",
+      "description": "Plan your current and upcoming iterations as you work through your prioritized backlog of items",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Backlog", "color": "gray" },
+        { "name": "Current iteration", "color": "teal" },
+        { "name": "Upcoming", "color": "amber" }
+      ],
+      "tags": ["High", "Medium", "Low"],
+      "fields": ["Iteration"]
+    },
+    {
+      "id": "product-launch",
+      "layout": "board",
+      "name": "Product launch",
+      "description": "Manage work items across teams and functions when planning for a product launch.",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "Product", "color": "gray" },
+        { "name": "Design", "color": "pink" },
+        { "name": "Engineering", "color": "amber" },
+        { "name": "Marketing", "color": "teal" },
+        { "name": "Launched", "color": "green" }
+      ],
+      "tags": ["Docs", "Launch blocker"],
+      "fields": []
+    },
+    {
+      "id": "roadmap",
+      "layout": "roadmap",
+      "name": "Roadmap",
+      "description": "Manage your team's long term plans as you plan out your roadmap.",
+      "footer": "No milestones yet",
+      "columns": [
+        { "name": "Now", "color": "red" },
+        { "name": "Next", "color": "amber" },
+        { "name": "Later", "color": "gray" },
+        { "name": "Future", "color": "teal" }
+      ],
+      "tags": [],
+      "fields": ["Milestone"]
+    },
+    {
+      "id": "team-retrospective",
+      "layout": "board",
+      "name": "Team retrospective",
+      "description": "Reflect as a team what went well, what can be improved next time, and action items",
+      "footer": "No dates yet",
+      "columns": [
+        { "name": "What went well", "color": "green" },
+        { "name": "What can be improved", "color": "orange" },
+        { "name": "Action items", "color": "pink" }
+      ],
+      "tags": [],
+      "fields": []
+    }
+  ]
+}

@@ -1,6 +1,6 @@
-// One-time MCP install payload. The API page builds this from the secret
-// makeToken() just created. A saved key is only a prefix, so this cannot be
-// rebuilt later. NEXT_PUBLIC_MCP_URL overrides the live server address.
+// One-time MCP install payload. The board issues this with a stored secret.
+// A saved key is only a prefix, so this cannot be rebuilt later.
+// NEXT_PUBLIC_MCP_URL overrides the live server address.
 
 export const MCP_SERVER_NAME = "nutshell"
 
@@ -22,6 +22,18 @@ export type McpInstallLinks = {
   claudeCommand: string
 }
 
+export function mcpLinksFromApi(mcp: {
+  json: string
+  cursor_url: string
+  claude_command: string
+}): McpInstallLinks {
+  return {
+    json: mcp.json,
+    cursorUrl: mcp.cursor_url,
+    claudeCommand: mcp.claude_command,
+  }
+}
+
 export function mcpInstall(secret: string): McpInstallLinks {
   const url = mcpPublicUrl()
   const server: McpServer = {
@@ -38,18 +50,6 @@ export function mcpInstall(secret: string): McpInstallLinks {
     json,
     cursorUrl: `cursor://anysphere.cursor-deeplink/mcp/install?name=${MCP_SERVER_NAME}&config=${config}`,
     claudeCommand: `claude mcp add --transport http ${MCP_SERVER_NAME} ${url} --header "Authorization: Bearer ${secret}"`,
-  }
-}
-
-export function mcpLinksFromApi(mcp: {
-  json: string
-  cursor_url: string
-  claude_command: string
-}): McpInstallLinks {
-  return {
-    json: mcp.json,
-    cursorUrl: mcp.cursor_url,
-    claudeCommand: mcp.claude_command,
   }
 }
 

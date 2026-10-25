@@ -17,6 +17,8 @@ import { getAgent } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { useProjects } from "@/components/projects/projects-store"
+import { useBoardDirectory } from "@/lib/use-board-directory"
+import { visibleAgentName } from "@/lib/agent-label"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { EmptyState } from "@/components/illustrations"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -49,8 +51,9 @@ export function ProfileView({
 }) {
   const account = useAuthUser()
   const { activity, tickets, comments } = useProjects()
-  const user = findUser(userId, account)
-  const agents = agentsOf(userId)
+  const directory = useBoardDirectory()
+  const user = findUser(userId, account, directory.people)
+  const agents = agentsOf(userId, directory.agents)
   // The same event can arrive twice (saved locally and in MongoDB): count it once
   const { own, byAgents } = useMemo(() => {
     const seen = new Set<string>()
@@ -106,7 +109,9 @@ export function ProfileView({
             )}
           </h1>
           <p className="truncate text-sm text-muted-foreground">
-            @{user.auth_username} · {user.team}
+            {[user.auth_username && `@${user.auth_username}`, user.team]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
           {user.role && <p className="mt-0.5 text-sm">{user.role}</p>}
         </div>
@@ -306,7 +311,9 @@ function AgentTree({
               <span className="absolute top-[1.15rem] left-0 w-4 border-t border-dashed border-muted-foreground/40" />
               <div className="flex flex-wrap items-center gap-1.5 text-sm">
                 <AgentTag />
-                <span className="font-medium">{agent.name}</span>
+                <span className="font-medium">
+                  {visibleAgentName(agent.name, agent._id)}
+                </span>
                 <span className="text-xs text-muted-foreground">
                   {agent.connection === AGENT_CONNECTION.MCP
                     ? "via MCP"
@@ -368,7 +375,9 @@ function ActivityTimeline({
               {describeEvent(e, undefined, boardTickets)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {byAgent ? `${getAgent(e.actor.id)?.name ?? "An agent"} · ` : ""}
+              {byAgent
+                ? `${visibleAgentName(e.actor.name, e.actor.id, getAgent(e.actor.id)?.name)} · `
+                : ""}
               {timeAgo(e.created_at)}
             </p>
           </li>

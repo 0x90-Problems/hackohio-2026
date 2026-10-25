@@ -203,6 +203,7 @@ const indexes = [
   [COLLECTIONS.COMMENTS, { ticket_key: 1 }, {}],
   [COLLECTIONS.EVENTS, { project_key: 1, created_at: -1 }, {}], // -1 = newest first
   [COLLECTIONS.EVENTS, { created_at: -1 }, {}],
+  [COLLECTIONS.AGENTS, { owner_id: 1, name: 1 }, { unique: true }],
   [COLLECTIONS.AGENT_TOKENS, { token_hash: 1 }, {}],
 ];
 

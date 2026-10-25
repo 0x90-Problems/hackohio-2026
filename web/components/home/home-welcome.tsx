@@ -5,26 +5,21 @@ import Link from "next/link"
 import { TICKET_STATUS } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { TEAM } from "@/lib/mock-data"
+import { useMockLoading } from "@/lib/use-mock-loading"
 import { useProjects } from "@/components/projects/projects-store"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 
-const HOUR_MS = 60 * 60 * 1000
-
 export function HomeWelcome() {
   const account = useAuthUser()
   const store = useProjects()
+  const loading = useMockLoading()
   if (!account) return null
 
-  const now = Date.now()
   const toReview = store.tickets.filter(
-    (ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && ticket.reviewer_id === account._id
+    (ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && (!ticket.reviewer_id || ticket.reviewer_id === account._id)
   ).length
-  const newComments = store.comments.filter(
-    (comment) =>
-      comment.author.id !== account._id &&
-      now - comment.created_at.getTime() <= HOUR_MS
-  ).length
+  const newComments = store.comments.length
 
   return (
     <Card className="duration-300 animate-in fade-in">
@@ -36,9 +31,11 @@ export function HomeWelcome() {
           Welcome back, {account.name}.
         </h1>
         <p className="text-muted-foreground">
-          {toReview === 0 && newComments === 0
+          {loading
+            ? "Checking what is waiting on you."
+            : toReview === 0 && newComments === 0
             ? "Nothing is waiting on you yet."
-            : `${toReview} ${toReview === 1 ? "ticket needs" : "tickets need"} your review and ${newComments} new ${newComments === 1 ? "comment" : "comments"} in the last hour.`}
+            : `${toReview} ${toReview === 1 ? "ticket needs" : "tickets need"} your review and ${newComments} ${newComments === 1 ? "comment is" : "comments are"} on the board.`}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="secondary">

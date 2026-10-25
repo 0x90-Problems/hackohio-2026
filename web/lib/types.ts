@@ -9,10 +9,11 @@ import type {
   Scope,
 } from "@/shared/names"
 
-export type HumanActor = { type: typeof ACTOR_TYPES.HUMAN; id: string }
+export type HumanActor = { type: typeof ACTOR_TYPES.HUMAN; id: string; name?: string }
 export type AgentActor = {
   type: typeof ACTOR_TYPES.AGENT
   id: string
+  name?: string
   acting_for: string
 }
 export type Actor = HumanActor | AgentActor
@@ -55,18 +56,24 @@ export type LinkedCommit = {
 
 // A project is one board, like a GitHub repo. A team can have several.
 // Its `key` is the ticket id prefix: project CLW has tickets CLW-01, CLW-02 ...
+export type ProjectLayout = "board" | "table" | "roadmap"
+
 export type Project = {
   key: string
   name: string
   description?: string
   team: string
   template?: ProjectTemplate
+  layout?: ProjectLayout
+  // Extra columns on a table layout, such as Iteration or Estimate
+  fields?: string[]
   // The board's columns, in order
   categories: Category[]
   // Tags the template suggests before any ticket uses them
   starter_tags?: string[]
   created_by: Actor
   created_at: Date
+  archived?: boolean
 }
 
 // A board column. Tickets point at one through `status` (the category slug).
@@ -92,6 +99,8 @@ export type Ticket = {
   due_date?: string
   description?: string
   card_color?: CategoryColor
+  // Values for the project's table fields. Missing keys render as empty cells.
+  fields?: Record<string, string>
   created_at: Date
 }
 
