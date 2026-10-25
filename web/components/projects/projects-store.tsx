@@ -5,7 +5,7 @@ import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
 
 import { ACTOR_TYPES, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
-import type {
+import type { Agent,
   Actor,
   Category,
   Comment,
@@ -82,6 +82,8 @@ function useProjectsState() {
     [...allEvents].sort(newestFirst)
   )
   const [comments, setComments] = useState<Comment[]>(allComments)
+  // Every agent saved in MongoDB, from the same load as the board
+  const [boardAgents, setBoardAgents] = useState<Agent[]>([])
   // Remember what arrived after the page loaded, so only those animate in.
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set())
   const [newTicketKeys, setNewTicketKeys] = useState<Set<string>>(new Set())
@@ -138,6 +140,7 @@ function useProjectsState() {
       setTicketsState(tickets)
       setComments(comments)
       setActivity(activity)
+      setBoardAgents(remote.agents)
       const latest = Math.max(
         0,
         ...projects.map((item) => item.created_at.getTime()),
@@ -560,6 +563,7 @@ function useProjectsState() {
     getTickets: () => ticketsRef.current,
     activity,
     comments,
+    boardAgents,
     newEventIds,
     newTicketKeys,
     newCommentIds,

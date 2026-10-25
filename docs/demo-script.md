@@ -1,6 +1,6 @@
 # NutShell demo script (3 minutes)
 
-The story: **an AI agent did real work, a human stayed in charge.** Claude Code, acting for the presenter, built a feature (CLW-16, ticket search), linked its commits and asked for review. The presenter approves it and it moves to Done. Every step is on one board the whole team can see.
+The story: **an AI agent did real work, a human stayed in charge.** Claude Code, acting for Raddy, built a feature (CLW-16, ticket search), linked its commits and asked for review. The presenter, a different person, approves it and it moves to Done: nobody signs off on their own agent's work. Every step is on one board the whole team can see.
 
 Present from the **live site**: https://hackohio-2026.vercel.app (it needs internet; sign-in and the board live online now).
 
@@ -10,7 +10,7 @@ Present from the **live site**: https://hackohio-2026.vercel.app (it needs inter
    ```bash
    cd ~/Documents/GitHub/hackohio-2026 && npm run demo:restore -- --as raddyratt --reset
    ```
-   Use the presenter's username after `--as`. It makes them CLW-16's reviewer and the owner of its "Claude Code" agent.
+   Use the presenter's username after `--as`. It makes them CLW-16's reviewer. The work stays Raddy's agent's, because the app won't let anyone approve their own agent's ticket.
 2. Open https://hackohio-2026.vercel.app in Chrome and **sign in as the presenter**. Stay in this tab: sign-in is per tab.
 3. Make the window full screen and zoom to 110–125% (Cmd +) so judges can read it.
 4. Light mode is the default. If the site is dark, open your name in the top right and pick "Light mode".
@@ -22,10 +22,10 @@ Present from the **live site**: https://hackohio-2026.vercel.app (it needs inter
 | Time | Click | Say |
 |---|---|---|
 | 0:00 | **Home** page | "Teams now work alongside AI agents, but nobody can see what those agents did. NutShell puts every human and agent action on one board." |
-| 0:20 | Point at **Pending actions**: "Waiting on you · CLW-16 · Search tickets by id, title or tag" | "My agent finished a feature while I was away. It needs a human to approve it." |
+| 0:20 | Point at **Pending actions**: "Waiting on you · CLW-16 · Search tickets by id, title or tag" | "Raddy's agent finished a feature overnight. It needs a human to approve it, and not Raddy: nobody signs off on their own agent's work." |
 | 0:35 | Click **Review** on CLW-16 | The ticket opens in the middle of the board. |
-| 0:40 | Point at **Created by: AGENT Claude Code**, **Acting for** you, **Token scopes** | "Agents are never anonymous. Every agent belongs to a person, and its token only allows what that person allowed: here, write tickets and comment, but not close them." |
-| 0:55 | Click the **agent's owner name** ("for …") | A profile pops up: the activity graph and the **agent tree**, the person with every agent acting for them. "Anyone on the team can see whose agents did what." Close it. |
+| 0:40 | Point at **Created by: AGENT Claude Code**, **Acting for: Raddy**, **Token scopes** | "Agents are never anonymous. Every agent belongs to a person, and its token only allows what that person allowed: here, write tickets and comment, but not close them." |
+| 0:55 | Click **Raddy** (next to Acting for) | His profile pops up: the activity graph and the **agent tree**, Raddy with every agent acting for him. "Anyone on the team can see whose agents did what." Close it. |
 | 1:05 | Point at **Linked commits** | "The agent had to link its commits before it could move the ticket. That's one of our rules for agents." |
 | 1:15 | Scroll to **Change history** (v1 → v5) | "Every change is a version, like Git: created, commit linked, moved to In progress, second commit, moved to In review. You can see who did each one." |
 | 1:30 | Point at the agent's comment | "It even explains what it did." |

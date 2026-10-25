@@ -6,16 +6,16 @@
 //                                                     after a rehearsal approved CLW-16
 //
 // --as is the username of the person presenting. They become the reviewer who
-// approves CLW-16, and its agent ("Claude Code") acts for them, so "Waiting on
-// you" shows CLW-16 when they sign in. Only documents of project CLW (and that
-// person's demo agent) are ever written or removed.
+// approves CLW-16, so "Waiting on you" shows it when they sign in. The work
+// stays Raddy's agent's: nobody may approve their own agent's ticket, so the
+// demo shows a second person signing off. Only project CLW is ever written or
+// removed.
 import { connect } from "./connect.js";
 import { COLLECTIONS } from "../shared/names.ts";
 import { agents, comments, events, projects, tickets, users } from "./sample-data.js";
 
 const KEY = "CLW";
-const DEMO_USER = "user_raddy";
-const DEMO_AGENT = "agent_raddy_claude";
+const DEMO_REVIEWER = "user_raddy";
 
 const args = process.argv.slice(2);
 const reset = args.includes("--reset");
@@ -35,17 +35,12 @@ try {
   if (!presenter) {
     throw new Error(`No user "${username}" in the database. Sign in on the site once, then try again.`);
   }
-  const agentId = `agent_${username.replace(/[^a-z0-9]/gi, "").toLowerCase()}_claude`;
-
-  // The demo was written for "Raddy" and his Claude Code agent: hand both to the presenter
+  // The presenter reviews what used to wait for Raddy; everything else stays
   const swap = (value) => {
     if (Array.isArray(value)) return value.map(swap);
-    if (value instanceof Date || value === null || typeof value !== "object") {
-      if (value === DEMO_USER) return presenter._id;
-      if (value === DEMO_AGENT) return agentId;
-      return value;
-    }
+    if (value instanceof Date || value === null || typeof value !== "object") return value;
     const swapped = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)]));
+    if (swapped.reviewer_id === DEMO_REVIEWER) swapped.reviewer_id = presenter._id;
     // Actors carry their name, so the board shows it even before the live
     // directory knows the demo agent
     if ((swapped.type === "human" || swapped.type === "agent") && typeof swapped.id === "string") {
@@ -57,14 +52,12 @@ try {
   const names = new Map([
     ...users.map((u) => [u._id, u.name]),
     ...agents.map((a) => [a._id, a.name]),
-    [presenter._id, presenter.name],
-    [agentId, "Claude Code"],
   ]);
 
   // The agent's comment named the old demo reviewer
   const clwComments = comments.map((c) =>
     c.ticket_key === `${KEY}-16`
-      ? { ...c, body: c.body.replace("Ready for Raddy to approve.", "Ready for your approval.") }
+      ? { ...c, body: c.body.replace("Ready for Raddy to approve.", "Ready for review.") }
       : c
   );
 
@@ -97,15 +90,6 @@ try {
     ]);
     console.log(`Removed the old ${KEY} documents: ${removed.map((r) => r.deletedCount).join(", ")}`);
   }
-
-  // The presenter's demo agent, if they don't have it yet
-  const template = agents.find((a) => a._id === DEMO_AGENT);
-  const agentResult = await db.collection(COLLECTIONS.AGENTS).updateOne(
-    { _id: agentId },
-    { $setOnInsert: { ...template, _id: agentId, owner_id: presenter._id } },
-    { upsert: true }
-  );
-  if (agentResult.upsertedCount) console.log(`Added agent ${agentId} (Claude Code for ${presenter.name})`);
 
   for (const [name, docs] of Object.entries(data)) {
     const { insertedCount } = await db.collection(name).insertMany(docs);
