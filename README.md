@@ -41,3 +41,9 @@ The site is the Vercel project for this repository. Production needs `MONGODB_UR
 Bedrock credentials on Vercel turn Nutty on. The AWS tasks, LLDAP, Redis, and the git VPS are applied from Buc2AgentTerraform. This repository does not contain that stack.
 
 Do not commit `.env.local` or any other `.env` file.
+
+## License
+
+Proprietary. Copyright 2026 0x90 Problems. All rights reserved.
+
+[LICENSE](LICENSE) keeps this repository with the hackathon team. People outside the team may not use, copy, modify, or distribute it. Commercial use is prohibited unless the team agrees in writing first. This is not an open-source license.

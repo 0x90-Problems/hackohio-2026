@@ -16,3 +16,7 @@ import { SCOPES, TICKET_STATUS } from "@/shared/names";
 Change a name in both files, then update [docs/schema.md](../docs/schema.md). The board API keeps its own `src/names.ts` and it has to stay aligned with this folder.
 
 Current scopes are `tickets:read`, `tickets:write`, `comments:write`, and `tickets:close`. Human tokens start with `usr_`. Agent tokens start with `clw_`. The default columns are `backlog`, `in_progress`, `in_review`, and `done`. The database name is `hackathon`.
+
+## License
+
+Proprietary. Copyright 2026 0x90 Problems. All rights reserved. The repository [LICENSE](../LICENSE) prohibits reuse outside the team and prohibits commercial use unless the team agrees in writing. This is not an open-source license.

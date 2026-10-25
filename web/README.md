@@ -28,3 +28,7 @@ npm run build
 Vercel builds this app. The production environment needs the same `MONGODB_URI` and `BOARD_API_URL` as local. Add AWS credentials and `BEDROCK_MODEL_ID` only when Nutty should call Amazon Nova. `BEDROCK_GUARDRAIL_ID` turns the Bedrock guardrail on.
 
 Components live in `components/`. Shared words such as scopes and status values come from `shared/names.ts` at the repository root. Import those constants instead of typing the strings.
+
+## License
+
+Proprietary. Copyright 2026 0x90 Problems. All rights reserved. The repository [LICENSE](../LICENSE) prohibits reuse outside the team and prohibits commercial use unless the team agrees in writing. This is not an open-source license.
