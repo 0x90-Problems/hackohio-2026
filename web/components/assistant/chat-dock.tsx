@@ -394,10 +394,10 @@ export function ChatDock() {
         >
           {open ? <XIcon /> : <MessageCircleIcon />}
           <span className="hidden sm:inline">
-            {open ? "Close" : "Ask the assistant"}
+            {open ? "Close" : "Ask Nutty"}
           </span>
           <span className="sr-only sm:hidden">
-            {open ? "Close assistant" : "Ask the assistant"}
+            {open ? "Close assistant" : "Ask Nutty"}
           </span>
         </Button>
       </motion.div>
