@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { HistoryIcon } from "@/components/icons"
+import { EmptyState } from "@/components/illustrations"
 
 const CONNECTION_LABELS = {
   [AGENT_CONNECTION.MCP]: "MCP",
@@ -404,7 +405,11 @@ function TicketDetail({
             Activity &amp; comments
           </h3>
           {sorted.length === 0 && (
-            <p className="text-sm text-muted-foreground">No comments yet.</p>
+            <EmptyState
+              title="No comments yet"
+              hint="Start the conversation below."
+              className="py-2"
+            />
           )}
           <ul className="flex flex-col gap-2">
             {sorted.map((comment) => {

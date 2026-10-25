@@ -65,7 +65,7 @@ export function TicketCard({
           ))}
         </div>
       )}
-      <ActorBadge actor={ticket.created_by} />
+      <ActorBadge actor={ticket.created_by} interactive={false} />
       {ticket.needs_approval && (
         <p className="text-xs font-semibold">Needs human approval</p>
       )}

@@ -12,6 +12,7 @@ import {
   validateSignIn,
   validateSignUp,
 } from "@/lib/board-auth"
+import { BoardScene } from "@/components/illustrations"
 import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -63,8 +64,25 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-4">
-      <Logo className="text-xl" markClassName="size-8" />
+    <main className="grid min-h-svh bg-muted/50 lg:grid-cols-2">
+      {/* Wide screens: the board illustration beside the form */}
+      <section className="hidden flex-col justify-between border-r bg-background p-10 lg:flex">
+        <Logo className="text-xl" markClassName="size-8" />
+        <div className="mx-auto w-full max-w-md animate-in duration-500 fade-in">
+          <BoardScene />
+          <h2 className="mt-8 text-3xl font-bold tracking-tight">
+            Your whole project, in a NutShell.
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            People and AI agents work on the same board. Every change shows who
+            made it, and agents always act for a person.
+          </p>
+        </div>
+        <p className="text-sm text-muted-foreground">Built at HackOHI/O 2026</p>
+      </section>
+
+      <div className="flex flex-col items-center justify-center gap-6 p-4">
+      <Logo className="text-xl lg:hidden" markClassName="size-8" />
 
       <Card className="w-full max-w-sm animate-in duration-300 fade-in slide-in-from-bottom-2">
         <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={onSubmit}>
@@ -149,6 +167,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
         <LockIcon className="size-3.5" />
         Passwords stay in the directory · agents never use this screen, they use tokens
       </p>
+      </div>
     </main>
   )
 }

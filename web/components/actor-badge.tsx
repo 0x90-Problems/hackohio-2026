@@ -2,6 +2,7 @@
 
 import { ACTOR_TYPES } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { BotIcon } from "@/components/icons"
 import { visibleAgentName } from "@/lib/agent-label"
 import type { Actor, Ticket } from "@/lib/types"
@@ -52,20 +53,54 @@ export function AgentTag({ className }: { className?: string }) {
 
 // Shows who did something. Humans: avatar + name.
 // Agents: AGENT tag + agent name + "for [owner]".
+// A person's name that opens their profile popup. Plain text when
+// `interactive` is off (inside a link, where a button can't go).
+function PersonName({
+  userId,
+  interactive,
+  children,
+}: {
+  userId: string
+  interactive: boolean
+  children: React.ReactNode
+}) {
+  const openProfile = useOpenProfile()
+  if (!interactive || !openProfile) return <>{children}</>
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        openProfile(userId)
+      }}
+      className="inline-flex min-w-0 items-center gap-1.5 rounded-sm text-left hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+    >
+      {children}
+    </button>
+  )
+}
+
+// Clicking a person opens their profile, unless `interactive` is false.
 export function ActorBadge({
   actor,
   className,
   wrap = false,
+  interactive = true,
 }: {
   actor: Actor
   className?: string
   wrap?: boolean
+  interactive?: boolean
 }) {
   const account = useAuthUser()
   const { people, agents } = useBoardDirectory()
   if (actor.type === ACTOR_TYPES.AGENT) {
     const record = agents.find((agent) => agent._id === actor.id)
-    const agentName = visibleAgentName(actor.name, actor.id, record?.name || getAgent(actor.id)?.name)
+    const agentName = visibleAgentName(
+      actor.name,
+      actor.id,
+      record?.name || getAgent(actor.id)?.name
+    )
     const ownerName =
       (actor.acting_for === account?._id ? account.name : undefined) ||
       people.find((person) => person._id === actor.acting_for)?.name ||
@@ -82,7 +117,13 @@ export function ActorBadge({
         <AgentTag className="shrink-0" />
         <span className={wrap ? "min-w-0 wrap-anywhere" : "truncate"}>
           {agentName}
-          <span className="text-muted-foreground"> · for {ownerName}</span>
+          <span className="text-muted-foreground">
+            {" "}
+            · for{" "}
+            <PersonName userId={actor.acting_for} interactive={interactive}>
+              {ownerName}
+            </PersonName>
+          </span>
         </span>
       </span>
     )
@@ -102,8 +143,12 @@ export function ActorBadge({
         className
       )}
     >
-      <HumanAvatar name={name} className="shrink-0" />
-      <span className={wrap ? "min-w-0 break-words" : "truncate"}>{name}</span>
+      <PersonName userId={actor.id} interactive={interactive}>
+        <HumanAvatar name={name} className="shrink-0" />
+        <span className={wrap ? "min-w-0 break-words" : "truncate"}>
+          {name}
+        </span>
+      </PersonName>
     </span>
   )
 }

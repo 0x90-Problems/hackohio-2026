@@ -65,6 +65,21 @@
     --brand-surface: #efefef;
     --brand-cream: #faf9f6;
 
+    /* Illustrations (components/illustrations.tsx): grays that flip with the theme */
+    --illo-line: #8a8a8a;
+    --illo-fill: #e4e2dd;
+    --illo-soft: #efede8;
+    --illo-paper: #ffffff;
+    --illo-nut: var(--brand-brown);
+    --illo-nut-eye: var(--brand-tan);
+    --illo-accent: var(--brand-scarlet);
+    /* Activity graph cells, empty to busiest */
+    --heat-0: #ebe9e4;
+    --heat-1: #f2b8bf;
+    --heat-2: #e2707f;
+    --heat-3: #c92a3f;
+    --heat-4: #8f0518;
+
     --background: var(--brand-cream);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -100,6 +115,18 @@
 }
 
 .dark {
+    --illo-line: #8f8f8f;
+    --illo-fill: #3a3a3a;
+    --illo-soft: #2b2b2b;
+    --illo-paper: #262626;
+    --illo-nut: #7a4127;
+    --illo-nut-eye: #d6a77c;
+    --illo-accent: #e0354c;
+    --heat-0: #2a2a2a;
+    --heat-1: #5c1a24;
+    --heat-2: #8f2233;
+    --heat-3: #c92a3f;
+    --heat-4: #f0566b;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);

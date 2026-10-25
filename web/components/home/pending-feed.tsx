@@ -93,7 +93,7 @@ function CommentRow({ comment }: { comment: Comment }) {
       className="-mx-2 flex flex-col gap-1.5 rounded-lg px-2 py-3 transition-colors hover:bg-muted/60"
     >
       <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-        <ActorBadge actor={comment.author} className="text-foreground" />
+        <ActorBadge actor={comment.author} className="text-foreground" interactive={false} />
         <span className="shrink-0">
           on {comment.ticket_key} · {timeAgo(comment.created_at)}
         </span>

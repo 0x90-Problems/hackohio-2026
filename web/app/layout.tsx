@@ -5,6 +5,7 @@ import "./globals.css"
 import { AppHeader } from "@/components/app-header"
 import { AuthGate } from "@/components/auth/auth-gate"
 import { ChatDock } from "@/components/assistant/chat-dock"
+import { ProfileDialogProvider } from "@/components/profile/profile-dialog"
 import { ProjectsProvider } from "@/components/projects/projects-store"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
@@ -64,8 +65,10 @@ export default function RootLayout({
               {/* One shared store for every page, so board changes (by people or
                   the chat assistant) survive moving between pages */}
               <ProjectsProvider>
-                {children}
-                <ChatDock />
+                <ProfileDialogProvider>
+                  {children}
+                  <ChatDock />
+                </ProfileDialogProvider>
               </ProjectsProvider>
             </AuthGate>
             <Toaster />
