@@ -1,0 +1,62 @@
+section,name,from_component,to_component,interface,auth,notes
+process,Board API on Vercel,Browser or Nutshell or MCP,0x90-board-api.vercel.app,HTTPS rewrite to api/index.mjs,Bearer on board routes,One function. openBoardApi requires LLDAP Redis and NEXTAUTH_SECRET. Loads and saves Atlas when MONGODB_URI is set.
+process,Fargate board task,VPC clients,board.buc2agent.local:3000,HTTP,Bearer on board routes,Task env sets PORT only. Without MONGODB_URI the store is the in-memory demo board. Do not send Vercel tokens here.
+process,Nutshell auth proxy,Browser,Board API /auth/login and /auth/signup,HTTPS POST,None on the proxy,Forwards the body and the first X-Forwarded-For value. Does not store the password. On 200 upserts the user into Atlas.
+process,Nutshell MCP proxy,Agent client,Board API /mcp,HTTPS,Forwards the caller bearer,Install URL is https://hackohio-2026.vercel.app/mcp. This is not the Python MCP process.
+process,Python MCP,Agent client,Board API at BOARD_API_URL,HTTP after the load balancer,Forwards the caller bearer,FastMCP on task port 8080 path /mcp. Empty BOARD_API_URL leaves the process up and fails the tool call.
+process,In-process MCP,Nutshell /mcp,Board store,JSON-RPC tools/call,Bearer on tools/call,Server name nutshell. Protocol 2025-03-26. Same policy as the HTTP routes.
+dependency,LLDAP,Board API,lldap.buc2agent.local,LDAP 3890,Simple bind,Login binds as uid=user ou=people dc=hackohio dc=local. Signup uses the password-modify operation. Admin UI is TCP 17170.
+dependency,Redis,Board API,App task localhost and public 6379,Redis,Password,Rate counters buc2:rl:* and channels buc2:events buc2:user:<id> buc2:agent:<id>. No disk and no TLS.
+dependency,Atlas,Board API and Nutshell /api/board,cluster0.3pub20.mongodb.net,TLS 27017,Connection string,Database hackathon. The ticket API and the Nutshell board route both write it.
+route,POST /auth/signup,Caller,Board API,JSON,None,Creates the directory user and a usr_ token. 5 attempts per hour per address and per username.
+route,POST /auth/login,Caller,Board API,JSON,None,LDAP bind then a usr_ token with all four scopes. 8 attempts per 15 minutes per address and per username.
+route,GET /health,Caller,Board API,JSON,None,Returns status ok.
+route,GET or POST /mcp,Caller,handleMcp,JSON-RPC,Bearer on tools/call,initialize tools/list and tools/call.
+route,GET /project-templates,Caller,Template catalog,JSON,tickets:read,Each template is a board a table or a roadmap.
+route,GET /project-templates/:id,Caller,One template,JSON,tickets:read,Layout columns fields and starter tags.
+route,GET /projects,Caller,Board store,JSON,tickets:read,Projects kept on the board.
+route,POST /projects,Caller,Board store,JSON,tickets:write,Creates a project from a template. The key is the ticket prefix.
+route,GET /projects/:key/table,Caller,Board store,JSON,tickets:read,One project as groups and rows.
+route,PATCH /projects/:key,Caller,Board store,JSON,Bearer,Updates that project. The store checks the actor.
+route,DELETE /projects/:key,Caller,Board store and Atlas,JSON,Bearer,Deletes the project and notes it so persistBoard removes the mirrored documents.
+route,GET /tickets,Caller,Board store,JSON,tickets:read,Optional status query.
+route,POST /tickets,Caller,Board store,JSON,tickets:write,Starts in backlog. Key comes from the project prefix.
+route,GET /tickets/:key,Caller,Board store,JSON,tickets:read,One ticket.
+route,PATCH /tickets/:key,Caller,Board store,JSON,tickets:write and tickets:close to reach done,Edit move approve or link a commit. An agent move includes sha message added and removed.
+route,DELETE /tickets/:key,Caller,Board store,JSON,Bearer,Deletes that ticket. The store checks the actor.
+route,GET /tickets/:key/comments,Caller,Board store,JSON,tickets:read,Optional since timestamp.
+route,POST /tickets/:key/comments,Caller,Board store,JSON,comments:write,Adds a comment.
+route,GET /events,Caller,Board store and Redis,JSON or text/event-stream,tickets:read,Newest first. The stream sends stream_open then stored events then live Redis messages.
+route,GET /agents,Caller,Board store,JSON,Any valid token,Agents and owners. No secrets.
+route,POST /agents,Caller,Board store,JSON,Human token,Connects an agent for the signed-in person. Returns the one-time secret and mcp install object.
+route,POST /agents/:id/tokens,Caller,Board store,JSON,tickets:write and same owner,Issues a clw_ token. The secret is returned once.
+route,POST /agents/:id/revoke,Caller,Board store,JSON,tickets:write and same owner,Revokes the agent and its tokens.
+route,GET /users,Caller,Board store,JSON,Any valid token,People on the board.
+route,GET /teams,Caller,Board store,JSON,Any valid token,Teams and members.
+route,GET /organization,Caller,Board store,JSON,Any valid token,Name token lifetime and rules.
+route,PATCH /organization,Caller,Board store,JSON,Human token,Updates name expiry or the three rules. Expiry may be 1 8 24 72 or 168 hours.
+tool,get_board,MCP,GET /tickets,Tool call,tickets:read,Optional status.
+tool,create_ticket,MCP,POST /tickets,Tool call,tickets:write,Title and optional label and reviewer.
+tool,move_ticket,MCP,PATCH /tickets/:key,Tool call,tickets:write or tickets:close,Status plus an optional commit.
+tool,add_comment,MCP,POST /tickets/:key/comments,Tool call,comments:write,Comment body.
+tool,read_comments,In-process MCP,Board store,Tool call,tickets:read,Present on the in-process server. The Python server does not expose this tool.
+tool,link_commit,MCP,PATCH /tickets/:key,Tool call,tickets:write,Commit only. No status change.
+tool,watch_changes,MCP,GET /events,Tool call,tickets:read,Newest events. Optional since.
+tool,list_project_templates,MCP,GET /project-templates,Tool call,tickets:read,Template catalog.
+tool,get_project_template,MCP,GET /project-templates/:id,Tool call,tickets:read,One template.
+tool,get_project_table,MCP,GET /projects/:key/table,Tool call,tickets:read,Groups and rows.
+tool,create_project,MCP,POST /projects,Tool call,tickets:write,Name key and template id.
+store,rest_state,Board API,Atlas collection rest_state,Document _id board,Connection string,Whole board snapshot written by persistBoard.
+store,users,Board API and Nutshell login,Atlas collection users,Documents,Connection string,Human profile. No password field.
+store,projects,Board API and Nutshell /api/board,Atlas collection projects,Documents,Connection string,Layout columns fields and starter tags.
+store,tickets,Board API and Nutshell /api/board,Atlas collection tickets,Documents,Connection string,Status reviewer needs_approval and linked commits.
+store,comments,Board API and Nutshell /api/board,Atlas collection comments,Documents,Connection string,Author body and time.
+store,events,Board API and Nutshell /api/board,Atlas collection events,Documents,Connection string,Append-only activity.
+store,agents,Board API and Nutshell /api/board,Atlas collection agents,Documents,Connection string,Owner connection scopes and revoked.
+store,organization,Board API,Atlas collection organization,Document _id settings,Connection string,Name expiry and rules.
+store,agent_tokens,Board API,Atlas collection agent_tokens,Documents,Connection string,SHA-256 token_hash for clw_ tokens. The raw secret is not this field.
+store,auth_tokens,Board API,Atlas collection auth_tokens,Documents,Connection string,Keeps the bearer secret so a later request can match it. The document id is the SHA-256 of the secret.
+rule,approve_before_close,Agent or human,Ticket status done,Store check,Human other than the creator,Starts on. An agent cannot approve or close. A human cannot approve their own ticket.
+rule,commit_on_move,Agent,Ticket status change,Store check,tickets:write,Starts on. The commit is sha message added and removed and is stored before the status change.
+rule,log_agent_actions,Agent mutation,events,Store check,Agent token,Starts on. Agent mutations are appended to the event log.
+rule,token lifetime,Board API,Issued bearer,Store check,usr_ or clw_,Default 24 hours. A clw_ token cannot be wider than its agent.
