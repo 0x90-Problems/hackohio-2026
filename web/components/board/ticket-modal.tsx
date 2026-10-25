@@ -20,6 +20,7 @@ import {
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { visibleAgentName } from "@/lib/agent-label"
 import { useBoardDirectory } from "@/lib/use-board-directory"
+import { useProjects } from "@/components/projects/projects-store"
 import { listBoardUsers } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -175,11 +176,15 @@ function TicketDetail({
       : people
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
-  // Demo agents are in mock-data; real ones come from the live directory
+  // Demo agents are in mock-data; real ones come from the live directory,
+  // or from MongoDB through the board load when the directory isn't reachable
   const directory = useBoardDirectory()
+  const { boardAgents } = useProjects()
   const agent =
     creator.type === ACTOR_TYPES.AGENT
-      ? (getAgent(creator.id) ?? directory.agents.find((a) => a._id === creator.id))
+      ? (getAgent(creator.id) ??
+        directory.agents.find((a) => a._id === creator.id) ??
+        boardAgents.find((a) => a._id === creator.id))
       : undefined
   const named =
     creator.type === ACTOR_TYPES.AGENT

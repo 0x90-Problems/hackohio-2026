@@ -50,7 +50,7 @@ export function ProfileView({
   compact?: boolean
 }) {
   const account = useAuthUser()
-  const { activity, tickets, comments } = useProjects()
+  const { activity, tickets, comments, boardAgents } = useProjects()
   const directory = useBoardDirectory()
   const user = findUser(userId, account, directory.people)
   // The same event can arrive twice (saved locally and in MongoDB): count it once
@@ -66,7 +66,7 @@ export function ProfileView({
   }, [userId, activity])
   // Known agents, plus any that acted for this person but aren't listed yet
   const agents = useMemo(() => {
-    const known = agentsOf(userId, directory.agents)
+    const known = agentsOf(userId, [...directory.agents, ...boardAgents])
     const seen = new Set(known.map((a) => a._id))
     const extra: Agent[] = []
     for (const e of byAgents) {
@@ -82,7 +82,7 @@ export function ProfileView({
       })
     }
     return [...known, ...extra]
-  }, [userId, directory.agents, byAgents])
+  }, [userId, directory.agents, boardAgents, byAgents])
 
   if (!user) {
     return (

@@ -76,6 +76,7 @@ export function ChatDock() {
   const toolContext = (): ToolContext => ({
     store: storeRef.current,
     currentProjectKey,
+    ...(account && { user: { id: account._id, name: account.name } }),
   })
 
   // Ask the server once whether the AI is available

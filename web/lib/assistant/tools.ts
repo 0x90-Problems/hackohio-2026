@@ -19,10 +19,14 @@ import {
 import { categoryName } from "@/lib/categories"
 
 // Everything the assistant acts as: an agent acting for the signed-in person
-export const ASSISTANT_ACTOR: Actor = {
-  type: ACTOR_TYPES.AGENT,
-  id: ASSISTANT_AGENT_ID,
-  acting_for: CURRENT_USER_ID,
+// (the demo user when nobody is signed in)
+export function assistantActor(ctx: ToolContext): Actor {
+  return {
+    type: ACTOR_TYPES.AGENT,
+    id: ASSISTANT_AGENT_ID,
+    name: "Nutty",
+    acting_for: ctx.user?.id ?? CURRENT_USER_ID,
+  }
 }
 
 // The slice of projects-store the tools need
@@ -41,7 +45,12 @@ export type AssistantStore = {
   comment: (ticketKey: string, body: string, actor: Actor) => void
 }
 
-export type ToolContext = { store: AssistantStore; currentProjectKey: string }
+export type ToolContext = {
+  store: AssistantStore
+  currentProjectKey: string
+  // The person the assistant acts for
+  user?: { id: string; name: string }
+}
 
 // What the chat shows under a reply, e.g. "Moved CLW-12 → In progress"
 export type ToolAction = { label: string; ticketKey?: string }
@@ -188,7 +197,7 @@ export function runTool(
     case "get_board":
       return {
         result: {
-          current_user: { id: CURRENT_USER_ID, name: currentUser.name },
+          current_user: ctx.user ?? { id: CURRENT_USER_ID, name: currentUser.name },
           current_project: ctx.currentProjectKey,
           projects: store.projects.map((p) => ({
             key: p.key,
@@ -260,7 +269,7 @@ export function runTool(
       const ticketKey = store.createTicket(
         key,
         { title, status, tags },
-        ASSISTANT_ACTOR
+        assistantActor(ctx)
       )
       return {
         result: {
@@ -285,7 +294,7 @@ export function runTool(
       }
       if (ticket.status === target.slug)
         return { result: { unchanged: true, column: target.name } }
-      store.moveTicket(ticket.key, target.slug, ASSISTANT_ACTOR)
+      store.moveTicket(ticket.key, target.slug, assistantActor(ctx))
       return {
         result: { moved: ticket.key, column: target.name },
         action: {
@@ -302,7 +311,7 @@ export function runTool(
       store.comment(
         ticket.key,
         args.body.trim().slice(0, 2000),
-        ASSISTANT_ACTOR
+        assistantActor(ctx)
       )
       return {
         result: { commented: ticket.key },
