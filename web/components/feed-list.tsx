@@ -41,6 +41,10 @@ export function FeedList<T extends FeedItem>({
     )
   }
 
+  if (items.length === 0) {
+    return <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* key={current} remounts the list on page change, which replays the fade */}

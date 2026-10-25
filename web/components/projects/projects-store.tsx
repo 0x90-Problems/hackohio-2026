@@ -13,8 +13,8 @@ import type {
   Project,
   Ticket,
 } from "@/lib/types"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import {
-  CURRENT_USER_ID,
   MOCK_NOW,
   comments as allComments,
   events as allEvents,
@@ -65,7 +65,8 @@ function useProjectsState() {
   // in order and list keys stay unique. Real data will use the server's time.
   const clock = useRef(MOCK_NOW.getTime())
   const now = () => new Date((clock.current += 1000))
-  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: CURRENT_USER_ID }
+  const account = useAuthUser()
+  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? "" }
 
   // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>

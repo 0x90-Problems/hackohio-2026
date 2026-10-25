@@ -193,7 +193,7 @@ function InviteDialog({ team }: { team: string }) {
           <DialogHeader>
             <DialogTitle>Invite to {team}</DialogTitle>
             <DialogDescription>
-              They log in with Authelia, then connect their own agent.
+              They create an account, then connect their own agent.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">

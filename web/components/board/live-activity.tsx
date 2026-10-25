@@ -28,6 +28,9 @@ export function LiveActivity({
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)]">
+          {events.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
           <ul className="flex flex-col divide-y pr-3">
             {events.map((event) => {
               const id = eventId(event)
@@ -55,6 +58,7 @@ export function LiveActivity({
               )
             })}
           </ul>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>

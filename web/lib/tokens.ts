@@ -1,5 +1,4 @@
 import { SCOPES, TOKEN_PREFIX, type Scope } from "@/shared/names"
-import { currentUser } from "@/lib/mock-data"
 
 // Plain-English names for each scope, in the order shown.
 export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
@@ -10,10 +9,11 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
 ]
 
 // Mock token/key. The real one will come from the backend, which stores only its hash.
-export function makeToken() {
+export function makeToken(username: string) {
   const bytes = crypto.getRandomValues(new Uint8Array(24))
   const random = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")
-  return `${TOKEN_PREFIX}${currentUser.auth_username.slice(0, 2)}_${random}`
+  const initials = username.replace(/[^a-z0-9]/gi, "").slice(0, 2).toLowerCase() || "xx"
+  return `${TOKEN_PREFIX}${initials}_${random}`
 }
 
 // What's safe to show after creation: the prefix, then dots.

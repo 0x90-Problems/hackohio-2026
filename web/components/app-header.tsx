@@ -1,5 +1,6 @@
 "use client"
 
+import { useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -15,7 +16,7 @@ import {
   UsersIcon,
 } from "@/components/icons"
 
-import { currentUser } from "@/lib/mock-data"
+import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -44,13 +45,17 @@ const NAV_LINKS = [
 ]
 
 // Pages that show without the header.
-const NO_HEADER = ["/login"]
+const NO_HEADER = ["/login", "/signup"]
 
 export function AppHeader() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
+  const sessionUser = useSyncExternalStore(subscribeAuth, readSessionUser, () => null)
 
-  if (NO_HEADER.includes(pathname)) return null
+  if (NO_HEADER.includes(pathname) || !sessionUser) return null
+
+  const name = sessionUser.name
+  const detail = sessionUser.role ?? sessionUser.team
 
   return (
     <header className="border-b bg-background/95 backdrop-blur">
@@ -112,15 +117,15 @@ export function AppHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="ml-auto gap-2 md:ml-0">
-              <span className="text-sm">{currentUser.name}</span>
-              <HumanAvatar name={currentUser.name} />
+              <span className="text-sm">{name}</span>
+              <HumanAvatar name={name} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel>
-              <div className="font-medium">{currentUser.name}</div>
+              <div className="font-medium">{name}</div>
               <div className="text-xs font-normal text-muted-foreground">
-                {currentUser.role}
+                {detail}
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -135,7 +140,12 @@ export function AppHeader() {
               {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/login">
+              <Link
+                href="/login"
+                onClick={() => {
+                  clearSession()
+                }}
+              >
                 <LogOutIcon aria-hidden="true" />
                 Log out
               </Link>

@@ -13,10 +13,10 @@ import {
 import {
   MOCK_NOW,
   agentTokens,
-  currentUser,
   getAgent,
   getUser,
 } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
@@ -146,6 +146,7 @@ function TicketDetail({
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
+  const account = useAuthUser()
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
   const agent =
@@ -371,7 +372,7 @@ function TicketDetail({
           </ul>
 
           <div className="mt-2 flex flex-col gap-2">
-            <Label htmlFor="comment">Comment as {currentUser.name}</Label>
+            <Label htmlFor="comment">Comment as {account?.name ?? "you"}</Label>
             <Textarea
               id="comment"
               value={draft}

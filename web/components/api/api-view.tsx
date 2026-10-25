@@ -3,6 +3,7 @@
 import { useState } from "react"
 import {
   AlertTriangleIcon,
+  ArrowRightIcon,
   BookOpenIcon,
   CopyIcon,
   KeyRoundIcon,
@@ -20,10 +21,11 @@ import {
   MOCK_NOW,
   agentTokens,
   agents,
-  currentUser,
   getUser,
 } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
+import { mcpInstall, mcpPublicUrl } from "@/lib/mcp-install"
 import { SCOPE_OPTIONS, makeToken, maskToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
@@ -54,18 +56,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-// Where the MCP server will live. Swap for the deployed URL later.
-const SERVER_URL = "http://localhost:3000"
-
-const MCP_CONFIG = `{
-  "mcpServers": {
-    "buck2agents": {
-      "url": "${SERVER_URL}/mcp",
-      "headers": { "Authorization": "Bearer ${TOKEN_PREFIX}your_agent_token" }
-    }
-  }
-}`
 
 const TOOL_DESCRIPTIONS: Record<string, string> = {
   [MCP_TOOLS.GET_BOARD]: "Read every ticket on the board",
@@ -113,10 +103,10 @@ const initialKeys: ApiKey[] = agents
       : []
   })
 
-async function copyText(text: string, what: string) {
+async function copyText(text: string, what: string, description?: string) {
   try {
     await navigator.clipboard.writeText(text)
-    toast.success(`${what} copied`)
+    toast.success(`${what} copied`, description ? { description } : undefined)
   } catch {
     toast.error("Couldn't copy", { description: "Select the text and copy it by hand." })
   }
@@ -158,24 +148,13 @@ export function ApiView() {
             <CardHeader>
               <CardTitle className="text-lg">Connect over MCP</CardTitle>
               <CardDescription>
-                Add this to your agent&apos;s MCP config. Use the token from the Agents page.
+                Create an API key to get the MCP config for{" "}
+                <span className="font-mono">{mcpPublicUrl()}</span>. A saved key
+                is only a prefix, so the config is issued with the key and
+                can&apos;t be rebuilt later.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-5">
-              <div className="relative">
-                <pre className="overflow-x-auto rounded-lg bg-foreground p-4 pr-12 font-mono text-xs leading-relaxed text-background">
-                  {MCP_CONFIG}
-                </pre>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="absolute top-2 right-2 text-background hover:bg-background/15 hover:text-background"
-                  onClick={() => copyText(MCP_CONFIG, "MCP config")}
-                  aria-label="Copy MCP config"
-                >
-                  <CopyIcon aria-hidden="true" />
-                </Button>
-              </div>
+            <CardContent>
               <div className="flex flex-col gap-2">
                 <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
                   Tools your agent gets
@@ -291,6 +270,7 @@ export function ApiView() {
 }
 
 function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
+  const account = useAuthUser()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [scopes, setScopes] = useState<Scope[]>([SCOPES.TICKETS_READ])
@@ -307,12 +287,12 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
 
   function create(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || scopes.length === 0) return
-    const key = makeToken()
+    if (!account || !name.trim() || scopes.length === 0) return
+    const key = makeToken(account.auth_username)
     setSecret(key)
     onCreate({
       name: name.trim(),
-      owner_id: currentUser._id,
+      owner_id: account._id,
       token_prefix: key.slice(0, TOKEN_PREFIX.length + 2),
       last_used_at: null,
       scopes: SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s)),
@@ -327,38 +307,9 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
           Create API key
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className={secret ? "sm:max-w-lg" : undefined}>
         {secret ? (
-          <div className="flex flex-col gap-4">
-            <DialogHeader>
-              <DialogTitle>Your new API key</DialogTitle>
-              <DialogDescription>Paste it into your script or always-on agent.</DialogDescription>
-            </DialogHeader>
-            <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
-              <code className="min-w-0 flex-1 font-mono text-xs break-all">{secret}</code>
-              <Button
-                size="icon-sm"
-                variant="ghost"
-                className="shrink-0 text-background hover:bg-background/15 hover:text-background"
-                onClick={() => copyText(secret, "API key")}
-                aria-label="Copy API key"
-              >
-                <CopyIcon aria-hidden="true" />
-              </Button>
-            </div>
-            <Alert>
-              <AlertTriangleIcon aria-hidden="true" />
-              <AlertTitle>This key is shown once</AlertTitle>
-              <AlertDescription>
-                Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
-              </AlertDescription>
-            </Alert>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Done</Button>
-              </DialogClose>
-            </DialogFooter>
-          </div>
+          <IssuedKey secret={secret} />
         ) : (
           <form onSubmit={create} className="flex flex-col gap-4">
             <DialogHeader>
@@ -410,5 +361,90 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+function IssuedKey({ secret }: { secret: string }) {
+  const install = mcpInstall(secret)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <DialogHeader>
+        <DialogTitle>Your new API key</DialogTitle>
+        <DialogDescription>
+          Copy the secret now. The install config below is built from it.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
+        <code className="min-w-0 flex-1 font-mono text-xs break-all">{secret}</code>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          className="shrink-0 text-background hover:bg-background/15 hover:text-background"
+          onClick={() => copyText(secret, "API key")}
+          aria-label="Copy API key"
+        >
+          <CopyIcon aria-hidden="true" />
+        </Button>
+      </div>
+      <Alert>
+        <AlertTriangleIcon aria-hidden="true" />
+        <AlertTitle>This key is shown once</AlertTitle>
+        <AlertDescription>
+          Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
+        </AlertDescription>
+      </Alert>
+      <div className="flex flex-col gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-start"
+          onClick={() => copyText(install.json, "MCP config")}
+        >
+          <CopyIcon data-icon="inline-start" aria-hidden="true" />
+          Copy MCP config
+        </Button>
+        <Button variant="outline" className="w-full justify-start" asChild>
+          <a href={install.cursorUrl}>
+            <ArrowRightIcon data-icon="inline-start" aria-hidden="true" />
+            Add to Cursor
+          </a>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto w-full justify-start py-2 whitespace-normal"
+          onClick={() =>
+            copyText(
+              install.json,
+              "Claude Desktop config",
+              "Paste it into claude_desktop_config.json."
+            )
+          }
+        >
+          <CopyIcon data-icon="inline-start" aria-hidden="true" />
+          <span className="flex flex-col items-start gap-0.5 text-left">
+            <span>Copy for Claude Desktop</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              Paste into claude_desktop_config.json
+            </span>
+          </span>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full justify-start"
+          onClick={() => copyText(install.claudeCommand, "Claude Code command")}
+        >
+          <CopyIcon data-icon="inline-start" aria-hidden="true" />
+          Copy Claude Code command
+        </Button>
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Done</Button>
+        </DialogClose>
+      </DialogFooter>
+    </div>
   )
 }

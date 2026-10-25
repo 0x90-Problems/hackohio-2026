@@ -1,4 +1,7 @@
+"use client"
+
 import { ACTOR_TYPES } from "@/shared/names"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { BotIcon } from "@/components/icons"
 import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
@@ -54,9 +57,13 @@ export function ActorBadge({
   actor: Actor
   className?: string
 }) {
+  const account = useAuthUser()
   if (actor.type === ACTOR_TYPES.AGENT) {
     const agentName = getAgent(actor.id)?.name ?? actor.id
-    const ownerName = getUser(actor.acting_for)?.name ?? actor.acting_for
+    const ownerName =
+      actor.acting_for === account?._id
+        ? account.name
+        : (getUser(actor.acting_for)?.name ?? actor.acting_for)
     return (
       <span
         className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}
@@ -70,7 +77,7 @@ export function ActorBadge({
     )
   }
 
-  const name = getUser(actor.id)?.name ?? actor.id
+  const name = actor.id === account?._id ? account.name : (getUser(actor.id)?.name ?? actor.id)
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}>
       <HumanAvatar name={name} />
@@ -85,12 +92,14 @@ export function TicketOwnerBadge({ ticket }: { ticket: Ticket }) {
     (ticket.created_by.type === ACTOR_TYPES.AGENT
       ? ticket.created_by.acting_for
       : ticket.created_by.id)
+  const account = useAuthUser()
   const owner = getUser(ownerId)
+  const ownerName = ownerId === account?._id ? account.name : owner?.name
 
-  return owner ? (
+  return ownerName ? (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-sm">
-      <HumanAvatar name={owner.name} />
-      <span className="truncate">{owner.name}</span>
+      <HumanAvatar name={ownerName} />
+      <span className="truncate">{ownerName}</span>
     </span>
   ) : (
     <span className="text-sm text-muted-foreground">Unassigned</span>

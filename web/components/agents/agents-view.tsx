@@ -24,9 +24,9 @@ import type { Agent } from "@/lib/types"
 import {
   agents as allAgents,
   agentTokens,
-  currentUser,
   getUser,
 } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
 import { SCOPE_OPTIONS, makeToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
@@ -258,6 +258,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
   ])
   const [name, setName] = useState("")
   const [token, setToken] = useState<string>()
+  const account = useAuthUser()
 
   function toggle(scope: Scope, on: boolean) {
     setScopes((current) => (on ? [...current, scope] : current.filter((s) => s !== scope)))
@@ -265,14 +266,15 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
 
   function generate() {
     const agentName = name.trim()
+    if (!account || !agentName) return
     const slug = agentName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
     // Keep the scopes in the same order as the checklist.
     const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
-    setToken(makeToken())
+    setToken(makeToken(account.auth_username))
     onConnect({
-      _id: `agent_${currentUser.auth_username}_${slug}_${Date.now()}`,
+      _id: `agent_${account.auth_username}_${slug}_${Date.now()}`,
       name: agentName,
-      owner_id: currentUser._id,
+      owner_id: account._id,
       connection: AGENT_CONNECTION.MCP,
       scopes: ordered,
       revoked: false,
@@ -329,7 +331,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
             id="agent-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={`e.g. ${currentUser.name}'s Claude Code`}
+            placeholder={account ? `e.g. ${account.name}'s Claude Code` : "e.g. your agent"}
           />
         </div>
 
