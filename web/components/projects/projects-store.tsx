@@ -22,7 +22,7 @@ import {
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
+import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
 import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
@@ -31,7 +31,12 @@ import {
   type CategoryColor,
 } from "@/lib/categories"
 import { eventId } from "@/lib/format"
-import { templateCategories, type ProjectTemplate } from "@/lib/templates"
+import {
+  resolvedProjectFields,
+  resolvedProjectLayout,
+  templateCategories,
+  type ProjectTemplate,
+} from "@/lib/templates"
 import { commentId } from "@/components/board/ticket-modal"
 
 // CLW-05 -> CLW
@@ -41,6 +46,15 @@ const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
 
 const BOARD_KEY = "buck2.board"
+
+// Older saved projects stored the template id and dropped layout and fields.
+function withTemplateShape(project: Project): Project {
+  return {
+    ...project,
+    layout: resolvedProjectLayout(project),
+    fields: resolvedProjectFields(project),
+  }
+}
 
 type BoardSnapshot = {
   projects: Project[]
@@ -55,7 +69,7 @@ type BoardSnapshot = {
 function useProjectsState() {
   const account = useAuthUser()
   const [ready, setReady] = useState(false)
-  const [projects, setProjects] = useState<Project[]>(allProjects)
+  const [projects, setProjects] = useState<Project[]>(() => allProjects.map(withTemplateShape))
   const [tickets, setTicketsState] = useState<Ticket[]>(allTickets)
   // Always-current copy, so several actions in a row (like the assistant
   // creating two tickets at once) see each other's changes.
@@ -120,7 +134,7 @@ function useProjectsState() {
         activity.unshift(...extraEvents)
       }
       ticketsRef.current = tickets
-      setProjects(projects)
+      setProjects(projects.map(withTemplateShape))
       setTicketsState(tickets)
       setComments(comments)
       setActivity(activity)
@@ -136,6 +150,7 @@ function useProjectsState() {
     }
     restore()
       .catch(() => {
+        setProjects((current) => current.map(withTemplateShape))
         toast.error("Couldn't load the board from the database")
       })
       .finally(() => {
@@ -222,6 +237,7 @@ function useProjectsState() {
       ...input,
       template: template.id,
       layout: template.layout,
+      fields: [...template.fields],
       categories: templateCategories(template),
       ...(template.tags.length > 0 && { starter_tags: template.tags }),
       created_by: me,
@@ -268,6 +284,16 @@ function useProjectsState() {
     },
     actor: Actor = me
   ) {
+    const stamp = now().getTime()
+    const recent = ticketsRef.current.find(
+      (ticket) =>
+        projectKeyOf(ticket.key) === projectKey &&
+        ticket.title === input.title &&
+        ticket.created_by.type === actor.type &&
+        ticket.created_by.id === actor.id &&
+        stamp - ticket.created_at.getTime() < 10_000
+    )
+    if (recent) return recent.key
     const numbers = ticketsRef.current
       .filter((t) => projectKeyOf(t.key) === projectKey)
       .map((t) => Number(t.key.split("-")[1]))
@@ -281,7 +307,7 @@ function useProjectsState() {
       status: input.status,
       ...(input.due_date && { due_date: input.due_date }),
       created_by: actor,
-      needs_approval: false,
+      needs_approval: true,
       created_at,
     }
     setTickets((current) => [ticket, ...current])
@@ -302,6 +328,10 @@ function useProjectsState() {
   function moveTicket(ticketKey: string, to: string, actor: Actor = me) {
     const ticket = ticketsRef.current.find((t) => t.key === ticketKey)
     if (!ticket || ticket.status === to) return
+    if (to === TICKET_STATUS.DONE && ticket.needs_approval) {
+      toast.error(`A different person has to approve ${ticketKey} before it can close`)
+      return
+    }
     setStatus(ticketKey, to)
     addEvent({
       action: EVENT_ACTIONS.TICKET_MOVED,
@@ -325,6 +355,13 @@ function useProjectsState() {
       current.map((t) => (t.key === ticketKey ? { ...t, tags } : t))
     )
     persistTicket(ticketKey)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_UPDATED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { body: tags.length ? `Tags: ${tags.join(", ")}` : "Cleared the tags" },
+      created_at: now(),
+    })
   }
 
   function setDescription(ticketKey: string, description: string) {
@@ -334,6 +371,13 @@ function useProjectsState() {
       )
     )
     persistTicket(ticketKey)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_UPDATED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { body: description ? `Description: ${description}` : "Cleared the description" },
+      created_at: now(),
+    })
   }
 
   function setTicketColor(ticketKey: string, card_color?: CategoryColor) {
@@ -343,6 +387,26 @@ function useProjectsState() {
       )
     )
     persistTicket(ticketKey)
+  }
+
+  function setReviewer(ticketKey: string, reviewer_id: string) {
+    setTickets((current) =>
+      current.map((ticket) => {
+        if (ticket.key !== ticketKey) return ticket
+        if (reviewer_id) return { ...ticket, reviewer_id }
+        const next = { ...ticket }
+        delete next.reviewer_id
+        return next
+      })
+    )
+    persistTicket(ticketKey)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_UPDATED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { body: reviewer_id ? `Reviewer: ${reviewer_id}` : "Reviewer cleared" },
+      created_at: now(),
+    })
   }
 
   function setDueDate(ticketKey: string, due_date: string) {
@@ -356,6 +420,13 @@ function useProjectsState() {
       })
     )
     persistTicket(ticketKey)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_UPDATED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { body: due_date ? `Due date: ${due_date}` : "Cleared the due date" },
+      created_at: now(),
+    })
   }
 
   function createCategory(
@@ -409,6 +480,7 @@ function useProjectsState() {
       action: EVENT_ACTIONS.COMMENT_ADDED,
       ticket_key: ticketKey,
       actor,
+      details: { body },
       created_at,
     })
   }
@@ -420,6 +492,16 @@ function useProjectsState() {
       : (ticketsRef.current.find((t) => t.key === ticketKey)?.status ?? slug)
 
   function approve(ticketKey: string) {
+    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+    const creatorId = ticket
+      ? ticket.created_by.type === ACTOR_TYPES.AGENT
+        ? ticket.created_by.acting_for
+        : ticket.created_by.id
+      : undefined
+    if (creatorId && creatorId === (account?._id ?? CURRENT_USER_ID)) {
+      toast.error("You can't approve your own ticket")
+      return
+    }
     const to = columnOr(TICKET_STATUS.DONE, ticketKey)
     setStatus(ticketKey, to, { needs_approval: false })
     addEvent({
@@ -432,6 +514,27 @@ function useProjectsState() {
     toast.success(`Approved ${ticketKey}`, {
       description: `Moved to ${categoryName(to, categoriesOfTicket(ticketKey))}`,
     })
+  }
+
+  function removeTicket(ticketKey: string) {
+    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+    if (!ticket) return
+    const creatorId = ticket.created_by.type === ACTOR_TYPES.AGENT ? ticket.created_by.acting_for : ticket.created_by.id
+    const mine = (account?._id ?? CURRENT_USER_ID) === creatorId
+    if (!mine && account?.admin !== true) {
+      toast.error("Only an admin or the creator can delete this ticket")
+      return
+    }
+    setTickets((current) => current.filter((item) => item.key !== ticketKey))
+    removeTicketRecord(ticketKey)
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_DELETED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { title: ticket.title },
+      created_at: now(),
+    })
+    toast.success(`Deleted ${ticketKey}`)
   }
 
   function requestChanges(ticketKey: string) {
@@ -472,6 +575,8 @@ function useProjectsState() {
     setDescription,
     setTicketColor,
     setDueDate,
+    setReviewer,
+    deleteTicket: removeTicket,
     createCategory,
     updateCategory,
     deleteCategory,

@@ -66,8 +66,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   [MCP_TOOLS.LINK_COMMIT]: "Attach a git commit to a ticket",
   [MCP_TOOLS.WATCH_CHANGES]: "Get told when the board changes",
   [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List templates. Each one is a board, a table, or a roadmap",
-  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's layout, columns, and starter tags",
+  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's layout, columns, fields, and starter tags",
   [MCP_TOOLS.CREATE_PROJECT]: "Create a project from a template",
+  [MCP_TOOLS.GET_PROJECT_TABLE]: "Read a project as groups and rows, with its layout and fields",
 }
 
 type Method = "GET" | "POST" | "PATCH"
@@ -79,8 +80,10 @@ const ENDPOINTS: { method: Method; path: string; description: string }[] = [
   { method: "GET", path: "/events", description: "Live stream of board changes" },
   { method: "GET", path: "/agents", description: "List agents and their owners" },
   { method: "GET", path: "/project-templates", description: "List templates (board, table, or roadmap)" },
-  { method: "GET", path: "/project-templates/:id", description: "Layout, columns, starter tags, and preview copy for one template" },
+  { method: "GET", path: "/project-templates/:id", description: "Layout, columns, fields, and starter tags for one template" },
+  { method: "GET", path: "/projects", description: "List projects with their layout and fields" },
   { method: "POST", path: "/projects", description: "Create a project from a template" },
+  { method: "GET", path: "/projects/:key/table", description: "Read one project as table groups and rows" },
 ]
 
 // Neutral styles only: no red, blue or purple for HTTP methods.
@@ -339,6 +342,10 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
     } finally {
       setPending(false)
     }
+  }
+
+  if (account?.admin !== true) {
+    return <p className="text-sm text-muted-foreground">An admin creates API keys.</p>
   }
 
   return (

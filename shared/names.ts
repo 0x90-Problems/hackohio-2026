@@ -32,6 +32,7 @@ export type ActorType = (typeof ACTOR_TYPES)[keyof typeof ACTOR_TYPES];
 export const ACTOR_FIELDS = {
   TYPE: "type",
   ID: "id",
+  NAME: "name",
   ACTING_FOR: "acting_for", // only when type is "agent"
 } as const;
 
@@ -110,6 +111,8 @@ export const EVENT_ACTIONS = {
   COMMENT_ADDED: "comment_added",
   COMMIT_LINKED: "commit_linked",
   TICKET_CLOSED: "ticket_closed",
+  TICKET_DELETED: "ticket_deleted",
+  TICKET_UPDATED: "ticket_updated",
 } as const;
 export type EventAction = (typeof EVENT_ACTIONS)[keyof typeof EVENT_ACTIONS];
 
@@ -137,7 +140,9 @@ export const MCP_TOOLS = {
   ADD_COMMENT: "add_comment",
   LINK_COMMIT: "link_commit",
   WATCH_CHANGES: "watch_changes",
+  READ_COMMENTS: "read_comments",
   LIST_PROJECT_TEMPLATES: "list_project_templates",
   GET_PROJECT_TEMPLATE: "get_project_template",
   CREATE_PROJECT: "create_project",
+  GET_PROJECT_TABLE: "get_project_table",
 } as const;

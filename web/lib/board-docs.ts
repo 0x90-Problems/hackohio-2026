@@ -4,9 +4,14 @@ import type { Actor, Agent, Comment, Event, Project, Ticket } from "@/lib/types"
 
 function actor(value: Actor): Actor {
   if (value.type === "agent") {
-    return { type: "agent", id: value.id, acting_for: value.acting_for }
+    return {
+      type: "agent",
+      id: value.id,
+      acting_for: value.acting_for,
+      ...(value.name ? { name: value.name } : {}),
+    }
   }
-  return { type: "human", id: value.id }
+  return { type: "human", id: value.id, ...(value.name ? { name: value.name } : {}) }
 }
 
 function when(value: Date | string): Date {
@@ -22,6 +27,8 @@ export function projectDoc(project: Project) {
     ...(project.description ? { description: project.description } : {}),
     team: project.team,
     ...(project.template ? { template: project.template } : {}),
+    layout: project.layout ?? "board",
+    fields: project.fields ?? [],
     categories: project.categories.map((category) => ({
       slug: category.slug,
       name: category.name,
@@ -50,6 +57,7 @@ export function ticketDoc(ticket: Ticket) {
     ...(ticket.due_date ? { due_date: ticket.due_date } : {}),
     ...(ticket.description ? { description: ticket.description } : {}),
     ...(ticket.card_color ? { card_color: ticket.card_color } : {}),
+    ...(ticket.fields && Object.keys(ticket.fields).length > 0 ? { fields: ticket.fields } : {}),
     created_at: when(ticket.created_at),
   }
 }

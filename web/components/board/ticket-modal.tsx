@@ -15,25 +15,18 @@ import {
   agentTokens,
   getAgent,
   getUser,
+  users,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
-import { ColorDot } from "@/components/board/category-dialogs"
 import { ChangeHistory } from "@/components/board/change-history"
 import { TagInput } from "@/components/board/tag-input"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
@@ -59,6 +52,9 @@ export type TicketActions = {
   onTagsChange: (ticketKey: string, tags: string[]) => void
   onDescriptionChange: (ticketKey: string, description: string) => void
   onColorChange: (ticketKey: string, color?: CategoryColor) => void
+  onDueDateChange: (ticketKey: string, dueDate: string) => void
+  onReviewerChange: (ticketKey: string, reviewerId: string) => void
+  onDelete: (ticketKey: string) => void
 }
 
 // Opens the sheet for the ticket named in the address
@@ -137,6 +133,9 @@ function TicketDetail({
   onTagsChange,
   onDescriptionChange,
   onColorChange,
+  onDueDateChange,
+  onReviewerChange,
+  onDelete,
 }: {
   ticket: Ticket
   categories: Category[]
@@ -153,7 +152,9 @@ function TicketDetail({
     creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
   const owner =
     creator.type === ACTOR_TYPES.AGENT ? getUser(creator.acting_for) : undefined
-  const reviewer = ticket.reviewer_id ? getUser(ticket.reviewer_id) : undefined
+  const creatorId = creator.type === ACTOR_TYPES.AGENT ? creator.acting_for : creator.id
+  const ownTicket = account?._id === creatorId
+  const canDelete = account?.admin === true || ownTicket
   // Scopes come from the agent's current token: not revoked and not expired.
   const token = agent
     ? agentTokens.find(
@@ -186,25 +187,23 @@ function TicketDetail({
           {ticket.title}
         </DialogTitle>
         <div className="flex flex-wrap items-center gap-2">
-          <Select
+          <select
+            aria-label="Move to column"
+            className="h-8 rounded-md border bg-background px-2 text-sm"
             value={ticket.status}
-            onValueChange={(status) => onMove(ticket.key, status)}
+            onChange={(event) => {
+              const status = event.target.value
+              if (status !== ticket.status) onMove(ticket.key, status)
+            }}
           >
-            <SelectTrigger
-              size="sm"
-              aria-label="Move to column"
-              className="w-auto"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((c) => (
-                <SelectItem key={c.slug} value={c.slug}>
-                  <ColorDot color={c.color} /> {c.name}
-                </SelectItem>
+            {categories
+              .filter((c) => c.slug === ticket.status || c.slug !== TICKET_STATUS.DONE || !ticket.needs_approval)
+              .map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.name}
+                </option>
               ))}
-            </SelectContent>
-          </Select>
+          </select>
           {ticket.needs_approval && (
             <Badge variant="outline">Needs human approval</Badge>
           )}
@@ -311,13 +310,29 @@ function TicketDetail({
 
           <dt className="text-muted-foreground">Reviewer</dt>
           <dd>
-            {reviewer ? (
-              <span className="inline-flex items-center gap-1.5">
-                <HumanAvatar name={reviewer.name} /> {reviewer.name}
-              </span>
-            ) : (
-              <span className="text-muted-foreground">None</span>
-            )}
+            <select
+              aria-label="Reviewer"
+              className="h-8 max-w-full rounded-md border bg-background px-2 text-sm"
+              value={ticket.reviewer_id ?? ""}
+              onChange={(event) => onReviewerChange(ticket.key, event.target.value)}
+            >
+              <option value="">None</option>
+              {users.map((user) => (
+                <option key={user._id} value={user._id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+          </dd>
+          <dt className="text-muted-foreground">Due date</dt>
+          <dd>
+            <input
+              aria-label="Due date"
+              type="date"
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={ticket.due_date ?? ""}
+              onChange={(event) => onDueDateChange(ticket.key, event.target.value)}
+            />
           </dd>
         </dl>
 
@@ -431,7 +446,18 @@ function TicketDetail({
       </aside>
 
       <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2 md:col-span-2">
-        <Button disabled={!inReview} onClick={() => onApprove(ticket.key)}>
+        {canDelete ? (
+          <Button
+            variant="destructive"
+            className="col-span-2"
+            onClick={() => {
+              if (window.confirm(`Delete ${ticket.key}? This cannot be undone.`)) onDelete(ticket.key)
+            }}
+          >
+            Delete
+          </Button>
+        ) : null}
+        <Button disabled={!inReview || ownTicket} onClick={() => onApprove(ticket.key)}>
           Approve
         </Button>
         <Button variant="outline" disabled={!inReview} onClick={requestChanges}>

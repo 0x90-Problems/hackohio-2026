@@ -63,6 +63,9 @@ export async function POST(request: Request) {
     const db = await getDb()
     if (body.kind === "deleteProject" && body.key && /^[A-Z][A-Z0-9]{1,5}$/.test(body.key)) {
       await deleteProjectDocs(db, body.key)
+    } else if (body.kind === "deleteTicket" && body.key && /^[A-Z][A-Z0-9]{1,5}-\d+$/.test(body.key)) {
+      await db.collection(COLLECTIONS.TICKETS).deleteOne({ key: body.key })
+      await db.collection(COLLECTIONS.COMMENTS).deleteMany({ ticket_key: body.key })
     } else if (body.kind === "project" && body.project) {
       const doc = projectDoc(body.project)
       await db.collection(COLLECTIONS.PROJECTS).replaceOne({ key: doc.key }, doc, { upsert: true })

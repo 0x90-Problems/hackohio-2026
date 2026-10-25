@@ -156,17 +156,42 @@ export const agentTokens: AgentToken[] = [
 
 // ---------- projects ----------
 
-// Same as db/seed.js. Both start from the Blank template's columns.
-export const projects: Project[] = [
+// CLW and PIT stay blank boards. ST is the team-planning table so the grouped
+// table is on the page even when MongoDB is not configured.
+const boardProjects: Project[] = [
   { key: "CLW", name: "HackOHI/O build", description: "The NutShell app we demo on Sunday.", created_by: human("user_dylan"), created: 1440 },
   { key: "PIT", name: "Pitch & demo", description: "Slides, script and the live agent demo.", created_by: human("user_naz"), created: 300 },
 ].map(({ created, ...p }) => ({
   ...p,
   team: TEAM,
   template: PROJECT_TEMPLATES.BLANK,
+  layout: "board" as const,
+  fields: [],
   categories: DEFAULT_CATEGORIES,
   created_at: minutesAgo(created),
 }))
+
+export const projects: Project[] = [
+  ...boardProjects,
+  {
+    key: "ST",
+    name: "Sprint table",
+    description: "Team planning sample, grouped by status.",
+    team: TEAM,
+    template: PROJECT_TEMPLATES.TEAM_PLANNING,
+    layout: "table",
+    fields: ["Iteration", "Estimate"],
+    categories: [
+      { slug: "backlog", name: "Backlog", color: "gray", order: 0 },
+      { slug: "ready", name: "Ready", color: "teal", order: 1 },
+      { slug: "in_progress", name: "In progress", color: "amber", order: 2 },
+      { slug: "in_review", name: "In review", color: "orange", order: 3 },
+      { slug: "done", name: "Done", color: "green", order: 4 },
+    ],
+    created_by: human("user_dylan"),
+    created_at: minutesAgo(20),
+  },
+]
 
 // CLW-05 -> CLW
 export const projectKeyOf = (ticketKey: string) => ticketKey.split("-")[0]
@@ -235,6 +260,34 @@ export const tickets: Ticket[] = (
         { sha: "3d1f8a0", message: "Add text index on ticket title and tags", added: 12, removed: 1 },
         { sha: "7e2b9c4", message: "Add combo search box to the board", added: 86, removed: 4 },
       ],
+    },
+
+    // Team planning table. Empty field values stay blank cells.
+    {
+      key: "ST-01",
+      title: "Plan the capacity review for the next iteration with a long title that should wrap",
+      tags: ["High"],
+      status: BACKLOG,
+      created_by: human("user_dylan"),
+      fields: { Iteration: "Sprint 1", Estimate: "3" },
+      created: 18,
+    },
+    { key: "ST-02", title: "Write the iteration goal", status: "ready", created_by: human("user_raddy"), created: 16 },
+    {
+      key: "ST-03",
+      title: "Estimate the remaining stories",
+      status: IN_PROGRESS,
+      created_by: human("user_naz"),
+      fields: { Iteration: "Sprint 1" },
+      created: 12,
+    },
+    {
+      key: "ST-04",
+      title: "Close last sprint",
+      status: DONE,
+      created_by: human("user_debora"),
+      fields: { Iteration: "Sprint 0", Estimate: "1" },
+      created: 40,
     },
 
     // Pitch & demo project

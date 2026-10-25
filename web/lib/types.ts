@@ -9,10 +9,11 @@ import type {
   Scope,
 } from "@/shared/names"
 
-export type HumanActor = { type: typeof ACTOR_TYPES.HUMAN; id: string }
+export type HumanActor = { type: typeof ACTOR_TYPES.HUMAN; id: string; name?: string }
 export type AgentActor = {
   type: typeof ACTOR_TYPES.AGENT
   id: string
+  name?: string
   acting_for: string
 }
 export type Actor = HumanActor | AgentActor
@@ -64,6 +65,8 @@ export type Project = {
   team: string
   template?: ProjectTemplate
   layout?: ProjectLayout
+  // Extra columns on a table layout, such as Iteration or Estimate
+  fields?: string[]
   // The board's columns, in order
   categories: Category[]
   // Tags the template suggests before any ticket uses them
@@ -96,6 +99,8 @@ export type Ticket = {
   due_date?: string
   description?: string
   card_color?: CategoryColor
+  // Values for the project's table fields. Missing keys render as empty cells.
+  fields?: Record<string, string>
   created_at: Date
 }
 

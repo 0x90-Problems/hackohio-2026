@@ -65,6 +65,21 @@ export function removeProject(key: string) {
     .catch(report)
 }
 
+export function removeTicketRecord(key: string) {
+  return fetch("/api/board", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "deleteTicket", key }),
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+        throw new Error(body?.error?.message ?? "Could not delete the ticket")
+      }
+    })
+    .catch(report)
+}
+
 export function saveTicket(ticket: Ticket) {
   void save("ticket", ticket).catch(report)
 }

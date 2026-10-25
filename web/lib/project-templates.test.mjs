@@ -69,6 +69,21 @@ test("previews sit above the template name in a wide dialog", () => {
   }
 })
 
+test("a table project opens as grouped rows", () => {
+  const table = readFileSync(join(root, "../components/board/table-view.tsx"), "utf8")
+  const views = readFileSync(join(root, "../components/board/project-views.tsx"), "utf8")
+  const board = readFileSync(join(root, "../components/board/board-view.tsx"), "utf8")
+  assert.match(table, /data-layout="table"/)
+  assert.match(table, /No tickets/)
+  assert.doesNotMatch(table, /truncate/)
+  assert.doesNotMatch(table, /overflow-x-auto/)
+  assert.match(views, /layout === "table"/)
+  assert.match(views, /defaultProjectView/)
+  assert.match(board, /resolvedProjectLayout/)
+  assert.match(board, /view === "board" &&/)
+  assert.doesNotMatch(board, /view !== "board" && "hidden"/)
+})
+
 test("user-facing titles use Nutshell", () => {
   const layout = readFileSync(join(root, "../app/layout.tsx"), "utf8")
   const header = readFileSync(join(root, "../components/app-header.tsx"), "utf8")

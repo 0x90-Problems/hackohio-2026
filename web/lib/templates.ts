@@ -70,6 +70,26 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = catalog.templates.map((templ
 export const getTemplate = (id: string) =>
   PROJECT_TEMPLATES.find((template) => template.id === id) ?? PROJECT_TEMPLATES[0]
 
+// A table template stays a table even when an older save omitted layout or wrote "board".
+export function resolvedProjectLayout(project: {
+  layout?: ProjectLayout
+  template?: string
+}): ProjectLayout {
+  const template = PROJECT_TEMPLATES.find((item) => item.id === project.template)
+  if (project.layout === "table" || template?.layout === "table") return "table"
+  if (project.layout === "roadmap" || template?.layout === "roadmap") return "roadmap"
+  return "board"
+}
+
+export function resolvedProjectFields(project: {
+  fields?: string[]
+  template?: string
+}): string[] {
+  if (project.fields && project.fields.length > 0) return [...project.fields]
+  const template = PROJECT_TEMPLATES.find((item) => item.id === project.template)
+  return template ? [...template.fields] : []
+}
+
 export function templateCategories(template: ProjectTemplate): Category[] {
   const slugs: string[] = []
   return template.columns.map(({ name, color }, order) => {

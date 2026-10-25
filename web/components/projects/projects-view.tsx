@@ -239,6 +239,7 @@ function suggestKey(name: string) {
 
 function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
   const { projects, createProject } = useProjects()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   // Step 1 picks a template, step 2 fills in the details
   const [template, setTemplate] = useState<ProjectTemplate | null>(null)
@@ -273,6 +274,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
     })
     reset()
     setOpen(false)
+    router.push(`/projects/${finalKey}/board`)
   }
 
   return (
