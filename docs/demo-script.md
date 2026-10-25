@@ -52,9 +52,9 @@ The story: **an AI agent did real work, a human stayed in charge.** Claude Code,
 
 ## Real AI for the assistant (optional)
 
-Nutty runs Claude Sonnet 4.6 on Amazon Bedrock (model `us.anthropic.claude-sonnet-4-6`), billed to the OSU AWS sandbox account. No Anthropic API key is used. Without AWS settings the chat runs in offline mode.
+Nutty runs Amazon Nova Pro on Amazon Bedrock (model `us.amazon.nova-pro-v1:0`) through the AWS SDK's Converse API, billed to the OSU AWS sandbox account. No Anthropic or Claude account is used. Without AWS settings the chat runs in offline mode.
 
-The OSU sandbox (ISB Student 92) only allows Sonnet 4.6 and Haiku 4.5 among Claude models, and blocks Bedrock's newer "Mantle" endpoint, so the app uses the classic InvokeModel endpoint.
+Why Nova: the OSU sandbox (ISB Student 92) can't reliably run Claude models, because they need an AWS Marketplace subscription that the sandbox role isn't allowed to accept. Amazon's own models need none. To try another Bedrock model, set `BEDROCK_MODEL_ID` in `web/.env.local`.
 
 To turn it on:
 
@@ -71,6 +71,6 @@ To turn it on:
    AWS_PROFILE=nutshell
    ```
 
-3. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and add `BEDROCK_GUARDRAIL_ID=...` and `BEDROCK_GUARDRAIL_VERSION=1` to the same file. With a guardrail on, replies appear all at once instead of streaming, because each one is checked before it's shown.
+3. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and add `BEDROCK_GUARDRAIL_ID=...` and `BEDROCK_GUARDRAIL_VERSION=1` to the same file. Bedrock applies it to every question and reply.
 
-The chat header then says "powered by Claude on AWS Bedrock". Never commit `web/.env.local`; git already ignores it.
+The chat header then says "powered by Amazon Nova on AWS Bedrock". Never commit `web/.env.local`; git already ignores it.

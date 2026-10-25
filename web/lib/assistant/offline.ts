@@ -1,4 +1,4 @@
-// The assistant without Claude: understands a handful of phrasings and uses
+// The assistant without AI (no AWS set up): understands a handful of phrasings and uses
 // the same tools as the AI version, so the demo works with no API key and no
 // internet. Anything it doesn't understand gets a short list of examples.
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"

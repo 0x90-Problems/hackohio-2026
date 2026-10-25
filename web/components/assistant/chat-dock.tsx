@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AnimatePresence, motion } from "motion/react"
-import type Anthropic from "@anthropic-ai/sdk"
+import type {
+  ContentBlock,
+  Message,
+  ToolResultBlock,
+  ToolUseBlock,
+} from "@aws-sdk/client-bedrock-runtime"
 
 import { DEFAULT_PROJECT_KEY, currentUser } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
@@ -44,8 +49,8 @@ const MAX_ROUNDS = 8
 // "Ask Nutty" button in the bottom-right corner of every page. It opens
 // a chat with Nutty, an agent acting for you: it answers
 // questions about tickets and makes changes on the board, which show up there
-// as done by "Nutty". Uses Claude when the server has an API key
-// (app/api/chat), otherwise a built-in offline assistant.
+// as done by "Nutty". Uses Amazon Nova on Bedrock when the server has AWS
+// set up (app/api/chat), otherwise a built-in offline assistant.
 export function ChatDock() {
   const pathname = usePathname()
   const store = useProjects()
@@ -54,8 +59,8 @@ export function ChatDock() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
-  // The conversation in Claude's format, kept exactly as the API returned it
-  const history = useRef<Anthropic.Beta.BetaMessageParam[]>([])
+  // The conversation in Bedrock's Converse format
+  const history = useRef<Message[]>([])
   const nextId = useRef(0)
   const listRef = useRef<HTMLDivElement>(null)
   // The latest store, for tool calls that finish after a re-render
@@ -106,7 +111,7 @@ export function ChatDock() {
     addMessage({ role: "user", text: question, actions: [] })
     setBusy(true)
     try {
-      if (ai) await askClaude(question)
+      if (ai) await askModel(question)
       else {
         const reply = offlineReply(question, toolContext())
         addMessage({ role: "assistant", ...reply })
@@ -116,8 +121,17 @@ export function ChatDock() {
     }
   }
 
-  async function askClaude(question: string) {
-    history.current.push({ role: "user", content: question })
+  async function askModel(question: string) {
+    // Bedrock needs user and assistant turns to alternate: drop a turn that
+    // failed partway (a question with no reply, or tool calls with no results)
+    for (let last = history.current.at(-1); last; last = history.current.at(-1)) {
+      const unanswered =
+        last.role === "user" ||
+        last.content?.some((b) => b.toolUse !== undefined)
+      if (!unanswered) break
+      history.current.pop()
+    }
+    history.current.push({ role: "user", content: [{ text: question }] })
     const replyId = addMessage({ role: "assistant", text: "", actions: [] })
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -137,7 +151,7 @@ export function ChatDock() {
 
       // Read the reply line by line as it streams in
       let final: {
-        content: Anthropic.Beta.BetaContentBlock[]
+        content: ContentBlock[]
         stop_reason: string
       } | null = null
       const reader = response.body.getReader()
@@ -167,26 +181,33 @@ export function ChatDock() {
       }
       if (!final) return
 
-      // Keep the reply exactly as returned (thinking blocks included)
-      history.current.push({ role: "assistant", content: final.content })
+      // Keep the reply as returned (Bedrock rejects an empty turn)
+      history.current.push({
+        role: "assistant",
+        content: final.content.length ? final.content : [{ text: "…" }],
+      })
 
-      if (final.stop_reason === "refusal") {
+      // Blocked by a Bedrock Guardrail or the model's own content filter
+      if (
+        final.stop_reason === "guardrail_intervened" ||
+        final.stop_reason === "content_filtered"
+      ) {
         updateMessage(replyId, (m) => ({
           ...m,
           text: m.text || "I can't help with that one.",
         }))
         return
       }
-      const toolCalls = final.content.filter(
-        (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use"
-      )
+      const toolCalls = final.content
+        .map((b) => b.toolUse)
+        .filter((b): b is ToolUseBlock => b !== undefined)
       // A tool input cut off at max_tokens may be incomplete: don't run it
       if (final.stop_reason !== "tool_use" || toolCalls.length === 0) return
 
       // Run every tool call, then send all results back in one message
-      const results: Anthropic.Beta.BetaToolResultBlockParam[] = toolCalls.map(
+      const results: { toolResult: ToolResultBlock }[] = toolCalls.map(
         (call) => {
-          const outcome = runTool(call.name, call.input, toolContext())
+          const outcome = runTool(call.name ?? "", call.input, toolContext())
           if (outcome.action) {
             updateMessage(replyId, (m) => ({
               ...m,
@@ -194,10 +215,11 @@ export function ChatDock() {
             }))
           }
           return {
-            type: "tool_result",
-            tool_use_id: call.id,
-            content: JSON.stringify(outcome.result),
-            ...(outcome.isError && { is_error: true }),
+            toolResult: {
+              toolUseId: call.toolUseId,
+              content: [{ text: JSON.stringify(outcome.result) }],
+              status: outcome.isError ? "error" : "success",
+            },
           }
         }
       )
@@ -238,7 +260,7 @@ export function ChatDock() {
                   {ai === null
                     ? "connecting…"
                     : ai
-                      ? "powered by Claude on AWS Bedrock"
+                      ? "powered by Amazon Nova on AWS Bedrock"
                       : "offline mode"}
                 </span>
               </div>

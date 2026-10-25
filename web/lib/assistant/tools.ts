@@ -1,9 +1,7 @@
-// The board assistant's tools. The Claude API route (app/api/chat) sends these
-// definitions to Claude; the browser runs them against projects-store, so the
+// The board assistant's tools. The chat route (app/api/chat) sends these
+// definitions to the model on Bedrock; the browser runs them against projects-store, so the
 // assistant changes the same data the board shows. The offline assistant
 // (./offline.ts) calls runTool directly.
-import type Anthropic from "@anthropic-ai/sdk"
-
 import { ACTOR_TYPES, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
 import type {
   Actor,
@@ -62,15 +60,20 @@ const object = (properties: Record<string, unknown>, required: string[]) => ({
 })
 const str = (description: string) => ({ type: "string", description })
 
-// eager_input_streaming: inputs stream as they're written, so runTool checks
-// every input itself before using it.
-export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
+// A tool the model can call. runTool checks every input itself before using
+// it, since the model can send anything.
+export type ToolDefinition = {
+  name: string
+  description: string
+  input_schema: ReturnType<typeof object>
+}
+
+export const ASSISTANT_TOOLS: ToolDefinition[] = [
   {
     name: "get_board",
     description:
       "Get the signed-in user, the project they are looking at, and every project with its columns (slug and name). Call this first to learn valid project keys and column slugs.",
     input_schema: object({}, []),
-    eager_input_streaming: true,
   },
   {
     name: "list_tickets",
@@ -79,7 +82,6 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: object({ project_key: str("Project key, e.g. CLW") }, [
       "project_key",
     ]),
-    eager_input_streaming: true,
   },
   {
     name: "get_ticket",
@@ -88,7 +90,6 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
     input_schema: object({ ticket_key: str("Ticket id, e.g. CLW-16") }, [
       "ticket_key",
     ]),
-    eager_input_streaming: true,
   },
   {
     name: "create_ticket",
@@ -107,7 +108,6 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
       },
       ["project_key", "title", "status", "tags"]
     ),
-    eager_input_streaming: true,
   },
   {
     name: "move_ticket",
@@ -120,7 +120,6 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
       },
       ["ticket_key", "status"]
     ),
-    eager_input_streaming: true,
   },
   {
     name: "add_comment",
@@ -129,7 +128,6 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
       { ticket_key: str("Ticket id, e.g. CLW-05"), body: str("The comment") },
       ["ticket_key", "body"]
     ),
-    eager_input_streaming: true,
   },
 ]
 
@@ -139,7 +137,7 @@ Use the tools to answer questions about projects and tickets and to make changes
 
 You can't approve tickets or move them to Done: a human has to click Approve on the ticket. When asked, explain that and point to the ticket.
 
-Be warm and lightly playful (an occasional nut pun is fine), but keep it professional. Reply in plain text (no markdown headings or tables), in one to four short sentences. Mention ticket ids like CLW-16 so the user can open them.`
+Be warm and lightly playful (an occasional nut pun is fine), but keep it professional. Reply in plain text (no markdown headings or tables), in one to four short sentences. Mention ticket ids like CLW-16 so the user can open them; never write links or URLs, since you don't know the board's address.`
 
 const fail = (message: string): ToolOutcome => ({
   result: { error: message },

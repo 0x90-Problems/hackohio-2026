@@ -1,30 +1,33 @@
-// Nutty, the board assistant's AI: Claude Sonnet 4.6 on Amazon Bedrock. The browser sends
-// the conversation; this route asks Claude for the next reply and streams it
-// back as JSON lines:
+// Nutty, the board assistant's AI: Amazon Nova on Amazon Bedrock, through the
+// AWS SDK's Converse API. The browser sends the conversation; this route asks
+// the model for the next reply and streams it back as JSON lines:
 //   {"type":"text","text":"..."}                 pieces of the reply as they arrive
 //   {"type":"message","content":[...],"stop_reason":"..."}   the finished reply
 //   {"type":"error","message":"..."}
-// When the reply asks for tools, the browser runs them (lib/assistant/tools.ts)
-// and calls this route again with the results.
+// Messages use Bedrock's Converse format. When the reply asks for tools, the
+// browser runs them (lib/assistant/tools.ts) and calls this route again with
+// the results.
 //
 // Needs AWS credentials and a region in web/.env.local (see docs/demo-script.md).
 // Without them, GET reports ai: false and the chat uses the offline assistant.
-// With BEDROCK_GUARDRAIL_ID set, every question and reply also goes through
-// that Bedrock Guardrail.
-import type Anthropic from "@anthropic-ai/sdk"
-// The classic Bedrock endpoint (InvokeModel): the OSU sandbox blocks the newer
-// "Mantle" endpoint and only enables Sonnet 4.6 and Haiku 4.5 among Claude models
-import AnthropicBedrock from "@anthropic-ai/bedrock-sdk"
+// With BEDROCK_GUARDRAIL_ID set, Bedrock runs every question and reply through
+// that guardrail.
 import {
-  ApplyGuardrailCommand,
   BedrockRuntimeClient,
+  ConverseStreamCommand,
+  type ContentBlock,
+  type Message,
+  type Tool,
+  type ToolInputSchema,
 } from "@aws-sdk/client-bedrock-runtime"
 
 import { ASSISTANT_SYSTEM_PROMPT, ASSISTANT_TOOLS } from "@/lib/assistant/tools"
 
 export const runtime = "nodejs"
 
-const MODEL = "us.anthropic.claude-sonnet-4-6"
+// Amazon's own models need no AWS Marketplace subscription, which the OSU
+// sandbox role isn't allowed to accept (so Claude models fail there)
+const MODEL = process.env.BEDROCK_MODEL_ID || "us.amazon.nova-pro-v1:0"
 
 const region = () => process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
 
@@ -41,39 +44,32 @@ const guardrail = () =>
     ? {
         guardrailIdentifier: process.env.BEDROCK_GUARDRAIL_ID,
         guardrailVersion: process.env.BEDROCK_GUARDRAIL_VERSION || "DRAFT",
+        streamProcessingMode: "sync" as const,
       }
-    : null
+    : undefined
+
+const TOOLS: Tool[] = ASSISTANT_TOOLS.map((t) => ({
+  toolSpec: {
+    name: t.name,
+    description: t.description,
+    // Plain JSON Schema; the SDK's DocumentType just can't see that
+    inputSchema: { json: t.input_schema } as ToolInputSchema,
+  },
+}))
+
+// Nova writes its reasoning as <thinking>…</thinking> in the reply text.
+// Returns the part people should see: without finished or still-open
+// thinking, and holding back a tag that has only partly arrived.
+function visibleText(raw: string) {
+  const text = raw.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/g, "")
+  const partial = text.match(/<[a-z]*$/)?.[0]
+  return partial && "<thinking>".startsWith(partial)
+    ? text.slice(0, -partial.length)
+    : text
+}
 
 // Created on first use so the site still builds and runs without AWS set up
-let client: AnthropicBedrock | undefined
-let guardrailClient: BedrockRuntimeClient | undefined
-
-// Returns the guardrail's replacement message when it blocks the text
-async function checkGuardrail(source: "INPUT" | "OUTPUT", text: string) {
-  const config = guardrail()
-  if (!config || !text.trim()) return null
-  guardrailClient ??= new BedrockRuntimeClient({ region: region() })
-  const result = await guardrailClient.send(
-    new ApplyGuardrailCommand({
-      ...config,
-      source,
-      content: [{ text: { text } }],
-    })
-  )
-  if (result.action !== "GUARDRAIL_INTERVENED") return null
-  return (
-    result.outputs?.map((o) => o.text).join("\n") ||
-    "Sorry, I can't help with that."
-  )
-}
-
-// The text the person typed last (tool-result rounds have none)
-function latestQuestion(messages: Anthropic.Beta.BetaMessageParam[]) {
-  const last = messages[messages.length - 1]
-  return last?.role === "user" && typeof last.content === "string"
-    ? last.content
-    : ""
-}
+let client: BedrockRuntimeClient | undefined
 
 export function GET() {
   return Response.json({ ai: hasCredentials(), guardrail: Boolean(guardrail()) })
@@ -88,7 +84,7 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => null)) as {
-    messages?: Anthropic.Beta.BetaMessageParam[]
+    messages?: Message[]
   } | null
   const messages = body?.messages
   if (
@@ -99,101 +95,115 @@ export async function POST(request: Request) {
     return Response.json({ error: "Send 1 to 200 messages" }, { status: 400 })
   }
 
+  client ??= new BedrockRuntimeClient({ region: region() })
+  const abort = new AbortController()
+
   const encoder = new TextEncoder()
-  const line = (event: object) =>
-    encoder.encode(JSON.stringify(event) + "\n")
-  const ndjson = (stream: ReadableStream) =>
-    new Response(stream, {
-      headers: {
-        "Content-Type": "application/x-ndjson",
-        "Cache-Control": "no-store",
-      },
-    })
-
-  const blocked = await checkGuardrail("INPUT", latestQuestion(messages)).catch(
-    () => "The safety check couldn't run. Try again."
-  )
-  if (blocked) {
-    return ndjson(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(line({ type: "error", message: blocked }))
-          controller.close()
-        },
-      })
-    )
-  }
-
-  client ??= new AnthropicBedrock({ awsRegion: region() })
-  const stream = client.beta.messages.stream({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    // Chat: short, quick answers
-    output_config: { effort: "low" },
-    system: ASSISTANT_SYSTEM_PROMPT,
-    tools: ASSISTANT_TOOLS,
-    messages,
-  })
-
-  // With a guardrail, hold the reply until it passes the output check
-  const holdText = Boolean(guardrail())
-
   const readable = new ReadableStream({
     async start(controller) {
-      const send = (event: object) => controller.enqueue(line(event))
-      if (!holdText) stream.on("text", (text) => send({ type: "text", text }))
+      const send = (line: object) =>
+        controller.enqueue(encoder.encode(JSON.stringify(line) + "\n"))
+      // The reply as it streams in: text, and tool calls whose input
+      // arrives as pieces of JSON
+      const blocks: { text?: string; toolUse?: { toolUseId: string; name: string; json: string } }[] = []
+      let stopReason = "end_turn"
       try {
-        const message = await stream.finalMessage()
-        if (holdText) {
-          const text = message.content
-            .map((b) => (b.type === "text" ? b.text : ""))
-            .join("")
-          const replacement = await checkGuardrail("OUTPUT", text)
-          if (replacement) {
-            send({ type: "error", message: replacement })
-            controller.close()
-            return
+        const response = await client!.send(
+          new ConverseStreamCommand({
+            modelId: MODEL,
+            system: [{ text: ASSISTANT_SYSTEM_PROMPT }],
+            messages,
+            toolConfig: { tools: TOOLS },
+            inferenceConfig: { maxTokens: 4096 },
+            guardrailConfig: guardrail(),
+          }),
+          { abortSignal: abort.signal }
+        )
+        for await (const event of response.stream ?? []) {
+          if (event.contentBlockStart?.start?.toolUse) {
+            const { toolUseId = "", name = "" } =
+              event.contentBlockStart.start.toolUse
+            blocks[event.contentBlockStart.contentBlockIndex ?? blocks.length] =
+              { toolUse: { toolUseId, name, json: "" } }
+          } else if (event.contentBlockDelta) {
+            const i = event.contentBlockDelta.contentBlockIndex ?? 0
+            const delta = event.contentBlockDelta.delta
+            if (delta?.text !== undefined) {
+              blocks[i] ??= { text: "" }
+              const shown = visibleText(blocks[i].text ?? "").trimStart()
+              blocks[i].text = (blocks[i].text ?? "") + delta.text
+              const now = visibleText(blocks[i].text!).trimStart()
+              if (now.length > shown.length && now.startsWith(shown)) {
+                send({ type: "text", text: now.slice(shown.length) })
+              }
+            } else if (delta?.toolUse?.input !== undefined && blocks[i]?.toolUse) {
+              blocks[i].toolUse!.json += delta.toolUse.input
+            }
+          } else if (event.messageStop) {
+            stopReason = event.messageStop.stopReason ?? stopReason
           }
-          if (text) send({ type: "text", text })
         }
-        send({
-          type: "message",
-          content: message.content,
-          stop_reason: message.stop_reason,
-        })
+
+        const content: ContentBlock[] = []
+        for (const b of blocks) {
+          if (b?.toolUse) {
+            let input: unknown = {}
+            try {
+              input = b.toolUse.json ? JSON.parse(b.toolUse.json) : {}
+            } catch {
+              // Cut off mid-input: runTool rejects the empty input
+            }
+            content.push({
+              toolUse: {
+                toolUseId: b.toolUse.toolUseId,
+                name: b.toolUse.name,
+                input: input as never,
+              },
+            })
+          } else if (b?.text) {
+            const text = visibleText(b.text).trim()
+            if (text) content.push({ text })
+          }
+        }
+        send({ type: "message", content, stop_reason: stopReason })
       } catch (error) {
-        if (error instanceof AnthropicBedrock.AuthenticationError) {
+        const name = (error as { name?: string }).name ?? ""
+        const status = (error as { $metadata?: { httpStatusCode?: number } })
+          .$metadata?.httpStatusCode
+        if (/CredentialsProvider|SSO|Token|ExpiredToken|UnrecognizedClient/i.test(name)) {
           send({
             type: "error",
             message:
-              "AWS rejected the sign-in. Run `aws sso login --profile nutshell` and try again.",
+              "AWS sign-in expired. Run `aws sso login --profile nutshell` and try again.",
           })
-        } else if (error instanceof AnthropicBedrock.RateLimitError) {
+        } else if (name === "ThrottlingException") {
           send({
             type: "error",
             message: "Too many requests right now. Try again in a moment.",
           })
-        } else if (error instanceof AnthropicBedrock.APIError) {
+        } else if (name === "AccessDeniedException") {
           send({
             type: "error",
-            message: `Bedrock error (${error.status}). Try again.`,
+            message: "AWS denied access to the model. Check the Bedrock settings.",
           })
-        } else {
-          // A tool input that couldn't be parsed, or the output check failed;
-          // asking again usually works
+        } else if (name !== "AbortError") {
           send({
             type: "error",
-            message: "Something went wrong reading the reply. Try again.",
+            message: `Bedrock error${status ? ` (${status})` : ""}. Try again.`,
           })
         }
       }
       controller.close()
     },
     cancel() {
-      stream.abort()
+      abort.abort()
     },
   })
 
-  return ndjson(readable)
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "application/x-ndjson",
+      "Cache-Control": "no-store",
+    },
+  })
 }
