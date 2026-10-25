@@ -1,0 +1,51 @@
+// Forwards an authenticated board request to BOARD_API_URL.
+// When the API is not configured, the client can fall back to a local token.
+
+const UNAVAILABLE = {
+  error: { code: "board_unavailable", message: "The board API is not configured" },
+}
+
+export async function proxyBoard(request: Request, path: string): Promise<Response> {
+  const base = apiOrigin()
+  if (!base) return Response.json(UNAVAILABLE, { status: 503 })
+
+  const headers = new Headers()
+  headers.set("accept", "application/json")
+  const authorization = request.headers.get("authorization")
+  if (authorization) headers.set("authorization", authorization)
+  const contentType = request.headers.get("content-type")
+  if (contentType) headers.set("content-type", contentType)
+  const forwarded = request.headers.get("x-forwarded-for")
+  if (forwarded) headers.set("x-forwarded-for", forwarded)
+
+  let upstream: Response
+  try {
+    upstream = await fetch(new URL(path, base), {
+      method: request.method,
+      headers,
+      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
+      redirect: "manual",
+    })
+  } catch {
+    return Response.json(UNAVAILABLE, { status: 503 })
+  }
+
+  const responseHeaders = new Headers()
+  const responseType = upstream.headers.get("content-type")
+  if (responseType) responseHeaders.set("content-type", responseType)
+  const retryAfter = upstream.headers.get("retry-after")
+  if (retryAfter) responseHeaders.set("retry-after", retryAfter)
+  return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders })
+}
+
+function apiOrigin(): URL | null {
+  const raw = process.env.BOARD_API_URL?.trim()
+  if (!raw) return null
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null
+    return url
+  } catch {
+    return null
+  }
+}

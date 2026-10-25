@@ -53,9 +53,11 @@ export function AgentTag({ className }: { className?: string }) {
 export function ActorBadge({
   actor,
   className,
+  wrap = false,
 }: {
   actor: Actor
   className?: string
+  wrap?: boolean
 }) {
   const account = useAuthUser()
   if (actor.type === ACTOR_TYPES.AGENT) {
@@ -66,10 +68,14 @@ export function ActorBadge({
         : (getUser(actor.acting_for)?.name ?? actor.acting_for)
     return (
       <span
-        className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}
+        className={cn(
+          "inline-flex min-w-0 items-center gap-1.5 text-sm",
+          wrap && "max-w-full flex-wrap",
+          className
+        )}
       >
-        <AgentTag />
-        <span className="truncate">
+        <AgentTag className="shrink-0" />
+        <span className={wrap ? "min-w-0 wrap-anywhere" : "truncate"}>
           {agentName}
           <span className="text-muted-foreground"> · for {ownerName}</span>
         </span>
@@ -79,9 +85,15 @@ export function ActorBadge({
 
   const name = actor.id === account?._id ? account.name : (getUser(actor.id)?.name ?? actor.id)
   return (
-    <span className={cn("inline-flex min-w-0 items-center gap-1.5 text-sm", className)}>
-      <HumanAvatar name={name} />
-      <span className="truncate">{name}</span>
+    <span
+      className={cn(
+        "inline-flex min-w-0 items-center gap-1.5 text-sm",
+        wrap && "max-w-full",
+        className
+      )}
+    >
+      <HumanAvatar name={name} className="shrink-0" />
+      <span className={wrap ? "min-w-0 break-words" : "truncate"}>{name}</span>
     </span>
   )
 }

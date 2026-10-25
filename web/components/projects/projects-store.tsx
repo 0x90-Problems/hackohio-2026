@@ -22,7 +22,7 @@ import {
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
-import { loadBoard, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
+import { loadBoard, removeProject, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
 import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
@@ -221,6 +221,7 @@ function useProjectsState() {
     const project: Project = {
       ...input,
       template: template.id,
+      layout: template.layout,
       categories: templateCategories(template),
       ...(template.tags.length > 0 && { starter_tags: template.tags }),
       created_by: me,
@@ -232,6 +233,27 @@ function useProjectsState() {
     toast.success(`Created project ${project.name}`, {
       description: `Tickets will be ${project.key}-01, ${project.key}-02 …`,
     })
+  }
+
+  function archiveProject(key: string, archived: boolean) {
+    const project = projects.find((item) => item.key === key)
+    if (!project) return
+    const next = { ...project, archived }
+    setProjects((current) => current.map((item) => (item.key === key ? next : item)))
+    saveProject(next)
+    toast.success(archived ? `Archived ${project.name}` : `Restored ${project.name}`)
+  }
+
+  function deleteProject(key: string) {
+    const project = projects.find((item) => item.key === key)
+    if (!project) return
+    const belongs = (ticketKey: string) => projectKeyOf(ticketKey) === key
+    setProjects((current) => current.filter((item) => item.key !== key))
+    setTickets((current) => current.filter((ticket) => !belongs(ticket.key)))
+    setComments((current) => current.filter((comment) => !belongs(comment.ticket_key)))
+    setActivity((current) => current.filter((event) => event.project_key !== key && !belongs(event.ticket_key)))
+    void removeProject(key)
+    toast.success(`Deleted ${project.name}`)
   }
 
   // `actor` is who did it: the signed-in person by default, or an agent
@@ -442,6 +464,8 @@ function useProjectsState() {
     categoriesOf,
     tagsOf,
     createProject,
+    archiveProject,
+    deleteProject,
     createTicket,
     moveTicket,
     setTags,

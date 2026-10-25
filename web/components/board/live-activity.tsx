@@ -29,7 +29,7 @@ export function LiveActivity({
         <CardTitle>Live activity</CardTitle>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)]">
+        <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)] [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
           {events.length === 0 ? (
             <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
           ) : (
@@ -46,16 +46,17 @@ export function LiveActivity({
                   transition={{ type: "spring", stiffness: 400, damping: 32 }}
                   className="flex flex-col gap-1 py-2.5"
                 >
-                  <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                  <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
                     <ActorBadge
                       actor={event.actor}
-                      className="text-xs text-foreground"
+                      wrap
+                      className="min-w-0 text-xs text-foreground"
                     />
                     <span className="shrink-0">
                       · {timeAgo(event.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm">{describeEvent(event, categories, tickets)}</p>
+                  <p className="text-sm break-words">{describeEvent(event, categories, tickets)}</p>
                 </motion.li>
               )
             })}

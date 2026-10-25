@@ -27,9 +27,12 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { McpInstallActions } from "@/components/mcp-install-actions"
 import { loadBoard, saveAgent } from "@/lib/board-db"
+import { ConnectAgentError, connectAgent, revokeAgentAccess } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import { SCOPE_OPTIONS, makeToken } from "@/lib/tokens"
+import type { McpInstallLinks } from "@/lib/mcp-install"
+import { SCOPE_OPTIONS } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -102,11 +105,24 @@ export function AgentsView() {
     }
   }, [])
 
-  function revoke(agent: Agent) {
+  async function revoke(agent: Agent) {
+    try {
+      await revokeAgentAccess(agent._id)
+    } catch (error) {
+      const message = error instanceof ConnectAgentError ? error.message : "Couldn't revoke that agent"
+      if (!message.includes("was not found") && !message.includes("Sign in again")) {
+        toast.error(message)
+        return
+      }
+      if (message.includes("Sign in again")) {
+        toast.error(message)
+        return
+      }
+    }
     const next = { ...agent, revoked: true }
     setAgents((current) => current.map((a) => (a._id === agent._id ? next : a)))
     saveAgent(next)
-    toast(`Revoked ${agent.name}`, { description: "Its token stopped working." })
+    toast.success(`Revoked ${agent.name}`, { description: "Its token stopped working." })
   }
 
   function connect(agent: Agent) {
@@ -279,28 +295,36 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
   ])
   const [name, setName] = useState("")
   const [token, setToken] = useState<string>()
+  const [install, setInstall] = useState<McpInstallLinks>()
+  const [pending, setPending] = useState(false)
   const account = useAuthUser()
 
   function toggle(scope: Scope, on: boolean) {
     setScopes((current) => (on ? [...current, scope] : current.filter((s) => s !== scope)))
   }
 
-  function generate() {
+  async function generate() {
     const agentName = name.trim()
-    if (!account || !agentName) return
-    const slug = agentName.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")
-    // Keep the scopes in the same order as the checklist.
+    if (!account || !agentName || pending) return
     const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
-    setToken(makeToken(account.auth_username))
-    onConnect({
-      _id: `agent_${account.auth_username}_${slug}_${Date.now()}`,
-      name: agentName,
-      owner_id: account._id,
-      connection: AGENT_CONNECTION.MCP,
-      scopes: ordered,
-      revoked: false,
-    })
-    setName("")
+    setPending(true)
+    try {
+      const connected = await connectAgent({
+        name: agentName,
+        ownerId: account._id,
+        username: account.auth_username,
+        scopes: ordered,
+        connection: AGENT_CONNECTION.MCP,
+      })
+      setToken(connected.secret)
+      setInstall(connected.install)
+      onConnect(connected.agent)
+      setName("")
+    } catch (error) {
+      toast.error(error instanceof ConnectAgentError ? error.message : "Couldn't connect that agent")
+    } finally {
+      setPending(false)
+    }
   }
 
   async function copy() {
@@ -374,6 +398,7 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
                   <CopyIcon aria-hidden="true" />
                 </Button>
               </div>
+              {install ? <McpInstallActions install={install} /> : null}
               <Alert>
                 <AlertTriangleIcon aria-hidden="true" />
                 <AlertTitle>This token is shown once</AlertTitle>
@@ -390,9 +415,9 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
         </div>
       </CardContent>
       <CardFooter className="flex flex-col items-stretch gap-2">
-        <Button onClick={generate} disabled={!name.trim() || scopes.length === 0}>
+        <Button onClick={generate} disabled={!name.trim() || scopes.length === 0 || pending}>
           <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
-          Generate token
+          {pending ? "Connecting…" : "Generate token"}
         </Button>
         <p className="text-xs text-muted-foreground">
           Expires after {DEFAULT_TOKEN_EXPIRY_HOURS} h. Set in Organization.

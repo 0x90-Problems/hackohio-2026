@@ -30,6 +30,7 @@ import {
   type ProjectFilters,
   type ProjectView,
 } from "@/components/board/project-views"
+import { ProjectActions } from "@/components/projects/project-actions"
 import { SearchCombobox } from "@/components/search-combobox"
 import {
   CategoryDialog,
@@ -102,8 +103,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       <main className="mx-auto flex max-w-md flex-col items-center gap-4 px-4 py-24 text-center">
         <h1 className="text-2xl font-semibold">No project “{projectKey}”</h1>
         <p className="text-muted-foreground">
-          It may have been made in another browser tab. Projects are sample data
-          until we connect the database.
+          This project was deleted, or it is not on the board.
         </p>
         <Button asChild>
           <Link href="/projects">See all projects</Link>
@@ -130,7 +130,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
       className={cn(
         "mx-auto grid max-w-screen-2xl gap-6 px-4 py-6 transition-[grid-template-columns] duration-300 ease-in-out",
         activityVisible
-          ? "lg:grid-cols-[minmax(0,1fr)_340px]"
+          ? "lg:grid-cols-[minmax(0,1fr)_420px]"
           : "lg:grid-cols-[minmax(0,1fr)_40px]"
       )}
     >
@@ -160,6 +160,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                   className="-ml-1 flex items-center gap-2 rounded-lg px-1 text-left text-3xl font-semibold tracking-tight hover:bg-muted"
                 >
                   {project.name}
+                  {project.archived ? (
+                    <span className="text-base font-normal text-muted-foreground">Archived</span>
+                  ) : null}
                   <ChevronsUpDownIcon
                     className="size-5 text-muted-foreground"
                     aria-hidden="true"
@@ -170,7 +173,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 {
                   heading: project.team,
                   items: store.projects
-                    .filter((p) => p.team === project.team)
+                    .filter((p) => p.team === project.team && (!p.archived || p.key === project.key))
                     .map((p) => ({
                       value: p.key,
                       keywords: [p.name],
@@ -202,6 +205,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 },
               ]}
             />
+            <ProjectActions project={project} onDeleted={() => router.push("/projects")} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {/* Find a ticket by id, title or tag; grouped by column */}

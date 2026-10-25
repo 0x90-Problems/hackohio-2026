@@ -1,5 +1,6 @@
 export {
   Activity as ActivityIcon,
+  Archive as ArchiveIcon,
   AlertTriangle as AlertTriangleIcon,
   ArrowRight as ArrowRightIcon,
   ArrowUp as ArrowUpIcon,

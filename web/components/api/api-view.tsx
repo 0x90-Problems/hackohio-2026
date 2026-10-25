@@ -14,7 +14,6 @@ import {
   AGENT_CONNECTION,
   MCP_TOOLS,
   SCOPES,
-  TOKEN_PREFIX,
   type Scope,
 } from "@/shared/names"
 import {
@@ -25,9 +24,10 @@ import {
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { loadSite, saveApiKey } from "@/lib/site-db"
+import { ConnectAgentError, connectAgent } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import { mcpInstall, mcpPublicUrl } from "@/lib/mcp-install"
-import { SCOPE_OPTIONS, makeToken, maskToken } from "@/lib/tokens"
+import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
+import { SCOPE_OPTIONS, maskToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -65,9 +65,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   [MCP_TOOLS.ADD_COMMENT]: "Comment on a ticket",
   [MCP_TOOLS.LINK_COMMIT]: "Attach a git commit to a ticket",
   [MCP_TOOLS.WATCH_CHANGES]: "Get told when the board changes",
-  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List NutShell board templates",
-  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's columns and starter tags",
-  [MCP_TOOLS.CREATE_PROJECT]: "Create a board from a template",
+  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List templates. Each one is a board, a table, or a roadmap",
+  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's layout, columns, and starter tags",
+  [MCP_TOOLS.CREATE_PROJECT]: "Create a project from a template",
 }
 
 type Method = "GET" | "POST" | "PATCH"
@@ -78,9 +78,9 @@ const ENDPOINTS: { method: Method; path: string; description: string }[] = [
   { method: "POST", path: "/tickets/:key/comments", description: "Comment as a person or agent" },
   { method: "GET", path: "/events", description: "Live stream of board changes" },
   { method: "GET", path: "/agents", description: "List agents and their owners" },
-  { method: "GET", path: "/project-templates", description: "List board templates" },
-  { method: "GET", path: "/project-templates/:id", description: "Columns, starter tags, and preview copy for one template" },
-  { method: "POST", path: "/projects", description: "Create a board from a template" },
+  { method: "GET", path: "/project-templates", description: "List templates (board, table, or roadmap)" },
+  { method: "GET", path: "/project-templates/:id", description: "Layout, columns, starter tags, and preview copy for one template" },
+  { method: "POST", path: "/projects", description: "Create a project from a template" },
 ]
 
 // Neutral styles only: no red, blue or purple for HTTP methods.
@@ -298,6 +298,8 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
   const [name, setName] = useState("")
   const [scopes, setScopes] = useState<Scope[]>([SCOPES.TICKETS_READ])
   const [secret, setSecret] = useState<string>()
+  const [install, setInstall] = useState<McpInstallLinks>()
+  const [pending, setPending] = useState(false)
 
   function reset(nextOpen: boolean) {
     setOpen(nextOpen)
@@ -305,21 +307,38 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
       setName("")
       setScopes([SCOPES.TICKETS_READ])
       setSecret(undefined)
+      setInstall(undefined)
+      setPending(false)
     }
   }
 
-  function create(e: React.FormEvent) {
+  async function create(e: React.FormEvent) {
     e.preventDefault()
-    if (!account || !name.trim() || scopes.length === 0) return
-    const key = makeToken(account.auth_username)
-    setSecret(key)
-    onCreate({
-      name: name.trim(),
-      owner_id: account._id,
-      token_prefix: key.slice(0, TOKEN_PREFIX.length + 2),
-      last_used_at: null,
-      scopes: SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s)),
-    })
+    if (!account || !name.trim() || scopes.length === 0 || pending) return
+    const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
+    setPending(true)
+    try {
+      const connected = await connectAgent({
+        name: name.trim(),
+        ownerId: account._id,
+        username: account.auth_username,
+        scopes: ordered,
+        connection: AGENT_CONNECTION.API_KEY,
+      })
+      setSecret(connected.secret)
+      setInstall(connected.install)
+      onCreate({
+        name: connected.agent.name,
+        owner_id: connected.agent.owner_id,
+        token_prefix: connected.secret.slice(0, 10),
+        last_used_at: null,
+        scopes: connected.agent.scopes,
+      })
+    } catch (error) {
+      toast.error(error instanceof ConnectAgentError ? error.message : "Couldn't create the key")
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -331,8 +350,8 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
         </Button>
       </DialogTrigger>
       <DialogContent className={secret ? "sm:max-w-lg" : undefined}>
-        {secret ? (
-          <IssuedKey secret={secret} />
+        {secret && install ? (
+          <IssuedKey secret={secret} install={install} />
         ) : (
           <form onSubmit={create} className="flex flex-col gap-4">
             <DialogHeader>
@@ -376,8 +395,8 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
                   Cancel
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={!name.trim() || scopes.length === 0}>
-                Create API key
+              <Button type="submit" disabled={!name.trim() || scopes.length === 0 || pending}>
+                {pending ? "Creating…" : "Create API key"}
               </Button>
             </DialogFooter>
           </form>
@@ -387,8 +406,7 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
   )
 }
 
-function IssuedKey({ secret }: { secret: string }) {
-  const install = mcpInstall(secret)
+function IssuedKey({ secret, install }: { secret: string; install: McpInstallLinks }) {
 
   return (
     <div className="flex flex-col gap-4">

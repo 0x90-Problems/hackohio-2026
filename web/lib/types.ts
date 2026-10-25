@@ -55,18 +55,22 @@ export type LinkedCommit = {
 
 // A project is one board, like a GitHub repo. A team can have several.
 // Its `key` is the ticket id prefix: project CLW has tickets CLW-01, CLW-02 ...
+export type ProjectLayout = "board" | "table" | "roadmap"
+
 export type Project = {
   key: string
   name: string
   description?: string
   team: string
   template?: ProjectTemplate
+  layout?: ProjectLayout
   // The board's columns, in order
   categories: Category[]
   // Tags the template suggests before any ticket uses them
   starter_tags?: string[]
   created_by: Actor
   created_at: Date
+  archived?: boolean
 }
 
 // A board column. Tickets point at one through `status` (the category slug).

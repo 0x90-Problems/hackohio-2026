@@ -29,6 +29,7 @@ export function projectDoc(project: Project) {
       order: new Int32(category.order),
     })),
     ...(project.starter_tags?.length ? { starter_tags: project.starter_tags } : {}),
+    ...(project.archived ? { archived: true } : {}),
     created_by: actor(project.created_by),
     created_at: when(project.created_at),
   }
