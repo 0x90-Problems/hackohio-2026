@@ -34,7 +34,15 @@ export async function POST(request: Request) {
       kind?: string
       organization?: { name: string; token_expiry_hours: number; rules: Record<string, boolean> }
       team?: { name: string }
-      apiKey?: { name: string; owner_id: string; token_prefix: string; last_used_at: string | null; scopes: string[] }
+      apiKey?: {
+        id?: string
+        name: string
+        owner_id: string
+        token_prefix: string
+        last_used_at: string | null
+        scopes: string[]
+        revoked?: boolean
+      }
       user?: { _id: string; auth_username: string; name: string; role?: string; team: string }
     }
     const db = await getDb()
@@ -53,11 +61,13 @@ export async function POST(request: Request) {
         { _id: `${key.owner_id}:${key.token_prefix}:${key.name}` },
         {
           _id: `${key.owner_id}:${key.token_prefix}:${key.name}`,
+          ...(key.id ? { id: key.id } : {}),
           name: key.name,
           owner_id: key.owner_id,
           token_prefix: key.token_prefix,
           last_used_at: key.last_used_at ? new Date(key.last_used_at) : null,
           scopes: key.scopes,
+          revoked: key.revoked === true,
         },
         { upsert: true }
       )

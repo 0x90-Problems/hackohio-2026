@@ -73,7 +73,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             <CardDescription>
               {signup
                 ? "Create an account on this board."
-                : "Use the account your team lead created for you."}
+                : "Sign in with your account, or create one if you are new."}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

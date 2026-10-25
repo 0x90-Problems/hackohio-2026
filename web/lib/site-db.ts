@@ -11,11 +11,13 @@ export type SiteOrganization = {
 }
 
 export type SiteApiKey = {
+  id?: string
   name: string
   owner_id: string
   token_prefix: string
   last_used_at: Date | null
   scopes: string[]
+  revoked?: boolean
 }
 
 export type SiteState = {
@@ -66,7 +68,11 @@ export function saveTeam(name: string) {
 export function saveApiKey(apiKey: SiteApiKey) {
   void save({
     kind: "apiKey",
-    apiKey: { ...apiKey, last_used_at: apiKey.last_used_at ? apiKey.last_used_at.toISOString() : null },
+    apiKey: {
+      ...apiKey,
+      last_used_at: apiKey.last_used_at ? apiKey.last_used_at.toISOString() : null,
+      revoked: apiKey.revoked === true,
+    },
   }).catch(report)
 }
 

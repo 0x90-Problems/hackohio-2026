@@ -3,8 +3,10 @@
 import { ACTOR_TYPES } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { BotIcon } from "@/components/icons"
+import { visibleAgentName } from "@/lib/agent-label"
 import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
+import { useBoardDirectory } from "@/lib/use-board-directory"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -38,7 +40,7 @@ export function AgentTag({ className }: { className?: string }) {
     <Badge
       variant="outline"
       className={cn(
-        "rounded-sm border-dashed border-muted-foreground/60 bg-muted px-1.5 font-mono text-[10px] tracking-wide text-muted-foreground",
+        "rounded-sm border-dashed border-muted-foreground/60 bg-muted px-1.5 font-mono text-xs tracking-wide text-muted-foreground",
         className
       )}
     >
@@ -60,12 +62,15 @@ export function ActorBadge({
   wrap?: boolean
 }) {
   const account = useAuthUser()
+  const { people, agents } = useBoardDirectory()
   if (actor.type === ACTOR_TYPES.AGENT) {
-    const agentName = getAgent(actor.id)?.name ?? actor.id
+    const record = agents.find((agent) => agent._id === actor.id)
+    const agentName = visibleAgentName(actor.name, actor.id, record?.name || getAgent(actor.id)?.name)
     const ownerName =
-      actor.acting_for === account?._id
-        ? account.name
-        : (getUser(actor.acting_for)?.name ?? actor.acting_for)
+      (actor.acting_for === account?._id ? account.name : undefined) ||
+      people.find((person) => person._id === actor.acting_for)?.name ||
+      getUser(actor.acting_for)?.name ||
+      "Unknown owner"
     return (
       <span
         className={cn(
@@ -83,7 +88,12 @@ export function ActorBadge({
     )
   }
 
-  const name = actor.id === account?._id ? account.name : (getUser(actor.id)?.name ?? actor.id)
+  const name =
+    actor.name ||
+    (actor.id === account?._id ? account.name : undefined) ||
+    people.find((person) => person._id === actor.id)?.name ||
+    getUser(actor.id)?.name ||
+    "Unknown"
   return (
     <span
       className={cn(

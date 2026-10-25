@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import { ACTOR_TYPES, AGENT_CONNECTION, TICKET_STATUS } from "@/shared/names"
+import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
 import type { Category, Comment, Event, Ticket } from "@/lib/types"
 import {
   CATEGORY_COLORS,
@@ -18,6 +18,8 @@ import {
   users,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { visibleAgentName } from "@/lib/agent-label"
+import { listBoardUsers } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
@@ -145,13 +147,40 @@ function TicketDetail({
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
+  const [people, setPeople] = useState<{ _id: string; name: string }[]>(() => users.map((user) => ({ _id: user._id, name: user.name })))
+  useEffect(() => {
+    let cancelled = false
+    listBoardUsers()
+      .then((loaded) => {
+        if (cancelled || loaded.length === 0) return
+        setPeople((current) => {
+          const known = new Set(current.map((person) => person._id))
+          return [...current, ...loaded.filter((person) => !known.has(person._id))]
+        })
+      })
+      .catch(() => {
+        // The sample directory still fills the reviewer list.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const account = useAuthUser()
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
   const agent =
     creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
+  const named =
+    creator.type === ACTOR_TYPES.AGENT
+      ? visibleAgentName(creator.name, creator.id, agent?.name)
+      : undefined
+  const agentName = named && named !== "Agent" ? named : undefined
   const owner =
     creator.type === ACTOR_TYPES.AGENT ? getUser(creator.acting_for) : undefined
+  const ownerName =
+    creator.type === ACTOR_TYPES.AGENT
+      ? (creator.acting_for === account?._id ? account.name : owner?.name)
+      : undefined
   const creatorId = creator.type === ACTOR_TYPES.AGENT ? creator.acting_for : creator.id
   const ownTicket = account?._id === creatorId
   const canDelete = account?.admin === true || ownTicket
@@ -226,20 +255,26 @@ function TicketDetail({
         <dl className="grid grid-cols-[6.5rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm sm:grid-cols-[8rem_1fr]">
           <dt className="text-muted-foreground">Created by</dt>
           <dd>
-            {agent ? (
+            {agentName ? (
               <span className="inline-flex items-center gap-1.5">
-                <AgentTag /> {agent.name}
+                <AgentTag /> {agentName}
               </span>
             ) : (
               <ActorBadge actor={creator} />
             )}
           </dd>
 
-          {owner && (
+          {creator.type === ACTOR_TYPES.AGENT && (
             <>
               <dt className="text-muted-foreground">Acting for</dt>
               <dd className="inline-flex items-center gap-1.5">
-                <HumanAvatar name={owner.name} /> {owner.name}
+                {ownerName ? (
+                  <>
+                    <HumanAvatar name={ownerName} /> {ownerName}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Unknown owner</span>
+                )}
               </dd>
             </>
           )}
@@ -248,7 +283,7 @@ function TicketDetail({
             <>
               <dt className="text-muted-foreground">Agent setup</dt>
               <dd>
-                {agent.name} · via {CONNECTION_LABELS[agent.connection]}
+                {visibleAgentName(agent.name, agent._id)} · via {CONNECTION_LABELS[agent.connection]}
               </dd>
               <dt className="text-muted-foreground">Token scopes</dt>
               <dd className="flex flex-wrap gap-1.5">
@@ -317,7 +352,7 @@ function TicketDetail({
               onChange={(event) => onReviewerChange(ticket.key, event.target.value)}
             >
               <option value="">None</option>
-              {users.map((user) => (
+              {people.map((user) => (
                 <option key={user._id} value={user._id}>
                   {user.name}
                 </option>
@@ -343,7 +378,22 @@ function TicketDetail({
           <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
             <HistoryIcon className="size-3.5" aria-hidden /> Change history
           </h3>
-          <ChangeHistory events={events} categories={categories} />
+          <ChangeHistory
+            events={[
+              ...events,
+              ...comments
+                .filter((comment) => !events.some((event) => event.action === EVENT_ACTIONS.COMMENT_ADDED && event.details?.body === comment.body))
+                .map((comment) => ({
+                  action: EVENT_ACTIONS.COMMENT_ADDED,
+                  ticket_key: comment.ticket_key,
+                  project_key: comment.ticket_key.split("-")[0] ?? "",
+                  actor: comment.author,
+                  details: { body: comment.body },
+                  created_at: comment.created_at,
+                })),
+            ]}
+            categories={categories}
+          />
         </section>
 
         <Separator />

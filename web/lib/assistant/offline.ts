@@ -2,7 +2,6 @@
 // the same tools as the AI version, so the demo works with no API key and no
 // internet. Anything it doesn't understand gets a short list of examples.
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
-import { CURRENT_USER_ID } from "@/lib/mock-data"
 import { categoryName } from "@/lib/categories"
 import {
   runTool,
@@ -130,11 +129,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
       lower
     )
   ) {
-    const waiting = tickets.filter(
-      (t) =>
-        t.reviewer_id === CURRENT_USER_ID &&
-        t.status === TICKET_STATUS.IN_REVIEW
-    )
+    const waiting = tickets.filter((t) => t.status.trim().toLowerCase().replace(/[\s-]+/g, "_") === TICKET_STATUS.IN_REVIEW)
     if (waiting.length === 0)
       return { text: "Nothing is waiting on you right now.", actions: [] }
     const list = waiting.map((t) => `${t.key} (${t.title})`).join(", ")
@@ -204,7 +199,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
   }
 
   return {
-    text: `I'm running in offline mode, so I only understand a few kinds of requests. Try: ${EXAMPLES.join(" · ")}`,
+    text: `I can help with a few requests from this board. Try: ${EXAMPLES.join(" · ")}`,
     actions: [],
   }
 }

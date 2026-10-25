@@ -16,6 +16,7 @@ import {
   SCOPES,
   type Scope,
 } from "@/shared/names"
+import { visibleAgentName } from "@/lib/agent-label"
 import {
   MOCK_NOW,
   agentTokens,
@@ -261,7 +262,7 @@ export function ApiView() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold">{key.name}</span>
+                      <span className="truncate text-sm font-semibold">{visibleAgentName(key.name)}</span>
                       {owner && (
                         <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                           <HumanAvatar name={owner.name} /> {owner.name}
@@ -342,10 +343,6 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
     } finally {
       setPending(false)
     }
-  }
-
-  if (account?.admin !== true) {
-    return <p className="text-sm text-muted-foreground">An admin creates API keys.</p>
   }
 
   return (

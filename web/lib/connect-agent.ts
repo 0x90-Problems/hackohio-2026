@@ -110,6 +110,23 @@ function parseConnected(
   }
 }
 
+export async function listBoardUsers(): Promise<{ _id: string; name: string }[]> {
+  const session = readSession()
+  if (!session) return []
+  const response = await fetch("/api/users", {
+    headers: { accept: "application/json", authorization: `Bearer ${session.secret}` },
+  })
+  if (!response.ok) return []
+  const body = (await response.json()) as unknown
+  if (!Array.isArray(body)) return []
+  return body.flatMap((item) => {
+    if (item === null || typeof item !== "object") return []
+    const user = item as { _id?: unknown; name?: unknown }
+    if (typeof user._id !== "string" || typeof user.name !== "string" || !user.name) return []
+    return [{ _id: user._id, name: user.name }]
+  })
+}
+
 export async function listBoardAgents(): Promise<Agent[]> {
   const session = readSession()
   if (!session) throw new ConnectAgentError("Sign in before loading agents")
