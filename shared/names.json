@@ -15,5 +15,5 @@
   "collections": ["users", "projects", "agents", "agent_tokens", "tickets", "comments", "events"],
   "token_prefix": "clw_",
   "default_token_expiry_hours": 24,
-  "mcp_tools": ["get_board", "create_ticket", "move_ticket", "add_comment", "link_commit", "watch_changes"]
+  "mcp_tools": ["get_board", "create_ticket", "move_ticket", "add_comment", "link_commit", "watch_changes", "list_project_templates", "get_project_template", "create_project"]
 }
