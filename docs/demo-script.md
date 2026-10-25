@@ -68,7 +68,7 @@ To turn it on:
 
    ```
    AWS_REGION=us-east-1
-   AWS_PROFILE=nutshell
+   AWS_PROFILE=nutshell-app
    ```
 
 3. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and add `BEDROCK_GUARDRAIL_ID=...` and `BEDROCK_GUARDRAIL_VERSION=1` to the same file. Bedrock applies it to every question and reply.

@@ -12,6 +12,7 @@ import {
   validateSignIn,
   validateSignUp,
 } from "@/lib/board-auth"
+import { Logo } from "@/components/logo"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -63,11 +64,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/50 p-4">
-      <div className="flex items-center gap-2 text-xl font-semibold">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-mark.png" alt="" className="size-9" aria-hidden />
-        NutShell
-      </div>
+      <Logo className="text-xl" markClassName="size-8" />
 
       <Card className="w-full max-w-sm animate-in duration-300 fade-in slide-in-from-bottom-2">
         <form className="flex flex-col gap-(--card-spacing)" noValidate onSubmit={onSubmit}>

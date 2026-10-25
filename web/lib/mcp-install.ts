@@ -2,9 +2,9 @@
 // makeToken() just created. A saved key is only a prefix, so this cannot be
 // rebuilt later. NEXT_PUBLIC_MCP_URL overrides the live server address.
 
-export const MCP_SERVER_NAME = "buc2agents"
+export const MCP_SERVER_NAME = "nutshell"
 
-export const DEFAULT_MCP_URL = "http://44.213.112.76:8080/mcp"
+export const DEFAULT_MCP_URL = "https://hackohio-2026.vercel.app/mcp"
 
 export function mcpPublicUrl() {
   const configured = process.env.NEXT_PUBLIC_MCP_URL?.trim()
@@ -16,7 +16,13 @@ type McpServer = {
   headers: { Authorization: string }
 }
 
-export function mcpInstall(secret: string) {
+export type McpInstallLinks = {
+  json: string
+  cursorUrl: string
+  claudeCommand: string
+}
+
+export function mcpInstall(secret: string): McpInstallLinks {
   const url = mcpPublicUrl()
   const server: McpServer = {
     url,
@@ -32,6 +38,18 @@ export function mcpInstall(secret: string) {
     json,
     cursorUrl: `cursor://anysphere.cursor-deeplink/mcp/install?name=${MCP_SERVER_NAME}&config=${config}`,
     claudeCommand: `claude mcp add --transport http ${MCP_SERVER_NAME} ${url} --header "Authorization: Bearer ${secret}"`,
+  }
+}
+
+export function mcpLinksFromApi(mcp: {
+  json: string
+  cursor_url: string
+  claude_command: string
+}): McpInstallLinks {
+  return {
+    json: mcp.json,
+    cursorUrl: mcp.cursor_url,
+    claudeCommand: mcp.claude_command,
   }
 }
 

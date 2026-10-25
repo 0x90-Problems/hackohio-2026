@@ -8,7 +8,7 @@ export async function generateMetadata({
 }: LayoutProps<"/projects/[key]/board">): Promise<Metadata> {
   const { key } = await params
   const name = projects.find((p) => p.key === key)?.name ?? key
-  return { title: `${name} · NutShell` }
+  return { title: name }
 }
 
 // The board lives in the layout, so it stays mounted (with its moves, categories

@@ -17,6 +17,7 @@ import {
 } from "@/components/icons"
 
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -82,10 +83,8 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mark.png" alt="" className="size-7" aria-hidden />
-          NutShell
+        <Link href="/" className="text-foreground">
+          <Logo />
         </Link>
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}
