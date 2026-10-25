@@ -22,7 +22,8 @@ import {
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
-import { readStorage, writeStorage } from "@/lib/local-store"
+import { loadBoard, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
+import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
   categoryName,
@@ -49,8 +50,8 @@ type BoardSnapshot = {
 }
 
 // Holds every project's board in one place, so moves, categories and tags
-// survive switching pages. Mounted once in app/layout.tsx. A reload restores
-// the last saved board from this browser.
+// survive switching pages. Mounted once in app/layout.tsx. A reload reads
+// projects, tickets, comments, and events back from MongoDB.
 function useProjectsState() {
   const account = useAuthUser()
   const [ready, setReady] = useState(false)
@@ -79,34 +80,71 @@ function useProjectsState() {
   const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? CURRENT_USER_ID }
 
   useEffect(() => {
-    const saved = readStorage<BoardSnapshot>(BOARD_KEY)
-    if (saved) {
-      const nextProjects = saved.projects ?? allProjects
-      const nextTickets = saved.tickets ?? allTickets
-      const nextActivity = [...(saved.activity ?? allEvents)].sort(newestFirst)
-      const nextComments = saved.comments ?? allComments
-      ticketsRef.current = nextTickets
-      setProjects(nextProjects)
-      setTicketsState(nextTickets)
-      setActivity(nextActivity)
-      setComments(nextComments)
+    let cancelled = false
+    async function restore() {
+      const remote = await loadBoard()
+      if (cancelled) return
+      const local = readStorage<BoardSnapshot>(BOARD_KEY)
+      const projects = remote.projects.length > 0 ? remote.projects : (local?.projects ?? allProjects)
+      const tickets = remote.tickets.length > 0 ? remote.tickets : (local?.tickets ?? allTickets)
+      const comments = remote.comments.length > 0 ? remote.comments : (local?.comments ?? allComments)
+      const activity = [...(remote.events.length > 0 ? remote.events : (local?.activity ?? allEvents))].sort(newestFirst)
+      const knownTickets = new Set(remote.tickets.map((ticket) => ticket.key))
+      const knownProjects = new Set(remote.projects.map((project) => project.key))
+      const knownComments = new Set(remote.comments.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}`))
+      const knownEvents = new Set(remote.events.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
+      if (remote.projects.length === 0) projects.forEach(saveProject)
+      if (remote.tickets.length === 0) tickets.forEach(saveTicket)
+      if (remote.comments.length === 0) comments.forEach(saveComment)
+      if (remote.events.length === 0) activity.forEach(saveEvent)
+      local?.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
+      local?.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
+      local?.comments
+        .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
+        .forEach(saveComment)
+      local?.activity
+        .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
+        .forEach(saveEvent)
+      if (local && remote.projects.length > 0) {
+        const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
+        const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
+        const extraComments = local.comments.filter(
+          (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
+        )
+        const extraEvents = local.activity.filter(
+          (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
+        )
+        projects.push(...extraProjects)
+        tickets.push(...extraTickets)
+        comments.push(...extraComments)
+        activity.unshift(...extraEvents)
+      }
+      ticketsRef.current = tickets
+      setProjects(projects)
+      setTicketsState(tickets)
+      setComments(comments)
+      setActivity(activity)
       const latest = Math.max(
         0,
-        ...nextProjects.map((item) => item.created_at.getTime()),
-        ...nextTickets.map((item) => item.created_at.getTime()),
-        ...nextActivity.map((item) => item.created_at.getTime()),
-        ...nextComments.map((item) => item.created_at.getTime())
+        ...projects.map((item) => item.created_at.getTime()),
+        ...tickets.map((item) => item.created_at.getTime()),
+        ...activity.map((item) => item.created_at.getTime()),
+        ...comments.map((item) => item.created_at.getTime())
       )
       if (latest > clock.current) clock.current = latest
+      localStorage.removeItem(BOARD_KEY)
     }
-    setReady(true)
+    restore()
+      .catch(() => {
+        toast.error("Couldn't load the board from the database")
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
-
-  useEffect(() => {
-    if (!ready) return
-    const snapshot: BoardSnapshot = { projects, tickets, activity, comments }
-    writeStorage(BOARD_KEY, snapshot)
-  }, [ready, projects, tickets, activity, comments])
 
   // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>
@@ -119,15 +157,19 @@ function useProjectsState() {
     update: (current: Category[]) => Category[]
   ) {
     setProjects((all) =>
-      all.map((p) =>
-        p.key === projectKey ? { ...p, categories: update(p.categories) } : p
-      )
+      all.map((p) => {
+        if (p.key !== projectKey) return p
+        const next = { ...p, categories: update(p.categories) }
+        saveProject(next)
+        return next
+      })
     )
   }
 
   function addComment(comment: Comment) {
     setComments((current) => [...current, comment])
     setNewCommentIds((ids) => new Set(ids).add(commentId(comment)))
+    saveComment(comment)
   }
 
   // Fills in project_key from the ticket id
@@ -138,6 +180,7 @@ function useProjectsState() {
     }
     setActivity((current) => [event, ...current])
     setNewEventIds((ids) => new Set(ids).add(eventId(event)))
+    saveEvent(event)
   }
 
   function setStatus(
@@ -150,6 +193,8 @@ function useProjectsState() {
         t.key === ticketKey ? { ...t, ...changes, status } : t
       )
     )
+    const updated = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
+    if (updated) saveTicket(updated)
   }
 
   // Every tag used on a project's tickets, plus its template's starter tags
@@ -183,6 +228,7 @@ function useProjectsState() {
     }
     setProjects((current) => [...current, project])
     setNewProjectKeys((keys) => new Set(keys).add(project.key))
+    saveProject(project)
     toast.success(`Created project ${project.name}`, {
       description: `Tickets will be ${project.key}-01, ${project.key}-02 …`,
     })
@@ -218,6 +264,7 @@ function useProjectsState() {
     }
     setTickets((current) => [ticket, ...current])
     setNewTicketKeys((keys) => new Set(keys).add(key))
+    saveTicket(ticket)
     addEvent({
       action: EVENT_ACTIONS.TICKET_CREATED,
       ticket_key: key,
@@ -246,10 +293,16 @@ function useProjectsState() {
     })
   }
 
+  function persistTicket(ticketKey: string) {
+    const updated = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
+    if (updated) saveTicket(updated)
+  }
+
   function setTags(ticketKey: string, tags: string[]) {
     setTickets((current) =>
       current.map((t) => (t.key === ticketKey ? { ...t, tags } : t))
     )
+    persistTicket(ticketKey)
   }
 
   function setDescription(ticketKey: string, description: string) {
@@ -258,6 +311,7 @@ function useProjectsState() {
         ticket.key === ticketKey ? { ...ticket, description } : ticket
       )
     )
+    persistTicket(ticketKey)
   }
 
   function setTicketColor(ticketKey: string, card_color?: CategoryColor) {
@@ -266,6 +320,7 @@ function useProjectsState() {
         ticket.key === ticketKey ? { ...ticket, card_color } : ticket
       )
     )
+    persistTicket(ticketKey)
   }
 
   function setDueDate(ticketKey: string, due_date: string) {
@@ -278,6 +333,7 @@ function useProjectsState() {
         return withoutDueDate
       })
     )
+    persistTicket(ticketKey)
   }
 
   function createCategory(
@@ -313,6 +369,9 @@ function useProjectsState() {
           : t
       )
     )
+    ticketsRef.current
+      .filter((ticket) => projectKeyOf(ticket.key) === projectKey && ticket.status === moveTo)
+      .forEach(saveTicket)
     setProjectCategories(projectKey, (current) =>
       current
         .filter((c) => c.slug !== slug)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   AlertTriangleIcon,
   ActivityIcon,
@@ -27,7 +27,7 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { usePersistentState } from "@/lib/local-store"
+import { loadBoard, saveAgent } from "@/lib/board-db"
 import { timeAgo } from "@/lib/format"
 import { SCOPE_OPTIONS, makeToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
@@ -80,19 +80,39 @@ function lastActive(agentId: string) {
 }
 
 export function AgentsView() {
-  const [agents, setAgents] = usePersistentState<Agent[]>("buck2.agents", allAgents)
+  const [agents, setAgents] = useState<Agent[]>(allAgents)
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
+  useEffect(() => {
+    let cancelled = false
+    loadBoard()
+      .then((board) => {
+        if (cancelled) return
+        if (board.agents.length > 0) {
+          setAgents(board.agents)
+          return
+        }
+        allAgents.forEach(saveAgent)
+      })
+      .catch(() => {
+        toast.error("Couldn't load agents from the database")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   function revoke(agent: Agent) {
-    setAgents((current) =>
-      current.map((a) => (a._id === agent._id ? { ...a, revoked: true } : a))
-    )
+    const next = { ...agent, revoked: true }
+    setAgents((current) => current.map((a) => (a._id === agent._id ? next : a)))
+    saveAgent(next)
     toast(`Revoked ${agent.name}`, { description: "Its token stopped working." })
   }
 
   function connect(agent: Agent) {
     setAgents((current) => [agent, ...current])
     setNewIds((ids) => new Set(ids).add(agent._id))
+    saveAgent(agent)
   }
 
   return (
