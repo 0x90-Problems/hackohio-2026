@@ -3,6 +3,7 @@ import { Geist_Mono, Inter, Lato } from "next/font/google"
 
 import "./globals.css"
 import { AppHeader } from "@/components/app-header"
+import { AuthGate } from "@/components/auth/auth-gate"
 import { ChatDock } from "@/components/assistant/chat-dock"
 import { ProjectsProvider } from "@/components/projects/projects-store"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -43,13 +44,15 @@ export default function RootLayout({
         {/* Light mode is the default; dark mode still works (press "d") */}
         <ThemeProvider defaultTheme="light" enableSystem={false}>
           <TooltipProvider>
-            <AppHeader />
-            {/* One shared store for every page, so board changes (by people or
-                the chat assistant) survive moving between pages */}
-            <ProjectsProvider>
-              {children}
-              <ChatDock />
-            </ProjectsProvider>
+            <AuthGate>
+              <AppHeader />
+              {/* One shared store for every page, so board changes (by people or
+                  the chat assistant) survive moving between pages */}
+              <ProjectsProvider>
+                {children}
+                <ChatDock />
+              </ProjectsProvider>
+            </AuthGate>
             <Toaster />
           </TooltipProvider>
         </ThemeProvider>

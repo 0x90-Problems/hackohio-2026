@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useRef, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
 
@@ -13,15 +13,17 @@ import type {
   Project,
   Ticket,
 } from "@/lib/types"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import {
   CURRENT_USER_ID,
-  MOCK_NOW,
   comments as allComments,
   events as allEvents,
   projectKeyOf,
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
+import { loadBoard, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
+import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
   categoryName,
@@ -38,10 +40,21 @@ export { projectKeyOf }
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
 
+const BOARD_KEY = "buck2.board"
+
+type BoardSnapshot = {
+  projects: Project[]
+  tickets: Ticket[]
+  activity: Event[]
+  comments: Comment[]
+}
+
 // Holds every project's board in one place, so moves, categories and tags
-// survive switching pages. Mounted once in app/layout.tsx. Still mock data:
-// a reload starts over.
+// survive switching pages. Mounted once in app/layout.tsx. A reload reads
+// projects, tickets, comments, and events back from MongoDB.
 function useProjectsState() {
+  const account = useAuthUser()
+  const [ready, setReady] = useState(false)
   const [projects, setProjects] = useState<Project[]>(allProjects)
   const [tickets, setTicketsState] = useState<Ticket[]>(allTickets)
   // Always-current copy, so several actions in a row (like the assistant
@@ -61,11 +74,77 @@ function useProjectsState() {
   const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set())
   const [newProjectKeys, setNewProjectKeys] = useState<Set<string>>(new Set())
 
-  // Mock clock: each new action is one second after the last, so times stay
-  // in order and list keys stay unique. Real data will use the server's time.
-  const clock = useRef(MOCK_NOW.getTime())
-  const now = () => new Date((clock.current += 1000))
-  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: CURRENT_USER_ID }
+  // Each new action is at least 1ms after the last, so list keys stay unique.
+  const clock = useRef(Date.now())
+  const now = () => new Date((clock.current = Math.max(Date.now(), clock.current + 1)))
+  const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? CURRENT_USER_ID }
+
+  useEffect(() => {
+    let cancelled = false
+    async function restore() {
+      const remote = await loadBoard()
+      if (cancelled) return
+      const local = readStorage<BoardSnapshot>(BOARD_KEY)
+      const projects = remote.projects.length > 0 ? remote.projects : (local?.projects ?? allProjects)
+      const tickets = remote.tickets.length > 0 ? remote.tickets : (local?.tickets ?? allTickets)
+      const comments = remote.comments.length > 0 ? remote.comments : (local?.comments ?? allComments)
+      const activity = [...(remote.events.length > 0 ? remote.events : (local?.activity ?? allEvents))].sort(newestFirst)
+      const knownTickets = new Set(remote.tickets.map((ticket) => ticket.key))
+      const knownProjects = new Set(remote.projects.map((project) => project.key))
+      const knownComments = new Set(remote.comments.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}`))
+      const knownEvents = new Set(remote.events.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
+      if (remote.projects.length === 0) projects.forEach(saveProject)
+      if (remote.tickets.length === 0) tickets.forEach(saveTicket)
+      if (remote.comments.length === 0) comments.forEach(saveComment)
+      if (remote.events.length === 0) activity.forEach(saveEvent)
+      local?.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
+      local?.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
+      local?.comments
+        .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
+        .forEach(saveComment)
+      local?.activity
+        .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
+        .forEach(saveEvent)
+      if (local && remote.projects.length > 0) {
+        const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
+        const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
+        const extraComments = local.comments.filter(
+          (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
+        )
+        const extraEvents = local.activity.filter(
+          (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
+        )
+        projects.push(...extraProjects)
+        tickets.push(...extraTickets)
+        comments.push(...extraComments)
+        activity.unshift(...extraEvents)
+      }
+      ticketsRef.current = tickets
+      setProjects(projects)
+      setTicketsState(tickets)
+      setComments(comments)
+      setActivity(activity)
+      const latest = Math.max(
+        0,
+        ...projects.map((item) => item.created_at.getTime()),
+        ...tickets.map((item) => item.created_at.getTime()),
+        ...activity.map((item) => item.created_at.getTime()),
+        ...comments.map((item) => item.created_at.getTime())
+      )
+      if (latest > clock.current) clock.current = latest
+      localStorage.removeItem(BOARD_KEY)
+    }
+    restore()
+      .catch(() => {
+        toast.error("Couldn't load the board from the database")
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>
@@ -78,15 +157,19 @@ function useProjectsState() {
     update: (current: Category[]) => Category[]
   ) {
     setProjects((all) =>
-      all.map((p) =>
-        p.key === projectKey ? { ...p, categories: update(p.categories) } : p
-      )
+      all.map((p) => {
+        if (p.key !== projectKey) return p
+        const next = { ...p, categories: update(p.categories) }
+        saveProject(next)
+        return next
+      })
     )
   }
 
   function addComment(comment: Comment) {
     setComments((current) => [...current, comment])
     setNewCommentIds((ids) => new Set(ids).add(commentId(comment)))
+    saveComment(comment)
   }
 
   // Fills in project_key from the ticket id
@@ -97,6 +180,7 @@ function useProjectsState() {
     }
     setActivity((current) => [event, ...current])
     setNewEventIds((ids) => new Set(ids).add(eventId(event)))
+    saveEvent(event)
   }
 
   function setStatus(
@@ -109,6 +193,8 @@ function useProjectsState() {
         t.key === ticketKey ? { ...t, ...changes, status } : t
       )
     )
+    const updated = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
+    if (updated) saveTicket(updated)
   }
 
   // Every tag used on a project's tickets, plus its template's starter tags
@@ -142,6 +228,7 @@ function useProjectsState() {
     }
     setProjects((current) => [...current, project])
     setNewProjectKeys((keys) => new Set(keys).add(project.key))
+    saveProject(project)
     toast.success(`Created project ${project.name}`, {
       description: `Tickets will be ${project.key}-01, ${project.key}-02 …`,
     })
@@ -151,7 +238,12 @@ function useProjectsState() {
   // (the chat assistant) acting for them.
   function createTicket(
     projectKey: string,
-    input: { title: string; status: string; tags: string[] },
+    input: {
+      title: string
+      status: string
+      tags: string[]
+      due_date?: string
+    },
     actor: Actor = me
   ) {
     const numbers = ticketsRef.current
@@ -165,12 +257,14 @@ function useProjectsState() {
       title: input.title,
       ...(input.tags.length > 0 && { tags: input.tags }),
       status: input.status,
+      ...(input.due_date && { due_date: input.due_date }),
       created_by: actor,
       needs_approval: false,
       created_at,
     }
     setTickets((current) => [ticket, ...current])
     setNewTicketKeys((keys) => new Set(keys).add(key))
+    saveTicket(ticket)
     addEvent({
       action: EVENT_ACTIONS.TICKET_CREATED,
       ticket_key: key,
@@ -199,10 +293,47 @@ function useProjectsState() {
     })
   }
 
+  function persistTicket(ticketKey: string) {
+    const updated = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
+    if (updated) saveTicket(updated)
+  }
+
   function setTags(ticketKey: string, tags: string[]) {
     setTickets((current) =>
       current.map((t) => (t.key === ticketKey ? { ...t, tags } : t))
     )
+    persistTicket(ticketKey)
+  }
+
+  function setDescription(ticketKey: string, description: string) {
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.key === ticketKey ? { ...ticket, description } : ticket
+      )
+    )
+    persistTicket(ticketKey)
+  }
+
+  function setTicketColor(ticketKey: string, card_color?: CategoryColor) {
+    setTickets((current) =>
+      current.map((ticket) =>
+        ticket.key === ticketKey ? { ...ticket, card_color } : ticket
+      )
+    )
+    persistTicket(ticketKey)
+  }
+
+  function setDueDate(ticketKey: string, due_date: string) {
+    setTickets((current) =>
+      current.map((ticket) => {
+        if (ticket.key !== ticketKey) return ticket
+        if (due_date) return { ...ticket, due_date }
+        const withoutDueDate = { ...ticket }
+        delete withoutDueDate.due_date
+        return withoutDueDate
+      })
+    )
+    persistTicket(ticketKey)
   }
 
   function createCategory(
@@ -238,6 +369,9 @@ function useProjectsState() {
           : t
       )
     )
+    ticketsRef.current
+      .filter((ticket) => projectKeyOf(ticket.key) === projectKey && ticket.status === moveTo)
+      .forEach(saveTicket)
     setProjectCategories(projectKey, (current) =>
       current
         .filter((c) => c.slug !== slug)
@@ -294,6 +428,7 @@ function useProjectsState() {
   }
 
   return {
+    ready,
     projects,
     tickets,
     // Latest tickets, including changes made earlier in the same click
@@ -310,6 +445,9 @@ function useProjectsState() {
     createTicket,
     moveTicket,
     setTags,
+    setDescription,
+    setTicketColor,
+    setDueDate,
     createCategory,
     updateCategory,
     deleteCategory,
@@ -327,7 +465,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   return (
     <ProjectsContext.Provider value={store}>
       {/* reducedMotion="user": motion skips animations when the OS asks for less motion */}
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      <MotionConfig reducedMotion="user">{store.ready ? children : null}</MotionConfig>
     </ProjectsContext.Provider>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment } from "react"
 import {
   BotIcon,
   Building2Icon,
@@ -12,7 +12,9 @@ import {
 import { toast } from "sonner"
 
 import { DEFAULT_TOKEN_EXPIRY_HOURS } from "@/shared/names"
-import { TEAM, agents, currentUser, users } from "@/lib/mock-data"
+import { TEAM, agents, users } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
+import { usePersistentState } from "@/lib/local-store"
 import { cn } from "@/lib/utils"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -53,15 +55,21 @@ const RULES = [
 ]
 
 export function OrganizationView() {
-  const [orgName, setOrgName] = useState(DEFAULT_ORG_NAME)
-  const [savedName, setSavedName] = useState(DEFAULT_ORG_NAME)
-  const [expiry, setExpiry] = useState(String(DEFAULT_TOKEN_EXPIRY_HOURS))
-  const [rules, setRules] = useState<Record<string, boolean>>(
+  const [orgName, setOrgName] = usePersistentState("buck2.org-name", DEFAULT_ORG_NAME)
+  const [savedName, setSavedName] = usePersistentState("buck2.org-saved-name", DEFAULT_ORG_NAME)
+  const [expiry, setExpiry] = usePersistentState("buck2.org-expiry", String(DEFAULT_TOKEN_EXPIRY_HOURS))
+  const [rules, setRules] = usePersistentState<Record<string, boolean>>(
+    "buck2.org-rules",
     Object.fromEntries(RULES.map((r) => [r.id, true]))
   )
 
-  const myAgent = agents.find((a) => a.owner_id === currentUser._id && !a.revoked)
-  const teamCount = new Set(users.map((u) => u.team)).size
+  const account = useAuthUser()
+  const myAgent = agents.find((a) => a.owner_id === account?._id && !a.revoked)
+  const teamCount = new Set([
+    ...users.map((u) => u.team),
+    ...(account?.team ? [account.team] : []),
+  ]).size
+  const peopleCount = users.some((u) => u._id === account?._id) ? users.length : users.length + (account ? 1 : 0)
   const agentCount = agents.filter((a) => !a.revoked).length
 
   const flow = [
@@ -70,13 +78,13 @@ export function OrganizationView() {
       icon: Building2Icon,
       content: <span className="truncate">{orgName || "Untitled"}</span>,
     },
-    { kind: "Team", icon: UsersIcon, content: <span className="truncate">{currentUser.team}</span> },
+    { kind: "Team", icon: UsersIcon, content: <span className="truncate">{account?.team || TEAM}</span> },
     {
       kind: "User",
       icon: UserIcon,
       content: (
         <span className="inline-flex items-center gap-1.5">
-          <HumanAvatar name={currentUser.name} /> {currentUser.name}
+          <HumanAvatar name={account?.name ?? ""} /> {account?.name}
         </span>
       ),
     },
@@ -174,7 +182,7 @@ export function OrganizationView() {
             <dl className="flex gap-10">
               {[
                 { label: "Teams", value: teamCount },
-                { label: "People", value: users.length },
+                { label: "People", value: peopleCount },
                 { label: "Agents", value: agentCount },
               ].map((stat) => (
                 <div key={stat.label} className="flex flex-col gap-1">
@@ -242,7 +250,7 @@ export function OrganizationView() {
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground">
-              Login and 2FA for people are handled by Authelia.
+              People sign in with an account. Agents use tokens.
             </p>
           </CardFooter>
         </Card>

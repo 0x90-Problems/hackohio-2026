@@ -6,12 +6,17 @@ import { usePathname, useRouter } from "next/navigation"
 import { ACTOR_TYPES, AGENT_CONNECTION, TICKET_STATUS } from "@/shared/names"
 import type { Category, Comment, Event, Ticket } from "@/lib/types"
 import {
+  CATEGORY_COLORS,
+  CATEGORY_COLOR_NAMES,
+  type CategoryColor,
+} from "@/lib/categories"
+import {
   MOCK_NOW,
   agentTokens,
-  currentUser,
   getAgent,
   getUser,
 } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
@@ -52,6 +57,8 @@ export type TicketActions = {
   onRequestChanges: (ticketKey: string) => void
   onMove: (ticketKey: string, status: string) => void
   onTagsChange: (ticketKey: string, tags: string[]) => void
+  onDescriptionChange: (ticketKey: string, description: string) => void
+  onColorChange: (ticketKey: string, color?: CategoryColor) => void
 }
 
 // Opens the sheet for the ticket named in the address
@@ -87,7 +94,7 @@ export function TicketModalFromUrl({
         !open && router.push(`/projects/${projectKey}/board`, { scroll: false })
       }
     >
-      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
+      <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-5xl">
         {ticket && (
           <TicketDetail
             ticket={ticket}
@@ -128,6 +135,8 @@ function TicketDetail({
   onRequestChanges,
   onMove,
   onTagsChange,
+  onDescriptionChange,
+  onColorChange,
 }: {
   ticket: Ticket
   categories: Category[]
@@ -137,6 +146,7 @@ function TicketDetail({
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
+  const account = useAuthUser()
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
   const agent =
@@ -167,8 +177,8 @@ function TicketDetail({
   }
 
   return (
-    <>
-      <DialogHeader className="gap-2 border-b p-6 pr-14">
+    <div className="grid min-w-0 md:grid-cols-[minmax(0,1fr)_20rem]">
+      <DialogHeader className="gap-2 border-b p-6 pr-14 md:col-span-2">
         <DialogDescription className="font-mono text-xs">
           {ticket.key}
         </DialogDescription>
@@ -201,73 +211,191 @@ function TicketDetail({
         </div>
       </DialogHeader>
 
-      {/* Who's involved */}
-      <dl className="grid grid-cols-[6.5rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm sm:grid-cols-[8rem_1fr]">
-        <dt className="text-muted-foreground">Created by</dt>
-        <dd>
-          {agent ? (
-            <span className="inline-flex items-center gap-1.5">
-              <AgentTag /> {agent.name}
-            </span>
-          ) : (
-            <ActorBadge actor={creator} />
-          )}
-        </dd>
-
-        {owner && (
-          <>
-            <dt className="text-muted-foreground">Acting for</dt>
-            <dd className="inline-flex items-center gap-1.5">
-              <HumanAvatar name={owner.name} /> {owner.name}
-            </dd>
-          </>
-        )}
-
-        {agent && (
-          <>
-            <dt className="text-muted-foreground">Agent setup</dt>
-            <dd>
-              {agent.name} · via {CONNECTION_LABELS[agent.connection]}
-            </dd>
-            <dt className="text-muted-foreground">Token scopes</dt>
-            <dd className="flex flex-wrap gap-1.5">
-              {(token?.scopes ?? agent.scopes).map((scope) => (
-                <ScopeBadge key={scope} scope={scope} />
-              ))}
-            </dd>
-          </>
-        )}
-
-        <dt className="self-start pt-2 text-muted-foreground">
-          <Label htmlFor="ticket-tags" className="font-normal">
-            Tags
-          </Label>
-        </dt>
-        <dd>
-          <TagInput
-            id="ticket-tags"
-            tags={ticket.tags ?? []}
-            onChange={(tags) => onTagsChange(ticket.key, tags)}
-            suggestions={tagSuggestions}
+      <div className="min-w-0">
+        <section className="flex flex-col gap-2 px-6 pt-6">
+          <Label htmlFor="ticket-description">Description</Label>
+          <Textarea
+            id="ticket-description"
+            className="min-h-24 resize-y"
+            value={ticket.description ?? ""}
+            onChange={(e) => onDescriptionChange(ticket.key, e.target.value)}
+            placeholder="Add a description…"
           />
-        </dd>
+        </section>
 
-        <dt className="text-muted-foreground">Reviewer</dt>
-        <dd>
-          {reviewer ? (
-            <span className="inline-flex items-center gap-1.5">
-              <HumanAvatar name={reviewer.name} /> {reviewer.name}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">None</span>
+        {/* Who's involved */}
+        <dl className="grid grid-cols-[6.5rem_1fr] items-center gap-x-4 gap-y-3 p-6 text-sm sm:grid-cols-[8rem_1fr]">
+          <dt className="text-muted-foreground">Created by</dt>
+          <dd>
+            {agent ? (
+              <span className="inline-flex items-center gap-1.5">
+                <AgentTag /> {agent.name}
+              </span>
+            ) : (
+              <ActorBadge actor={creator} />
+            )}
+          </dd>
+
+          {owner && (
+            <>
+              <dt className="text-muted-foreground">Acting for</dt>
+              <dd className="inline-flex items-center gap-1.5">
+                <HumanAvatar name={owner.name} /> {owner.name}
+              </dd>
+            </>
           )}
-        </dd>
-      </dl>
 
-      <Separator />
+          {agent && (
+            <>
+              <dt className="text-muted-foreground">Agent setup</dt>
+              <dd>
+                {agent.name} · via {CONNECTION_LABELS[agent.connection]}
+              </dd>
+              <dt className="text-muted-foreground">Token scopes</dt>
+              <dd className="flex flex-wrap gap-1.5">
+                {(token?.scopes ?? agent.scopes).map((scope) => (
+                  <ScopeBadge key={scope} scope={scope} />
+                ))}
+              </dd>
+            </>
+          )}
 
-      {/* Linked commits */}
-      <section className="flex flex-col gap-3 p-6">
+          <dt className="self-start pt-2 text-muted-foreground">
+            <Label htmlFor="ticket-tags" className="font-normal">
+              Tags
+            </Label>
+          </dt>
+          <dd>
+            <TagInput
+              id="ticket-tags"
+              tags={ticket.tags ?? []}
+              onChange={(tags) => onTagsChange(ticket.key, tags)}
+              suggestions={tagSuggestions}
+            />
+          </dd>
+
+          <dt className="text-muted-foreground">Card color</dt>
+          <dd>
+            <div
+              className="flex flex-wrap items-center gap-2"
+              aria-label="Card color"
+            >
+              <button
+                type="button"
+                aria-label="Default card color"
+                aria-pressed={!ticket.card_color}
+                title="Default"
+                onClick={() => onColorChange(ticket.key, undefined)}
+                className={cn(
+                  "size-5 rounded-full border bg-card",
+                  !ticket.card_color && "ring-2 ring-foreground ring-offset-2"
+                )}
+              />
+              {CATEGORY_COLOR_NAMES.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`${CATEGORY_COLORS[color].label} card color`}
+                  aria-pressed={ticket.card_color === color}
+                  title={CATEGORY_COLORS[color].label}
+                  onClick={() => onColorChange(ticket.key, color)}
+                  className={cn(
+                    "size-5 rounded-full ring-offset-2 ring-offset-background",
+                    CATEGORY_COLORS[color].dot,
+                    ticket.card_color === color && "ring-2 ring-foreground"
+                  )}
+                />
+              ))}
+            </div>
+          </dd>
+
+          <dt className="text-muted-foreground">Reviewer</dt>
+          <dd>
+            {reviewer ? (
+              <span className="inline-flex items-center gap-1.5">
+                <HumanAvatar name={reviewer.name} /> {reviewer.name}
+              </span>
+            ) : (
+              <span className="text-muted-foreground">None</span>
+            )}
+          </dd>
+        </dl>
+
+        <Separator />
+
+        {/* Change history: every version of the card, from the activity log */}
+        <section className="flex flex-col gap-3 p-6">
+          <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            <HistoryIcon className="size-3.5" aria-hidden /> Change history
+          </h3>
+          <ChangeHistory events={events} categories={categories} />
+        </section>
+
+        <Separator />
+
+        {/* Activity: agent comments in a dashed box, human comments in a solid box */}
+        <section className="flex flex-col gap-3 p-6">
+          <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            Activity &amp; comments
+          </h3>
+          {sorted.length === 0 && (
+            <p className="text-sm text-muted-foreground">No comments yet.</p>
+          )}
+          <ul className="flex flex-col gap-2">
+            {sorted.map((comment) => {
+              const id = commentId(comment)
+              const byAgent = comment.author.type === ACTOR_TYPES.AGENT
+              return (
+                <li
+                  key={id}
+                  className={cn(
+                    "flex flex-col gap-1.5 rounded-lg border p-3",
+                    byAgent &&
+                      "border-dashed border-muted-foreground/50 bg-muted/40",
+                    newCommentIds.has(id) &&
+                      "animate-in duration-300 fade-in slide-in-from-top-2"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <ActorBadge
+                      actor={comment.author}
+                      className="text-xs text-foreground"
+                    />
+                    <span className="shrink-0">
+                      {timeAgo(comment.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-sm">{comment.body}</p>
+                </li>
+              )
+            })}
+          </ul>
+
+          <div className="mt-2 flex flex-col gap-2">
+            <Label htmlFor="comment">Comment as {account?.name ?? "you"}</Label>
+            <Textarea
+              id="comment"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment()
+              }}
+              placeholder="Write a comment. Agents on this ticket get notified."
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-end"
+              disabled={!draft.trim()}
+              onClick={postComment}
+            >
+              Comment
+            </Button>
+          </div>
+        </section>
+      </div>
+
+      <aside className="flex min-w-0 flex-col gap-3 border-t bg-muted/20 p-6 md:border-t-0 md:border-l">
         <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
           Linked commits
         </h3>
@@ -284,8 +412,13 @@ function TicketDetail({
                 <span className="min-w-0 flex-1 truncate">
                   {commit.message}
                 </span>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  +{commit.added} −{commit.removed}
+                <span className="flex shrink-0 gap-2 font-mono text-xs">
+                  <span className="text-green-600 dark:text-green-400">
+                    +{commit.added}
+                  </span>
+                  <span className="text-red-600 dark:text-red-400">
+                    -{commit.removed}
+                  </span>
                 </span>
               </li>
             ))}
@@ -295,82 +428,9 @@ function TicketDetail({
             No commits linked yet.
           </p>
         )}
-      </section>
+      </aside>
 
-      <Separator />
-
-      {/* Change history: every version of the card, from the activity log */}
-      <section className="flex flex-col gap-3 p-6">
-        <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
-          <HistoryIcon className="size-3.5" aria-hidden /> Change history
-        </h3>
-        <ChangeHistory events={events} categories={categories} />
-      </section>
-
-      <Separator />
-
-      {/* Activity: agent comments in a dashed box, human comments in a solid box */}
-      <section className="flex flex-col gap-3 p-6">
-        <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-          Activity &amp; comments
-        </h3>
-        {sorted.length === 0 && (
-          <p className="text-sm text-muted-foreground">No comments yet.</p>
-        )}
-        <ul className="flex flex-col gap-2">
-          {sorted.map((comment) => {
-            const id = commentId(comment)
-            const byAgent = comment.author.type === ACTOR_TYPES.AGENT
-            return (
-              <li
-                key={id}
-                className={cn(
-                  "flex flex-col gap-1.5 rounded-lg border p-3",
-                  byAgent &&
-                    "border-dashed border-muted-foreground/50 bg-muted/40",
-                  newCommentIds.has(id) &&
-                    "animate-in duration-300 fade-in slide-in-from-top-2"
-                )}
-              >
-                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <ActorBadge
-                    actor={comment.author}
-                    className="text-xs text-foreground"
-                  />
-                  <span className="shrink-0">
-                    {timeAgo(comment.created_at)}
-                  </span>
-                </div>
-                <p className="text-sm">{comment.body}</p>
-              </li>
-            )
-          })}
-        </ul>
-
-        <div className="mt-2 flex flex-col gap-2">
-          <Label htmlFor="comment">Comment as {currentUser.name}</Label>
-          <Textarea
-            id="comment"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment()
-            }}
-            placeholder="Write a comment. Agents on this ticket get notified."
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            className="self-end"
-            disabled={!draft.trim()}
-            onClick={postComment}
-          >
-            Comment
-          </Button>
-        </div>
-      </section>
-
-      <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2">
+      <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2 md:col-span-2">
         <Button disabled={!inReview} onClick={() => onApprove(ticket.key)}>
           Approve
         </Button>
@@ -383,6 +443,6 @@ function TicketDetail({
           </p>
         )}
       </DialogFooter>
-    </>
+    </div>
   )
 }

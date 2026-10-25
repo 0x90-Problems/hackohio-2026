@@ -88,6 +88,10 @@ export type Ticket = {
   reviewer_id?: string
   needs_approval: boolean
   linked_commits?: LinkedCommit[]
+  owner_id?: string
+  due_date?: string
+  description?: string
+  card_color?: CategoryColor
   created_at: Date
 }
 

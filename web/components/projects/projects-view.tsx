@@ -13,6 +13,7 @@ import { CATEGORY_COLORS } from "@/lib/categories"
 import { timeAgo } from "@/lib/format"
 import { PROJECT_TEMPLATES, type ProjectTemplate } from "@/lib/templates"
 import { cn } from "@/lib/utils"
+import { TemplatePreview } from "@/components/projects/template-preview"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
 import { SearchCombobox } from "@/components/search-combobox"
 import { Badge } from "@/components/ui/badge"
@@ -308,7 +309,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                   <span className="text-xs text-muted-foreground">
                     {t.description}
                   </span>
-                  <TemplateColumns template={t} />
+                  <TemplatePreview template={t} />
                 </motion.button>
               ))}
             </div>
@@ -335,7 +336,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                   Change template
                 </Button>
               </div>
-              <TemplateColumns template={template} />
+              <TemplatePreview template={template} />
               {template.tags.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1">
                   <span className="mr-1 text-xs text-muted-foreground">
@@ -428,27 +429,5 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-// A template's columns as colored chips: "● Todo  ● In progress  ● Done"
-function TemplateColumns({ template }: { template: ProjectTemplate }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {template.columns.map((c) => (
-        <span
-          key={c.name}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs",
-            CATEGORY_COLORS[c.color].column
-          )}
-        >
-          <span
-            className={cn("size-2 rounded-full", CATEGORY_COLORS[c.color].dot)}
-          />
-          {c.name}
-        </span>
-      ))}
-    </div>
   )
 }

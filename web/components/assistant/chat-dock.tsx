@@ -11,7 +11,8 @@ import type {
   ToolUseBlock,
 } from "@aws-sdk/client-bedrock-runtime"
 
-import { DEFAULT_PROJECT_KEY, currentUser } from "@/lib/mock-data"
+import { DEFAULT_PROJECT_KEY } from "@/lib/mock-data"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { cn } from "@/lib/utils"
 import { ASSISTANT_SUGGESTIONS, offlineReply } from "@/lib/assistant/offline"
 import {
@@ -54,6 +55,7 @@ const MAX_ROUNDS = 8
 export function ChatDock() {
   const pathname = usePathname()
   const store = useProjects()
+  const account = useAuthUser()
   const [open, setOpen] = useState(false)
   const [ai, setAi] = useState<boolean | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -256,7 +258,7 @@ export function ChatDock() {
                   Nutty <AgentTag />
                 </span>
                 <span className="truncate text-xs text-muted-foreground">
-                  Acting for {currentUser.name} ·{" "}
+                  Acting for {account?.name ?? "you"} ·{" "}
                   {ai === null
                     ? "connecting…"
                     : ai
@@ -283,7 +285,7 @@ export function ChatDock() {
               {messages.length === 0 && (
                 <div className="flex flex-col gap-3 text-sm">
                   <p className="text-muted-foreground">
-                    Hi {currentUser.name}, I&apos;m Nutty! Ask me about your tickets, or tell me
+                    Hi {account?.name ?? "there"}, I&apos;m Nutty! Ask me about your tickets, or tell me
                     what to change. Everything I do shows up on the board as
                     done by an agent acting for you.
                   </p>

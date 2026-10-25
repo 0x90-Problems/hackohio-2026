@@ -35,12 +35,18 @@ export function NewTicketDialog({
 }: {
   categories: Category[]
   tagSuggestions: string[]
-  onCreate: (input: { title: string; status: string; tags: string[] }) => void
+  onCreate: (input: {
+    title: string
+    status: string
+    tags: string[]
+    due_date?: string
+  }) => void
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [status, setStatus] = useState<string>()
   const [tags, setTags] = useState<string[]>([])
+  const [deadline, setDeadline] = useState("")
   // Default to the first column, and fall back to it if the picked one was deleted
   const startIn = categories.some((c) => c.slug === status)
     ? status
@@ -49,9 +55,15 @@ export function NewTicketDialog({
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !startIn) return
-    onCreate({ title: title.trim(), status: startIn, tags })
+    onCreate({
+      title: title.trim(),
+      status: startIn,
+      tags,
+      ...(deadline && { due_date: deadline }),
+    })
     setTitle("")
     setTags([])
+    setDeadline("")
     setOpen(false)
   }
 
@@ -80,6 +92,15 @@ export function NewTicketDialog({
               placeholder="e.g. Add search to the board"
               autoFocus
               required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ticket-deadline">Deadline</Label>
+            <Input
+              id="ticket-deadline"
+              type="date"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
             />
           </div>
           <div className="flex flex-col gap-2">

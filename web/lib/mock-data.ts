@@ -5,13 +5,11 @@ import {
   ACTOR_TYPES,
   AGENT_CONNECTION,
   DEFAULT_TOKEN_EXPIRY_HOURS,
-  EVENT_ACTIONS,
   PROJECT_TEMPLATES,
   SCOPES,
   TICKET_STATUS,
   TOKEN_PREFIX,
   type Scope,
-  type TicketStatus,
 } from "@/shared/names"
 import type {
   Actor,
@@ -35,7 +33,7 @@ export const MOCK_NOW = new Date("2026-10-24T18:00:00Z")
 const minutesAgo = (m: number) => new Date(MOCK_NOW.getTime() - m * 60_000)
 const hoursAfter = (d: Date, h: number) => new Date(d.getTime() + h * 3_600_000)
 
-// The person "logged in" until Authelia is connected.
+// Seed id kept for sample tickets. The signed-in person comes from the session.
 export const CURRENT_USER_ID = "user_raddy"
 
 // ---------- users ----------
@@ -263,80 +261,6 @@ export const comments: Comment[] = [
   { ticket_key: "CLW-16", author: agent("agent_raddy_claude"), body: "Search is in. It matches ticket id, title and tags, grouped by column. Ready for Raddy to approve.", created: 5 },
 ].map(({ created, ...c }) => ({ ...c, created_at: minutesAgo(created) }))
 
-// ---------- events (activity log) ----------
-
-const ev = (
-  action: Event["action"],
-  ticket_key: string,
-  actor: Actor,
-  minutes: number,
-  details?: Event["details"]
-): Event => ({
-  action,
-  ticket_key,
-  project_key: projectKeyOf(ticket_key),
-  actor,
-  ...(details && { details }),
-  created_at: minutesAgo(minutes),
-})
-const moved = (key: string, actor: Actor, minutes: number, from: TicketStatus, to: TicketStatus) =>
-  ev(EVENT_ACTIONS.TICKET_MOVED, key, actor, minutes, { from, to })
-const closed = (key: string, actor: Actor, minutes: number, from: TicketStatus) =>
-  ev(EVENT_ACTIONS.TICKET_CLOSED, key, actor, minutes, { from, to: DONE })
-const linked = (key: string, actor: Actor, minutes: number, sha: string) =>
-  ev(EVENT_ACTIONS.COMMIT_LINKED, key, actor, minutes, { sha })
-
-export const events: Event[] = [
-  ...tickets.map((t) => ({
-    action: EVENT_ACTIONS.TICKET_CREATED,
-    ticket_key: t.key,
-    project_key: t.project_key,
-    actor: t.created_by,
-    details: { status: BACKLOG },
-    created_at: t.created_at,
-  })),
-  ...comments.map((c) => ({
-    action: EVENT_ACTIONS.COMMENT_ADDED,
-    ticket_key: c.ticket_key,
-    project_key: projectKeyOf(c.ticket_key),
-    actor: c.author,
-    created_at: c.created_at,
-  })),
-
-  moved("CLW-01", human("user_dylan"), 590, BACKLOG, IN_PROGRESS),
-  closed("CLW-01", human("user_dylan"), 560, IN_PROGRESS),
-
-  moved("CLW-02", human("user_raddy"), 570, BACKLOG, IN_PROGRESS),
-  closed("CLW-02", human("user_dylan"), 540, IN_PROGRESS),
-
-  moved("CLW-03", human("user_raddy"), 700, BACKLOG, IN_PROGRESS),
-  linked("CLW-03", human("user_raddy"), 525, "1ec9d09"),
-  moved("CLW-03", human("user_raddy"), 520, IN_PROGRESS, IN_REVIEW),
-  closed("CLW-03", human("user_dylan"), 500, IN_REVIEW),
-
-  linked("CLW-04", agent("agent_raddy_claude"), 470, "c7ecd31"),
-  moved("CLW-04", agent("agent_raddy_claude"), 468, BACKLOG, IN_REVIEW),
-  closed("CLW-04", human("user_dylan"), 440, IN_REVIEW),
-
-  moved("CLW-05", human("user_raddy"), 170, BACKLOG, IN_PROGRESS),
-  linked("CLW-05", agent("agent_raddy_claude"), 65, "abc1234"),
-  moved("CLW-05", agent("agent_raddy_claude"), 60, IN_PROGRESS, IN_REVIEW),
-
-  moved("CLW-06", human("user_dylan"), 230, BACKLOG, IN_PROGRESS),
-  linked("CLW-06", agent("agent_dylan_claude"), 100, "9f3e2a1"),
-  moved("CLW-06", agent("agent_dylan_claude"), 95, IN_PROGRESS, IN_REVIEW),
-
-  moved("CLW-07", human("user_debora"), 200, BACKLOG, IN_PROGRESS),
-
-  linked("CLW-08", agent("agent_dylan_claude"), 40, "5b7c0d2"),
-  moved("CLW-08", agent("agent_dylan_claude"), 38, BACKLOG, IN_PROGRESS),
-
-  moved("CLW-09", human("user_raddy"), 300, BACKLOG, IN_PROGRESS),
-  moved("CLW-10", human("user_naz"), 120, BACKLOG, IN_PROGRESS),
-
-  // Demo ticket: the agent links a commit before each move (schema rule)
-  linked("CLW-16", agent("agent_raddy_claude"), 30, "3d1f8a0"),
-  moved("CLW-16", agent("agent_raddy_claude"), 29, BACKLOG, IN_PROGRESS),
-  linked("CLW-16", agent("agent_raddy_claude"), 8, "7e2b9c4"),
-  moved("CLW-16", agent("agent_raddy_claude"), 6, IN_PROGRESS, IN_REVIEW),
-]
+// Activity starts empty. Sample tickets stay on the board; a signed-in person
+// only sees events they create in this session.
+export const events: Event[] = []

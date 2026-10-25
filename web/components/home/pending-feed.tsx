@@ -5,11 +5,8 @@ import Link from "next/link"
 import { TICKET_STATUS } from "@/shared/names"
 import { categoryName } from "@/lib/categories"
 import type { Comment, Ticket } from "@/lib/types"
-import {
-  CURRENT_USER_ID,
-  comments,
-  tickets,
-} from "@/lib/mock-data"
+import { useProjects } from "@/components/projects/projects-store"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { timeAgo } from "@/lib/format"
 import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
@@ -30,17 +27,18 @@ type Row =
 
 const commentId = (c: Comment) => `comment-${c.ticket_key}-${c.created_at.getTime()}`
 
-// Tickets waiting for my review come first, then comments newest first.
-const pendingRows: Row[] = tickets
-  .filter((t) => t.status === TICKET_STATUS.IN_REVIEW && t.reviewer_id === CURRENT_USER_ID)
-  .map((ticket) => ({ id: `pending-${ticket.key}`, kind: "pending", ticket }))
-
-const commentRows: Row[] = [...comments]
-  .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
-  .map((comment) => ({ id: commentId(comment), kind: "comment", comment }))
-
 export function PendingFeed() {
+  const account = useAuthUser()
+  const store = useProjects()
   const loading = useMockLoading()
+  const pendingRows: Row[] = account
+    ? store.tickets
+        .filter((ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && ticket.reviewer_id === account._id)
+        .map((ticket) => ({ id: `pending-${ticket.key}`, kind: "pending", ticket }))
+    : []
+  const commentRows: Row[] = [...store.comments]
+    .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
+    .map((comment) => ({ id: commentId(comment), kind: "comment" as const, comment }))
   const rows: Row[] = [...pendingRows, ...commentRows]
 
   return (

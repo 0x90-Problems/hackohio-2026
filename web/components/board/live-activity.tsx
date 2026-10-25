@@ -16,10 +16,12 @@ export function LiveActivity({
   events,
   newIds,
   categories,
+  tickets,
 }: {
   events: Event[]
   newIds: Set<string>
   categories?: Category[]
+  tickets?: readonly { key: string; title: string }[]
 }) {
   return (
     <Card className="lg:sticky lg:top-20">
@@ -28,6 +30,9 @@ export function LiveActivity({
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)]">
+          {events.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground">No activity yet.</p>
+          ) : (
           <ul className="flex flex-col divide-y pr-3">
             {events.map((event) => {
               const id = eventId(event)
@@ -50,11 +55,12 @@ export function LiveActivity({
                       · {timeAgo(event.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm">{describeEvent(event, categories)}</p>
+                  <p className="text-sm">{describeEvent(event, categories, tickets)}</p>
                 </motion.li>
               )
             })}
           </ul>
+          )}
         </ScrollArea>
       </CardContent>
     </Card>
