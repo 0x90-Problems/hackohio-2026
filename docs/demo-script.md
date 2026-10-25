@@ -35,7 +35,7 @@ Present from the **live site**: https://hackohio-2026.vercel.app (it needs inter
 | 1:55 | Type **approve CLW-16** | It says agents can't approve tickets: "Even our own assistant can't close tickets. That's the human's job." |
 | 2:00 | Drag a Backlog card (e.g. CLW-13) to **In progress** | "Humans use the same board: drag and drop, custom columns, tags." |
 | 2:15 | Click the project name (**HackOHI/O build ⇅**), pick **Pitch & demo**, then open it again and pick **All projects** | "One team, many projects, each with its own board. Templates like Kanban or Bug tracker set up the columns for you." |
-| 2:35 | Open **Agents** | "And you control every agent here: what it may do, and a Revoke button that cuts it off right away." |
+| 2:35 | Open **Agents**, point at **your** Claude Code row and its **Revoke** button (don't click it: it would cut off the demo agent until the next reset) | "And you control your agents here: what each may do, and a Revoke button that cuts it off right away. Only the owner can revoke their own agent." |
 | 2:50 | Back to the board | "NutShell: let agents do the work, and keep humans in charge." |
 
 ## If something goes wrong

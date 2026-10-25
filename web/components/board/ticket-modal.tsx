@@ -19,6 +19,7 @@ import {
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { visibleAgentName } from "@/lib/agent-label"
+import { useBoardDirectory } from "@/lib/use-board-directory"
 import { listBoardUsers } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -167,10 +168,19 @@ function TicketDetail({
     }
   }, [])
   const account = useAuthUser()
+  // The signed-in person can always be picked, even before the directory loads
+  const reviewerOptions =
+    account && !people.some((person) => person._id === account._id)
+      ? [...people, { _id: account._id, name: account.name }]
+      : people
   const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
+  // Demo agents are in mock-data; real ones come from the live directory
+  const directory = useBoardDirectory()
   const agent =
-    creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
+    creator.type === ACTOR_TYPES.AGENT
+      ? (getAgent(creator.id) ?? directory.agents.find((a) => a._id === creator.id))
+      : undefined
   const named =
     creator.type === ACTOR_TYPES.AGENT
       ? visibleAgentName(creator.name, creator.id, agent?.name)
@@ -353,7 +363,7 @@ function TicketDetail({
               onChange={(event) => onReviewerChange(ticket.key, event.target.value)}
             >
               <option value="">None</option>
-              {people.map((user) => (
+              {reviewerOptions.map((user) => (
                 <option key={user._id} value={user._id}>
                   {user.name}
                 </option>

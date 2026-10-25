@@ -14,18 +14,14 @@ import { ticketHref } from "@/components/board/ticket-modal"
 import { FeedList, type FeedItem } from "@/components/feed-list"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 type Row =
   | (FeedItem & { kind: "pending"; ticket: Ticket })
   | (FeedItem & { kind: "comment"; comment: Comment })
 
-const commentId = (c: Comment) => `comment-${c.ticket_key}-${c.created_at.getTime()}`
+const commentId = (c: Comment) =>
+  `comment-${c.ticket_key}-${c.created_at.getTime()}`
 
 export function PendingFeed() {
   const account = useAuthUser()
@@ -33,12 +29,32 @@ export function PendingFeed() {
   const loading = useMockLoading()
   const pendingRows: Row[] = account
     ? store.tickets
-        .filter((ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && (!ticket.reviewer_id || ticket.reviewer_id === account._id))
-        .map((ticket) => ({ id: `pending-${ticket.key}`, kind: "pending", ticket }))
+        .filter(
+          (ticket) =>
+            ticket.status === TICKET_STATUS.IN_REVIEW &&
+            (!ticket.reviewer_id || ticket.reviewer_id === account._id)
+        )
+        // Tickets assigned to you first, then ones waiting for approval, newest first
+        .sort(
+          (a, b) =>
+            Number(b.reviewer_id === account._id) -
+              Number(a.reviewer_id === account._id) ||
+            Number(b.needs_approval) - Number(a.needs_approval) ||
+            b.created_at.getTime() - a.created_at.getTime()
+        )
+        .map((ticket) => ({
+          id: `pending-${ticket.key}`,
+          kind: "pending",
+          ticket,
+        }))
     : []
   const commentRows: Row[] = [...store.comments]
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
-    .map((comment) => ({ id: commentId(comment), kind: "comment" as const, comment }))
+    .map((comment) => ({
+      id: commentId(comment),
+      kind: "comment" as const,
+      comment,
+    }))
   const rows: Row[] = [...pendingRows, ...commentRows]
 
   return (
@@ -93,7 +109,11 @@ function CommentRow({ comment }: { comment: Comment }) {
       className="-mx-2 flex flex-col gap-1.5 rounded-lg px-2 py-3 transition-colors hover:bg-muted/60"
     >
       <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
-        <ActorBadge actor={comment.author} className="text-foreground" interactive={false} />
+        <ActorBadge
+          actor={comment.author}
+          className="text-foreground"
+          interactive={false}
+        />
         <span className="shrink-0">
           on {comment.ticket_key} · {timeAgo(comment.created_at)}
         </span>

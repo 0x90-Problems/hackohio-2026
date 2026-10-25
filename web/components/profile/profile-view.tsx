@@ -53,7 +53,6 @@ export function ProfileView({
   const { activity, tickets, comments } = useProjects()
   const directory = useBoardDirectory()
   const user = findUser(userId, account, directory.people)
-  const agents = agentsOf(userId, directory.agents)
   // The same event can arrive twice (saved locally and in MongoDB): count it once
   const { own, byAgents } = useMemo(() => {
     const seen = new Set<string>()
@@ -65,6 +64,25 @@ export function ProfileView({
     })
     return splitActivity(userId, unique)
   }, [userId, activity])
+  // Known agents, plus any that acted for this person but aren't listed yet
+  const agents = useMemo(() => {
+    const known = agentsOf(userId, directory.agents)
+    const seen = new Set(known.map((a) => a._id))
+    const extra: Agent[] = []
+    for (const e of byAgents) {
+      if (seen.has(e.actor.id)) continue
+      seen.add(e.actor.id)
+      extra.push({
+        _id: e.actor.id,
+        name: e.actor.name ?? "",
+        owner_id: userId,
+        connection: "" as Agent["connection"],
+        scopes: [],
+        revoked: false,
+      })
+    }
+    return [...known, ...extra]
+  }, [userId, directory.agents, byAgents])
 
   if (!user) {
     return (
@@ -317,7 +335,9 @@ function AgentTree({
                 <span className="text-xs text-muted-foreground">
                   {agent.connection === AGENT_CONNECTION.MCP
                     ? "via MCP"
-                    : "via API key"}
+                    : agent.connection === AGENT_CONNECTION.API_KEY
+                      ? "via API key"
+                      : ""}
                 </span>
                 {agent.revoked && <Badge variant="destructive">Revoked</Badge>}
               </div>

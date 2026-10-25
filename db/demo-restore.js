@@ -11,7 +11,7 @@
 // person's demo agent) are ever written or removed.
 import { connect } from "./connect.js";
 import { COLLECTIONS } from "../shared/names.ts";
-import { agents, comments, events, projects, tickets } from "./sample-data.js";
+import { agents, comments, events, projects, tickets, users } from "./sample-data.js";
 
 const KEY = "CLW";
 const DEMO_USER = "user_raddy";
@@ -45,15 +45,35 @@ try {
       if (value === DEMO_AGENT) return agentId;
       return value;
     }
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)]));
+    const swapped = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, swap(v)]));
+    // Actors carry their name, so the board shows it even before the live
+    // directory knows the demo agent
+    if ((swapped.type === "human" || swapped.type === "agent") && typeof swapped.id === "string") {
+      const name = names.get(swapped.id);
+      if (name) swapped.name = name;
+    }
+    return swapped;
   };
+  const names = new Map([
+    ...users.map((u) => [u._id, u.name]),
+    ...agents.map((a) => [a._id, a.name]),
+    [presenter._id, presenter.name],
+    [agentId, "Claude Code"],
+  ]);
+
+  // The agent's comment named the old demo reviewer
+  const clwComments = comments.map((c) =>
+    c.ticket_key === `${KEY}-16`
+      ? { ...c, body: c.body.replace("Ready for Raddy to approve.", "Ready for your approval.") }
+      : c
+  );
 
   const data = {
     [COLLECTIONS.PROJECTS]: projects.filter(isClw).map(swap),
     [COLLECTIONS.TICKETS]: tickets.filter(isClw).map(swap),
     // Comments and events need text ids, in the same form the app writes
     // (web/lib/board-docs.ts); projects and tickets use MongoDB's own
-    [COLLECTIONS.COMMENTS]: comments
+    [COLLECTIONS.COMMENTS]: clwComments
       .filter((c) => c.ticket_key.startsWith(`${KEY}-`))
       .map((c) => ({ _id: `${c.ticket_key}:${c.created_at.toISOString()}`, ...swap(c) })),
     [COLLECTIONS.EVENTS]: events
