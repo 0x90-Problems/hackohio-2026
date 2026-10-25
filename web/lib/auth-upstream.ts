@@ -40,7 +40,35 @@ export async function proxyAuth(
   if (contentType) responseHeaders.set("content-type", contentType)
   const retryAfter = upstream.headers.get("retry-after")
   if (retryAfter) responseHeaders.set("retry-after", retryAfter)
-  return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders })
+  const text = await upstream.text()
+  if (upstream.ok) await rememberDirectoryUser(text)
+  return new Response(text, { status: upstream.status, headers: responseHeaders })
+}
+
+async function rememberDirectoryUser(text: string) {
+  try {
+    const body = JSON.parse(text) as {
+      user?: { _id?: string; auth_username?: string; name?: string; role?: string; team?: string }
+    }
+    const user = body.user
+    if (!user?._id || !user.auth_username || !user.name || !user.team) return
+    const { getDb } = await import("@/lib/mongodb")
+    const db = await getDb()
+    await db.collection<{ _id: string }>("users").replaceOne(
+      { _id: user._id },
+      {
+        _id: user._id,
+        auth_username: user.auth_username,
+        name: user.name,
+        ...(user.role ? { role: user.role } : {}),
+        team: user.team,
+        type: "human",
+      },
+      { upsert: true }
+    )
+  } catch {
+    // Sign-in still succeeds when the directory user cannot be copied into Mongo.
+  }
 }
 
 function apiOrigin(): URL | null {

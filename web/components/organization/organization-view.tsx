@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment } from "react"
+import { Fragment, useEffect, useState } from "react"
 import {
   BotIcon,
   Building2Icon,
@@ -14,7 +14,7 @@ import { toast } from "sonner"
 import { DEFAULT_TOKEN_EXPIRY_HOURS } from "@/shared/names"
 import { TEAM, agents, users } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { usePersistentState } from "@/lib/local-store"
+import { loadSite, saveOrganization } from "@/lib/site-db"
 import { cn } from "@/lib/utils"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -55,13 +55,30 @@ const RULES = [
 ]
 
 export function OrganizationView() {
-  const [orgName, setOrgName] = usePersistentState("buck2.org-name", DEFAULT_ORG_NAME)
-  const [savedName, setSavedName] = usePersistentState("buck2.org-saved-name", DEFAULT_ORG_NAME)
-  const [expiry, setExpiry] = usePersistentState("buck2.org-expiry", String(DEFAULT_TOKEN_EXPIRY_HOURS))
-  const [rules, setRules] = usePersistentState<Record<string, boolean>>(
-    "buck2.org-rules",
+  const [orgName, setOrgName] = useState(DEFAULT_ORG_NAME)
+  const [savedName, setSavedName] = useState(DEFAULT_ORG_NAME)
+  const [expiry, setExpiry] = useState(String(DEFAULT_TOKEN_EXPIRY_HOURS))
+  const [rules, setRules] = useState<Record<string, boolean>>(
     Object.fromEntries(RULES.map((r) => [r.id, true]))
   )
+
+  useEffect(() => {
+    let cancelled = false
+    loadSite()
+      .then((site) => {
+        if (cancelled || !site.organization) return
+        setOrgName(site.organization.name)
+        setSavedName(site.organization.name)
+        setExpiry(String(site.organization.token_expiry_hours))
+        setRules((current) => ({ ...current, ...site.organization?.rules }))
+      })
+      .catch(() => {
+        toast.error("Couldn't load the organization from the database")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const account = useAuthUser()
   const myAgent = agents.find((a) => a.owner_id === account?._id && !a.revoked)
@@ -100,10 +117,20 @@ export function OrganizationView() {
     },
   ]
 
+  function persist(next: { name?: string; expiry?: string; rules?: Record<string, boolean> } = {}) {
+    saveOrganization({
+      name: (next.name ?? savedName).trim() || DEFAULT_ORG_NAME,
+      token_expiry_hours: Number(next.expiry ?? expiry),
+      rules: next.rules ?? rules,
+    })
+  }
+
   function saveName(e: React.FormEvent) {
     e.preventDefault()
-    if (!orgName.trim()) return
-    setSavedName(orgName.trim())
+    const name = orgName.trim()
+    if (!name) return
+    setSavedName(name)
+    persist({ name })
     toast.success("Organization name saved")
   }
 
@@ -210,6 +237,7 @@ export function OrganizationView() {
                 value={expiry}
                 onValueChange={(value) => {
                   setExpiry(value)
+                  persist({ expiry: value })
                   const label = EXPIRY_OPTIONS.find((o) => String(o.hours) === value)?.label
                   toast.success(`Tokens now expire after ${label}`, {
                     description: "Applies to new tokens.",
@@ -235,7 +263,9 @@ export function OrganizationView() {
                     id={rule.id}
                     checked={rules[rule.id]}
                     onCheckedChange={(on) => {
-                      setRules((r) => ({ ...r, [rule.id]: on === true }))
+                      const next = { ...rules, [rule.id]: on === true }
+                      setRules(next)
+                      persist({ rules: next })
                       toast(on === true ? "Rule turned on" : "Rule turned off", {
                         description: rule.label,
                       })

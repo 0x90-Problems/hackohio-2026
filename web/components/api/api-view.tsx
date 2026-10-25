@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
@@ -24,7 +24,7 @@ import {
   getUser,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { usePersistentState } from "@/lib/local-store"
+import { loadSite, saveApiKey } from "@/lib/site-db"
 import { timeAgo } from "@/lib/format"
 import { mcpInstall, mcpPublicUrl } from "@/lib/mcp-install"
 import { SCOPE_OPTIONS, makeToken, maskToken } from "@/lib/tokens"
@@ -65,6 +65,9 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   [MCP_TOOLS.ADD_COMMENT]: "Comment on a ticket",
   [MCP_TOOLS.LINK_COMMIT]: "Attach a git commit to a ticket",
   [MCP_TOOLS.WATCH_CHANGES]: "Get told when the board changes",
+  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List Nutshell board templates",
+  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's columns and starter tags",
+  [MCP_TOOLS.CREATE_PROJECT]: "Create a board from a template",
 }
 
 type Method = "GET" | "POST" | "PATCH"
@@ -75,6 +78,9 @@ const ENDPOINTS: { method: Method; path: string; description: string }[] = [
   { method: "POST", path: "/tickets/:key/comments", description: "Comment as a person or agent" },
   { method: "GET", path: "/events", description: "Live stream of board changes" },
   { method: "GET", path: "/agents", description: "List agents and their owners" },
+  { method: "GET", path: "/project-templates", description: "List board templates" },
+  { method: "GET", path: "/project-templates/:id", description: "Columns, starter tags, and preview copy for one template" },
+  { method: "POST", path: "/projects", description: "Create a board from a template" },
 ]
 
 // Neutral styles only: no red, blue or purple for HTTP methods.
@@ -114,8 +120,23 @@ async function copyText(text: string, what: string, description?: string) {
 }
 
 export function ApiView() {
-  const [keys, setKeys] = usePersistentState<ApiKey[]>("buck2.api-keys", initialKeys)
+  const [keys, setKeys] = useState<ApiKey[]>(initialKeys)
   const [newKeyName, setNewKeyName] = useState<string>()
+
+  useEffect(() => {
+    let cancelled = false
+    loadSite()
+      .then((site) => {
+        if (cancelled || site.apiKeys.length === 0) return
+        setKeys(site.apiKeys as ApiKey[])
+      })
+      .catch(() => {
+        toast.error("Couldn't load API keys from the database")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -261,6 +282,7 @@ export function ApiView() {
               onCreate={(key) => {
                 setKeys((current) => [key, ...current])
                 setNewKeyName(key.name)
+                saveApiKey(key)
               }}
             />
           </CardFooter>
