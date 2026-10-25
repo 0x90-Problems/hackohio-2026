@@ -1,4 +1,4 @@
-// NutShell — shared names
+// NutShell — shared names. The display name lives in web/lib/project-templates.json.
 // Every part of the app (frontend, backend, MCP server, auth) imports names
 // from this file instead of typing them by hand. If a name changes, change it
 // here only. Keep this file in sync with docs/schema.md.
@@ -137,4 +137,7 @@ export const MCP_TOOLS = {
   ADD_COMMENT: "add_comment",
   LINK_COMMIT: "link_commit",
   WATCH_CHANGES: "watch_changes",
+  LIST_PROJECT_TEMPLATES: "list_project_templates",
+  GET_PROJECT_TEMPLATE: "get_project_template",
+  CREATE_PROJECT: "create_project",
 } as const;

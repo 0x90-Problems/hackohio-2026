@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   ArrowRightIcon,
@@ -14,8 +14,8 @@ import { toast } from "sonner"
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Agent, User } from "@/lib/types"
 import { TEAM, agents, users } from "@/lib/mock-data"
-import { usePersistentState } from "@/lib/local-store"
 import { useProjects } from "@/components/projects/projects-store"
+import { loadSite, saveTeam, type SiteState } from "@/lib/site-db"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Button } from "@/components/ui/button"
@@ -52,11 +52,40 @@ function openTicketCount(userId: string, tickets: { status: string; created_by: 
   ).length
 }
 
-export function TeamsView() {
-  // Teams made with "+ New team". They stay after a refresh.
-  const [newTeams, setNewTeams] = usePersistentState<string[]>("buck2.teams", [])
+function directoryUser(user: SiteState["users"][number]): User {
+  return { ...user, type: ACTOR_TYPES.HUMAN }
+}
 
-  const members = users.filter((u) => u.team === TEAM)
+export function TeamsView() {
+  const [newTeams, setNewTeams] = useState<string[]>([])
+  const [directoryUsers, setDirectoryUsers] = useState<User[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    loadSite()
+      .then((site) => {
+        if (cancelled) return
+        if (site.teams.length > 0) setNewTeams(site.teams.map((team) => team.name))
+        setDirectoryUsers(site.users.map(directoryUser))
+      })
+      .catch(() => {
+        toast.error("Couldn't load teams from the database")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const people = [
+    ...users,
+    ...directoryUsers.filter(
+      (user) => !users.some((sample) => sample._id === user._id || sample.auth_username === user.auth_username)
+    ),
+  ]
+  const members = people.filter((u) => u.team === TEAM)
+  const extraTeamNames = [
+    ...new Set([...newTeams, ...people.filter((user) => user.team !== TEAM).map((user) => user.team)]),
+  ]
   const activeAgents = agents.filter(
     (a) => !a.revoked && members.some((m) => m._id === a.owner_id)
   )
@@ -74,6 +103,7 @@ export function TeamsView() {
         <NewTeamDialog
           onCreate={(name) => {
             setNewTeams((t) => [...t, name])
+            saveTeam(name)
             toast.success(`Created ${name}`, { description: "Now invite some people." })
           }}
         />
@@ -111,12 +141,41 @@ export function TeamsView() {
           </CardFooter>
         </Card>
 
-        {newTeams.map((name) => (
-          <EmptyTeamCard key={name} team={name} />
-        ))}
+        {extraTeamNames.map((name) => {
+          const teamMembers = people.filter((user) => user.team === name)
+          return teamMembers.length > 0 ? (
+            <TeamCard key={name} name={name} members={teamMembers} agents={agents} />
+          ) : (
+            <EmptyTeamCard key={name} team={name} />
+          )
+        })}
         <EmptyTeamCard team={TEAM} />
       </div>
     </main>
+  )
+}
+
+function TeamCard({ name, members, agents: teamAgents }: { name: string; members: User[]; agents: Agent[] }) {
+  const active = teamAgents.filter((agent) => !agent.revoked && members.some((member) => member._id === agent.owner_id))
+  return (
+    <Card>
+      <CardHeader className="border-b">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <UsersIcon className="size-4" aria-hidden="true" />
+          {name}
+        </CardTitle>
+        <CardAction className="text-sm text-muted-foreground">
+          {members.length} people · {active.length} agents
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col divide-y">
+          {members.map((user) => (
+            <MemberRow key={user._id} user={user} agent={active.find((agent) => agent.owner_id === user._id)} />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   )
 }
 
