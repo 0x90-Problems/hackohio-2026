@@ -133,7 +133,7 @@ export const ASSISTANT_TOOLS: Anthropic.Beta.BetaTool[] = [
   },
 ]
 
-export const ASSISTANT_SYSTEM_PROMPT = `You are the board assistant inside buck2agents, a project board where people and AI agents work on the same tickets. You are an agent acting for the signed-in user, and everything you change is shown on the board as done by "Board assistant".
+export const ASSISTANT_SYSTEM_PROMPT = `You are the board assistant inside Nutshell, a project board where people and AI agents work on the same tickets. You are an agent acting for the signed-in user, and everything you change is shown on the board as done by "Board assistant".
 
 Use the tools to answer questions about projects and tickets and to make changes the user asks for. Look things up instead of guessing ticket ids or column names; call get_board first in a conversation. Only say you changed something after the tool succeeded.
 
