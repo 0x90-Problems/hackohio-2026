@@ -1,31 +1,18 @@
-# shared/
+# shared
 
-One place for every name the whole team uses: token scopes, token claims,
-ticket statuses, actor types, event actions, database and collection names,
-and MCP tool names.
+The names Nutshell, the board API, and the MCP servers use for the same ideas. Scopes, ticket statuses, actor types, event actions, database and collection names, and MCP tool names live here.
 
-## Rule
-
-Never type one of these names by hand in your code. Import it:
+Import a constant instead of typing the string. A misspelled scope fails silently when it is a bare string. `SCOPES.TICKETS_WRITE` fails in the editor.
 
 ```ts
 import { SCOPES, TICKET_STATUS } from "@/shared/names";
-
-if (token.scopes.includes(SCOPES.TICKETS_WRITE)) { ... }
 ```
-
-A typo like `"ticket:write"` silently fails. `SCOPES.TICKET_WRITE` gets a red
-error in VS Code right away.
 
 ## Files
 
-- `names.ts` — the main file, for the Next.js app and the backend.
-- `names.json` — the same names for anything that isn't TypeScript.
+- `names.ts` is the TypeScript source for the Next.js app and the board API.
+- `names.json` is the same list for code that is not TypeScript.
 
-To change a name, edit both files, update `docs/schema.md`, and tell the team.
+Change a name in both files, then update [docs/schema.md](../docs/schema.md). The board API keeps its own `src/names.ts` and it has to stay aligned with this folder.
 
-## Still to confirm with Dylan
-
-- Are the scope names and status words final?
-- Do the MCP tool names match what the MCP server uses?
-- Token prefix `clw_` OK?
+Current scopes are `tickets:read`, `tickets:write`, `comments:write`, and `tickets:close`. Human tokens start with `usr_`. Agent tokens start with `clw_`. The default columns are `backlog`, `in_progress`, `in_review`, and `done`. The database name is `hackathon`.
