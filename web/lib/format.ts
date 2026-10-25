@@ -3,6 +3,18 @@ import type { Category, Event } from "@/lib/types"
 import { categoryName } from "@/lib/categories"
 import { tickets } from "@/lib/mock-data"
 
+const absoluteFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+})
+
+export function absoluteTime(date: Date) {
+  return absoluteFormat.format(date)
+}
+
 // "just now", "6 min", "2 h", "3 d".
 export function timeAgo(date: Date, now: Date = new Date()) {
   const minutes = Math.round((now.getTime() - date.getTime()) / 60_000)

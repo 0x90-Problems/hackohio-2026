@@ -51,7 +51,6 @@ export function ticketDoc(ticket: Ticket) {
     status: ticket.status,
     created_by: actor(ticket.created_by),
     ...(ticket.reviewer_id ? { reviewer_id: ticket.reviewer_id } : {}),
-    needs_approval: ticket.needs_approval,
     ...(ticket.linked_commits?.length ? { linked_commits: ticket.linked_commits } : {}),
     ...(ticket.owner_id ? { owner_id: ticket.owner_id } : {}),
     ...(ticket.due_date ? { due_date: ticket.due_date } : {}),

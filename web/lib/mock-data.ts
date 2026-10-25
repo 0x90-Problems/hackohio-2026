@@ -201,8 +201,7 @@ export const DEFAULT_PROJECT_KEY = "CLW"
 
 // ---------- tickets CLW-01 to CLW-16, PIT-01 to PIT-03 ----------
 
-type TicketInput = Omit<Ticket, "needs_approval" | "created_at" | "project_key"> & {
-  needs_approval?: boolean
+type TicketInput = Omit<Ticket, "created_at" | "project_key"> & {
   created: number
 }
 
@@ -225,7 +224,7 @@ export const tickets: Ticket[] = (
     // In review
     {
       key: "CLW-05", title: "MongoDB schema: tickets, agents", tags: ["Database"], status: IN_REVIEW,
-      created_by: agent("agent_raddy_claude"), reviewer_id: "user_dylan", needs_approval: true, created: 180,
+      created_by: agent("agent_raddy_claude"), reviewer_id: "user_dylan", created: 180,
       linked_commits: [{ sha: "abc1234", message: "Add tickets collection", added: 20, removed: 2 }],
     },
     {
@@ -255,7 +254,7 @@ export const tickets: Ticket[] = (
     // Raddy to approve it. Approving moves it to Done.
     {
       key: "CLW-16", title: "Search tickets by id, title or tag", tags: ["UI", "Search"], status: IN_REVIEW,
-      created_by: agent("agent_raddy_claude"), reviewer_id: "user_raddy", needs_approval: true, created: 42,
+      created_by: agent("agent_raddy_claude"), reviewer_id: "user_raddy", created: 42,
       linked_commits: [
         { sha: "3d1f8a0", message: "Add text index on ticket title and tags", added: 12, removed: 1 },
         { sha: "7e2b9c4", message: "Add combo search box to the board", added: 86, removed: 4 },
@@ -296,7 +295,6 @@ export const tickets: Ticket[] = (
     { key: "PIT-03", title: "Seed clean demo tickets", tags: ["Demo", "Data"], status: BACKLOG, created_by: agent("agent_raddy_claude"), created: 60 },
   ] satisfies TicketInput[]
 ).map(({ created, ...t }: TicketInput) => ({
-  needs_approval: false,
   ...t,
   project_key: projectKeyOf(t.key),
   created_at: minutesAgo(created),

@@ -304,6 +304,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
             router.push(ticketHref(ticket.key), { scroll: false })
           }
           onDueDateChange={store.setDueDate}
+          onDelete={store.deleteTicket}
         />
 
         {/* Kanban columns exist only on the board view. A table project does not mount them. */}
@@ -457,7 +458,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                 }}
                                 className="cursor-grab active:cursor-grabbing"
                               >
-                                <TicketCard ticket={ticket} />
+                                <TicketCard ticket={ticket} isNew={isNew} onDelete={store.deleteTicket} />
                               </div>
                             </motion.div>
                           )
@@ -562,8 +563,6 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         events={activity}
         newCommentIds={store.newCommentIds}
         onComment={store.comment}
-        onApprove={store.approve}
-        onRequestChanges={store.requestChanges}
         onMove={store.moveTicket}
         onTagsChange={store.setTags}
         onDescriptionChange={store.setDescription}

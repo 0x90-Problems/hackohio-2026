@@ -2,7 +2,6 @@
 
 import Link from "next/link"
 
-import { TICKET_STATUS } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { TEAM } from "@/lib/mock-data"
 import { useMockLoading } from "@/lib/use-mock-loading"
@@ -16,10 +15,7 @@ export function HomeWelcome() {
   const loading = useMockLoading()
   if (!account) return null
 
-  const toReview = store.tickets.filter(
-    (ticket) => ticket.status === TICKET_STATUS.IN_REVIEW && (!ticket.reviewer_id || ticket.reviewer_id === account._id)
-  ).length
-  const newComments = store.comments.length
+  const commentCount = store.comments.length
 
   return (
     <Card className="duration-300 animate-in fade-in">
@@ -32,10 +28,10 @@ export function HomeWelcome() {
         </h1>
         <p className="text-muted-foreground">
           {loading
-            ? "Checking what is waiting on you."
-            : toReview === 0 && newComments === 0
-            ? "Nothing is waiting on you yet."
-            : `${toReview} ${toReview === 1 ? "ticket needs" : "tickets need"} your review and ${newComments} ${newComments === 1 ? "comment is" : "comments are"} on the board.`}
+            ? "Loading the board."
+            : commentCount === 0
+              ? "No comments on the board yet."
+              : `${commentCount} ${commentCount === 1 ? "comment is" : "comments are"} on the board.`}
         </p>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="secondary">

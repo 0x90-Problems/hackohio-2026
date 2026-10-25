@@ -5,30 +5,29 @@ import type { Ticket } from "@/lib/types"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { cn } from "@/lib/utils"
 import { ActorBadge } from "@/components/actor-badge"
+import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { ticketHref } from "@/components/board/ticket-modal"
 import { Badge } from "@/components/ui/badge"
 
 // One card on the board. Agent-made tickets get a dashed border, so humans
-// and agents stay easy to tell apart at a glance.
+// and agents stay easy to tell apart at a glance. Delete sits beside the link
+// so it is on every card, including a bot's only card.
 export function TicketCard({
   ticket,
   isNew,
+  onDelete,
 }: {
   ticket: Ticket
   isNew?: boolean
+  onDelete: (ticketKey: string) => void
 }) {
   const byAgent = ticket.created_by.type === ACTOR_TYPES.AGENT
   return (
-    <Link
-      href={ticketHref(ticket.key)}
-      scroll={false}
-      // The wrapper on the board handles dragging, not the link itself
-      draggable={false}
+    <div
       className={cn(
-        "relative flex flex-col gap-2 rounded-xl border bg-card p-3 text-card-foreground shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+        "relative flex flex-col gap-2 rounded-xl border bg-card p-3 text-card-foreground shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
         ticket.card_color && CATEGORY_COLORS[ticket.card_color].card,
         byAgent && "border-transparent",
-        ticket.needs_approval && "pl-4",
         isNew && "animate-in duration-300 zoom-in-95 fade-in"
       )}
     >
@@ -45,30 +44,32 @@ export function TicketCard({
           aria-hidden="true"
         />
       )}
-      {/* Solid bar on the left marks a ticket waiting for a human to approve */}
-      {ticket.needs_approval && (
-        <span
-          className="absolute inset-y-2 left-1.5 w-1 rounded-full bg-foreground"
-          aria-hidden
-        />
-      )}
-      <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
-        <span>{ticket.key}</span>
-      </div>
-      <p className="text-sm leading-snug font-semibold">{ticket.title}</p>
-      {!!ticket.tags?.length && (
-        <div className="flex flex-wrap gap-1">
-          {ticket.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="font-normal">
-              {tag}
-            </Badge>
-          ))}
+      <Link
+        href={ticketHref(ticket.key)}
+        scroll={false}
+        draggable={false}
+        className="flex flex-col gap-2 pr-16 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+      >
+        <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
+          <span>{ticket.key}</span>
         </div>
-      )}
-      <ActorBadge actor={ticket.created_by} />
-      {ticket.needs_approval && (
-        <p className="text-xs font-semibold">Needs human approval</p>
-      )}
-    </Link>
+        <p className="text-sm leading-snug font-semibold">{ticket.title}</p>
+        {!!ticket.tags?.length && (
+          <div className="flex flex-wrap gap-1">
+            {ticket.tags.map((tag) => (
+              <Badge key={tag} variant="secondary" className="font-normal">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <ActorBadge actor={ticket.created_by} interactive={false} />
+      </Link>
+      <DeleteCardButton
+        ticketKey={ticket.key}
+        onDelete={onDelete}
+        className="absolute top-2 right-2 z-10"
+      />
+    </div>
   )
 }

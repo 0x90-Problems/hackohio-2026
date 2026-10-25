@@ -65,23 +65,33 @@ export function removeProject(key: string) {
     .catch(report)
 }
 
-export function removeTicketRecord(key: string) {
-  return fetch("/api/board", {
+export async function removeTicketRecord(key: string) {
+  const response = await fetch("/api/board", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ kind: "deleteTicket", key }),
   })
-    .then(async (response) => {
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
-        throw new Error(body?.error?.message ?? "Could not delete the ticket")
-      }
-    })
-    .catch(report)
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? "Could not delete the ticket")
+  }
+}
+
+function ticketPayload(ticket: Ticket) {
+  const record = { ...ticket } as Ticket & Record<string, unknown>
+  delete record.needs_approval
+  delete record.approved_by
+  delete record.approved_at
+  return record
 }
 
 export function saveTicket(ticket: Ticket) {
-  void save("ticket", ticket).catch(report)
+  void save("ticket", ticketPayload(ticket)).catch(report)
+}
+
+// Description edits report their own single error after typing settles.
+export function saveTicketQuiet(ticket: Ticket): Promise<void> {
+  return save("ticket", ticketPayload(ticket))
 }
 
 export function saveComment(comment: Comment) {

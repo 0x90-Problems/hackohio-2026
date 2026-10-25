@@ -76,6 +76,7 @@ export function ChatDock() {
   const toolContext = (): ToolContext => ({
     store: storeRef.current,
     currentProjectKey,
+    ...(account && { user: { id: account._id, name: account.name } }),
   })
 
   // Ask the server once whether the AI is available
@@ -115,7 +116,7 @@ export function ChatDock() {
     try {
       if (ai) await askModel(question)
       else {
-        const reply = offlineReply(question, toolContext())
+        const reply = await offlineReply(question, toolContext())
         addMessage({ role: "assistant", ...reply })
       }
     } finally {
@@ -207,9 +208,9 @@ export function ChatDock() {
       if (final.stop_reason !== "tool_use" || toolCalls.length === 0) return
 
       // Run every tool call, then send all results back in one message
-      const results: { toolResult: ToolResultBlock }[] = toolCalls.map(
-        (call) => {
-          const outcome = runTool(call.name ?? "", call.input, toolContext())
+      const results: { toolResult: ToolResultBlock }[] = await Promise.all(toolCalls.map(
+        async (call) => {
+          const outcome = await runTool(call.name ?? "", call.input, toolContext())
           if (outcome.action) {
             updateMessage(replyId, (m) => ({
               ...m,
@@ -223,8 +224,8 @@ export function ChatDock() {
               status: outcome.isError ? "error" : "success",
             },
           }
-        }
-      )
+        },
+      ))
       history.current.push({ role: "user", content: results })
       // Separate what the assistant says after using its tools
       updateMessage(replyId, (m) => ({

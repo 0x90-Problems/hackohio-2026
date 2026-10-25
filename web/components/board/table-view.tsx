@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { ChevronRightIcon } from "@/components/icons"
 import { ColorDot } from "@/components/board/category-dialogs"
+import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import type { Category, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -15,11 +16,13 @@ export function TableView({
   categories,
   fields,
   onOpenTicket,
+  onDelete,
 }: {
   tickets: Ticket[]
   categories: Category[]
   fields: string[]
   onOpenTicket: (ticket: Ticket) => void
+  onDelete: (ticketKey: string) => void
 }) {
   const [closed, setClosed] = useState<Record<string, boolean>>({})
   const known = new Set(categories.map((category) => category.slug))
@@ -84,13 +87,16 @@ export function TableView({
                           {field}
                         </th>
                       ))}
+                      <th className="w-16 px-4 py-2 font-medium">
+                        <span className="sr-only">Delete</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {group.tickets.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={2 + fields.length}
+                          colSpan={3 + fields.length}
                           className="px-4 py-3 text-muted-foreground"
                         >
                           No tickets
@@ -138,6 +144,9 @@ export function TableView({
                               </td>
                             )
                           })}
+                          <td className="px-4 py-3 align-top">
+                            <DeleteCardButton ticketKey={ticket.key} onDelete={onDelete} />
+                          </td>
                         </tr>
                       ))
                     )}

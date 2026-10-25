@@ -93,7 +93,6 @@ export type Ticket = {
   status: string
   created_by: Actor
   reviewer_id?: string
-  needs_approval: boolean
   linked_commits?: LinkedCommit[]
   owner_id?: string
   due_date?: string

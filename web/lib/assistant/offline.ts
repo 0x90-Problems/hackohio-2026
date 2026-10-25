@@ -22,7 +22,7 @@ const EXAMPLES = [
 
 const TICKET_KEY = /\b([a-z][a-z0-9]{1,5}-\d+)\b/i
 
-export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
+export async function offlineReply(message: string, ctx: ToolContext): Promise<OfflineReply> {
   const text = message.trim()
   const lower = text.toLowerCase()
   const keyMatch = text.match(TICKET_KEY)
@@ -31,12 +31,17 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
   const categories = ctx.store.categoriesOf(project)
   const tickets = ctx.store.getTickets()
 
-  // "approve CLW-16": agents can't, by design
   if (/\b(approve|close)\b/.test(lower) && ticketKey) {
-    return {
-      text: `I can't approve ${ticketKey}: agents never close tickets on their own. Open it and click Approve, and it moves to Done.`,
-      actions: [{ label: `Open ${ticketKey}`, ticketKey }],
-    }
+    const outcome = await runTool(
+      "move_ticket",
+      { ticket_key: ticketKey, status: TICKET_STATUS.DONE },
+      ctx
+    )
+    if (outcome.isError)
+      return { text: (outcome.result as { error: string }).error, actions: [] }
+    if (!outcome.action)
+      return { text: `${ticketKey} is already in Done.`, actions: [] }
+    return { text: `Done. I moved ${ticketKey} to Done.`, actions: [outcome.action] }
   }
 
   // "comment on CLW-05: looks good"
@@ -44,7 +49,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
     /comment on\s+([a-z][a-z0-9]{1,5}-\d+)\s*[:,-]?\s*(.+)/i
   )
   if (commentMatch) {
-    const outcome = runTool(
+    const outcome = await runTool(
       "add_comment",
       { ticket_key: commentMatch[1], body: commentMatch[2] },
       ctx
@@ -84,7 +89,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
         actions: [],
       }
     }
-    const outcome = runTool(
+    const outcome = await runTool(
       "move_ticket",
       { ticket_key: key, status: target.slug },
       ctx
@@ -109,7 +114,7 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
   if (createMatch && createMatch[1].trim()) {
     const raw = createMatch[1].replace(/[.!?]+$/, "").trim()
     const title = raw.charAt(0).toUpperCase() + raw.slice(1)
-    const outcome = runTool(
+    const outcome = await runTool(
       "create_ticket",
       { project_key: project, title, status: categories[0].slug, tags: [] },
       ctx
@@ -144,14 +149,13 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
 
   // "summarize CLW-16" / any message with a ticket id
   if (ticketKey) {
-    const outcome = runTool("get_ticket", { ticket_key: ticketKey }, ctx)
+    const outcome = await runTool("get_ticket", { ticket_key: ticketKey }, ctx)
     if (outcome.isError)
       return { text: (outcome.result as { error: string }).error, actions: [] }
     const t = outcome.result as {
       title: string
       column: string
       tags: string[]
-      needs_approval: boolean
       created_by: { type: string }
       linked_commits: unknown[]
       comments: { body: string }[]
@@ -164,7 +168,6 @@ export function offlineReply(message: string, ctx: ToolContext): OfflineReply {
       t.linked_commits.length
         ? `${t.linked_commits.length} linked commit(s).`
         : "",
-      t.needs_approval ? "It needs a human to approve it." : "",
       t.comments.length ? `Latest comment: "${t.comments.at(-1)!.body}"` : "",
     ]
     return {

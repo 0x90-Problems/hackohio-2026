@@ -5,7 +5,7 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
   { scope: SCOPES.TICKETS_READ, label: "Read tickets" },
   { scope: SCOPES.TICKETS_WRITE, label: "Create and move tickets" },
   { scope: SCOPES.COMMENTS_WRITE, label: "Comment" },
-  { scope: SCOPES.TICKETS_CLOSE, label: "Close tickets (needs approval)" },
+  { scope: SCOPES.TICKETS_CLOSE, label: "Close tickets" },
 ]
 
 // Mock token/key. The real one will come from the backend, which stores only its hash.

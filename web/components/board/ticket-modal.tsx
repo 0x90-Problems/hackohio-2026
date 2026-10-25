@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
-import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
+import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS } from "@/shared/names"
 import type { Category, Comment, Event, Ticket } from "@/lib/types"
 import {
   CATEGORY_COLORS,
@@ -20,13 +20,13 @@ import {
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { visibleAgentName } from "@/lib/agent-label"
 import { listBoardUsers } from "@/lib/connect-agent"
-import { timeAgo } from "@/lib/format"
+import { absoluteTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
-import { ChangeHistory } from "@/components/board/change-history"
+import { ChangeHistory, versionForComment, withCommentEvents } from "@/components/board/change-history"
+import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { TagInput } from "@/components/board/tag-input"
 import { ScopeBadge } from "@/components/scope-badge"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -34,7 +34,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -48,11 +47,9 @@ const CONNECTION_LABELS = {
 
 export type TicketActions = {
   onComment: (ticketKey: string, body: string) => void
-  onApprove: (ticketKey: string) => void
-  onRequestChanges: (ticketKey: string) => void
   onMove: (ticketKey: string, status: string) => void
   onTagsChange: (ticketKey: string, tags: string[]) => void
-  onDescriptionChange: (ticketKey: string, description: string) => void
+  onDescriptionChange: (ticketKey: string, description: string, commit?: boolean) => void
   onColorChange: (ticketKey: string, color?: CategoryColor) => void
   onDueDateChange: (ticketKey: string, dueDate: string) => void
   onReviewerChange: (ticketKey: string, reviewerId: string) => void
@@ -129,8 +126,6 @@ function TicketDetail({
   events,
   newCommentIds,
   onComment,
-  onApprove,
-  onRequestChanges,
   onMove,
   onTagsChange,
   onDescriptionChange,
@@ -166,7 +161,6 @@ function TicketDetail({
     }
   }, [])
   const account = useAuthUser()
-  const inReview = ticket.status === TICKET_STATUS.IN_REVIEW
   const creator = ticket.created_by
   const agent =
     creator.type === ACTOR_TYPES.AGENT ? getAgent(creator.id) : undefined
@@ -181,9 +175,6 @@ function TicketDetail({
     creator.type === ACTOR_TYPES.AGENT
       ? (creator.acting_for === account?._id ? account.name : owner?.name)
       : undefined
-  const creatorId = creator.type === ACTOR_TYPES.AGENT ? creator.acting_for : creator.id
-  const ownTicket = account?._id === creatorId
-  const canDelete = account?.admin === true || ownTicket
   // Scopes come from the agent's current token: not revoked and not expired.
   const token = agent
     ? agentTokens.find(
@@ -198,12 +189,6 @@ function TicketDetail({
     if (!draft.trim()) return
     onComment(ticket.key, draft.trim())
     setDraft("")
-  }
-
-  function requestChanges() {
-    // Anything typed in the box goes along as the reason.
-    if (draft.trim()) postComment()
-    onRequestChanges(ticket.key)
   }
 
   return (
@@ -225,17 +210,13 @@ function TicketDetail({
               if (status !== ticket.status) onMove(ticket.key, status)
             }}
           >
-            {categories
-              .filter((c) => c.slug === ticket.status || c.slug !== TICKET_STATUS.DONE || !ticket.needs_approval)
-              .map((c) => (
-                <option key={c.slug} value={c.slug}>
-                  {c.name}
-                </option>
-              ))}
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
           </select>
-          {ticket.needs_approval && (
-            <Badge variant="outline">Needs human approval</Badge>
-          )}
+          <DeleteCardButton ticketKey={ticket.key} onDelete={onDelete} labeled />
         </div>
       </DialogHeader>
 
@@ -247,6 +228,7 @@ function TicketDetail({
             className="min-h-24 resize-y"
             value={ticket.description ?? ""}
             onChange={(e) => onDescriptionChange(ticket.key, e.target.value)}
+            onBlur={(e) => onDescriptionChange(ticket.key, e.target.value, true)}
             placeholder="Add a description…"
           />
         </section>
@@ -378,22 +360,7 @@ function TicketDetail({
           <h3 className="flex items-center gap-1.5 font-mono text-xs tracking-widest text-muted-foreground uppercase">
             <HistoryIcon className="size-3.5" aria-hidden /> Change history
           </h3>
-          <ChangeHistory
-            events={[
-              ...events,
-              ...comments
-                .filter((comment) => !events.some((event) => event.action === EVENT_ACTIONS.COMMENT_ADDED && event.details?.body === comment.body))
-                .map((comment) => ({
-                  action: EVENT_ACTIONS.COMMENT_ADDED,
-                  ticket_key: comment.ticket_key,
-                  project_key: comment.ticket_key.split("-")[0] ?? "",
-                  actor: comment.author,
-                  details: { body: comment.body },
-                  created_at: comment.created_at,
-                })),
-            ]}
-            categories={categories}
-          />
+          <ChangeHistory events={withCommentEvents(events, comments)} />
         </section>
 
         <Separator />
@@ -427,7 +394,7 @@ function TicketDetail({
                       className="text-xs text-foreground"
                     />
                     <span className="shrink-0">
-                      {timeAgo(comment.created_at)}
+                      v{versionForComment(withCommentEvents(events, comments), comment) ?? "–"} · {absoluteTime(comment.created_at)}
                     </span>
                   </div>
                   <p className="text-sm">{comment.body}</p>
@@ -495,30 +462,6 @@ function TicketDetail({
         )}
       </aside>
 
-      <DialogFooter className="sticky bottom-0 grid grid-cols-2 gap-3 border-t bg-popover p-6 sm:grid-cols-2 md:col-span-2">
-        {canDelete ? (
-          <Button
-            variant="destructive"
-            className="col-span-2"
-            onClick={() => {
-              if (window.confirm(`Delete ${ticket.key}? This cannot be undone.`)) onDelete(ticket.key)
-            }}
-          >
-            Delete
-          </Button>
-        ) : null}
-        <Button disabled={!inReview || ownTicket} onClick={() => onApprove(ticket.key)}>
-          Approve
-        </Button>
-        <Button variant="outline" disabled={!inReview} onClick={requestChanges}>
-          Request changes
-        </Button>
-        {!inReview && (
-          <p className="col-span-2 text-center text-xs text-muted-foreground">
-            Approve and Request changes work once the ticket is In review.
-          </p>
-        )}
-      </DialogFooter>
     </div>
   )
 }

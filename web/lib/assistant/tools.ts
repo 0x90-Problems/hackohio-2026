@@ -2,7 +2,7 @@
 // definitions to the model on Bedrock; the browser runs them against projects-store, so the
 // assistant changes the same data the board shows. The offline assistant
 // (./offline.ts) calls runTool directly.
-import { ACTOR_TYPES, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
+import { ACTOR_TYPES, EVENT_ACTIONS } from "@/shared/names"
 import type {
   Actor,
   Category,
@@ -19,10 +19,14 @@ import {
 import { categoryName } from "@/lib/categories"
 
 // Everything the assistant acts as: an agent acting for the signed-in person
-export const ASSISTANT_ACTOR: Actor = {
-  type: ACTOR_TYPES.AGENT,
-  id: ASSISTANT_AGENT_ID,
-  acting_for: CURRENT_USER_ID,
+// (the demo user when nobody is signed in)
+export function assistantActor(ctx: ToolContext): Actor {
+  return {
+    type: ACTOR_TYPES.AGENT,
+    id: ASSISTANT_AGENT_ID,
+    name: "Nutty",
+    acting_for: ctx.user?.id ?? CURRENT_USER_ID,
+  }
 }
 
 // The slice of projects-store the tools need
@@ -36,12 +40,17 @@ export type AssistantStore = {
     projectKey: string,
     input: { title: string; status: string; tags: string[] },
     actor: Actor
-  ) => string
+  ) => Promise<string>
   moveTicket: (ticketKey: string, to: string, actor: Actor) => void
   comment: (ticketKey: string, body: string, actor: Actor) => void
 }
 
-export type ToolContext = { store: AssistantStore; currentProjectKey: string }
+export type ToolContext = {
+  store: AssistantStore
+  currentProjectKey: string
+  // The person the assistant acts for
+  user?: { id: string; name: string }
+}
 
 // What the chat shows under a reply, e.g. "Moved CLW-12 → In progress"
 export type ToolAction = { label: string; ticketKey?: string }
@@ -135,7 +144,7 @@ export const ASSISTANT_SYSTEM_PROMPT = `You are Nutty, the friendly assistant in
 
 Use the tools to answer questions about projects and tickets and to make changes the user asks for. Look things up instead of guessing ticket ids or column names; call get_board first in a conversation. Only say you changed something after the tool succeeded.
 
-You can't approve tickets or move them to Done: a human has to click Approve on the ticket. When asked, explain that and point to the ticket.
+You can move a ticket to any column, including Done. A delete removes only that one card.
 
 Be warm and lightly playful (an occasional nut pun is fine), but keep it professional. Reply in plain text (no markdown headings or tables), in one to four short sentences. Mention ticket ids like CLW-16 so the user can open them; never write links or URLs, since you don't know the board's address.`
 
@@ -147,13 +156,6 @@ const isText = (value: unknown): value is string =>
   typeof value === "string" && value.trim() !== ""
 const projectKeyOf = (ticketKey: string) => ticketKey.split("-")[0]
 
-// The done column a human must approve into: "done", else the last column
-function doneSlug(categories: Category[]) {
-  return categories.some((c) => c.slug === TICKET_STATUS.DONE)
-    ? TICKET_STATUS.DONE
-    : categories.at(-1)?.slug
-}
-
 function describeTicket(t: Ticket, categories: Category[]) {
   return {
     key: t.key,
@@ -163,17 +165,16 @@ function describeTicket(t: Ticket, categories: Category[]) {
     tags: t.tags ?? [],
     created_by: t.created_by,
     reviewer_id: t.reviewer_id ?? null,
-    needs_approval: t.needs_approval,
   }
 }
 
 // Runs one tool call against the store. Inputs come from the model (or the
 // offline parser), so every field is checked before use.
-export function runTool(
+export async function runTool(
   name: string,
   input: unknown,
   ctx: ToolContext
-): ToolOutcome {
+): Promise<ToolOutcome> {
   const { store } = ctx
   const args = (input && typeof input === "object" ? input : {}) as Record<
     string,
@@ -188,7 +189,7 @@ export function runTool(
     case "get_board":
       return {
         result: {
-          current_user: { id: CURRENT_USER_ID, name: currentUser.name },
+          current_user: ctx.user ?? { id: CURRENT_USER_ID, name: currentUser.name },
           current_project: ctx.currentProjectKey,
           projects: store.projects.map((p) => ({
             key: p.key,
@@ -257,10 +258,10 @@ export function runTool(
         ? args.tags.filter(isText).map((t) => t.trim())
         : []
       const title = args.title.trim().slice(0, 200)
-      const ticketKey = store.createTicket(
+      const ticketKey = await store.createTicket(
         key,
         { title, status, tags },
-        ASSISTANT_ACTOR
+        assistantActor(ctx)
       )
       return {
         result: {
@@ -278,14 +279,9 @@ export function runTool(
       const target = categories.find((c) => c.slug === args.status)
       if (!target)
         return fail(`No column "${args.status}". Use a slug from get_board.`)
-      if (target.slug === doneSlug(categories)) {
-        return fail(
-          "Agents can't move tickets to Done. A human has to click Approve on the ticket."
-        )
-      }
       if (ticket.status === target.slug)
         return { result: { unchanged: true, column: target.name } }
-      store.moveTicket(ticket.key, target.slug, ASSISTANT_ACTOR)
+      store.moveTicket(ticket.key, target.slug, assistantActor(ctx))
       return {
         result: { moved: ticket.key, column: target.name },
         action: {
@@ -302,7 +298,7 @@ export function runTool(
       store.comment(
         ticket.key,
         args.body.trim().slice(0, 2000),
-        ASSISTANT_ACTOR
+        assistantActor(ctx)
       )
       return {
         result: { commented: ticket.key },

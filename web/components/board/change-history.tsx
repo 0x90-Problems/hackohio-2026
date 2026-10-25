@@ -1,51 +1,89 @@
 import { motion } from "motion/react"
 
 import { EVENT_ACTIONS } from "@/shared/names"
-import type { Category, Event } from "@/lib/types"
-import { categoryName } from "@/lib/categories"
-import { eventId, timeAgo } from "@/lib/format"
+import type { Comment, Event } from "@/lib/types"
+import { eventId } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import { ActorBadge } from "@/components/actor-badge"
+import { useShortActorName } from "@/components/actor-badge"
 
-// What each version of a card changed, in a few words
-function describeChange(event: Event, categories: Category[]) {
-  const to = event.details?.to
-  switch (event.action) {
+function actionWord(action: Event["action"]): string {
+  switch (action) {
     case EVENT_ACTIONS.TICKET_CREATED:
-      return "Card created"
+      return "created"
     case EVENT_ACTIONS.TICKET_MOVED:
-      return to ? `Status → ${categoryName(to, categories)}` : "Moved"
-    case EVENT_ACTIONS.COMMIT_LINKED:
-      return `Linked commit ${event.details?.sha ?? ""}`
     case EVENT_ACTIONS.TICKET_CLOSED:
-      return to ? `Approved → ${categoryName(to, categories)}` : "Approved"
+      return "moved"
     case EVENT_ACTIONS.COMMENT_ADDED:
-      return event.details?.body ? `Comment: ${event.details.body}` : "Comment added"
+      return "commented"
     case EVENT_ACTIONS.TICKET_UPDATED:
-      return event.details?.body ?? "Edited"
+      return "edited"
     case EVENT_ACTIONS.TICKET_DELETED:
-      return "Deleted"
+      return "deleted"
+    case EVENT_ACTIONS.COMMIT_LINKED:
+      return "linked"
     default:
-      return event.details?.body ?? "Changed"
+      return "changed"
   }
 }
 
-// "Change history" from the Ticket detail wireframe: every change to the card
-// as a numbered version (v1 = created), newest first, like commits in Git.
-// Built from the events collection, so nothing extra is stored.
-export function ChangeHistory({
-  events,
-  categories,
-}: {
-  events: Event[]
-  categories: Category[]
-}) {
-  // Comments have their own section, so they aren't versions of the card
-  const versions = events
-    .filter((e) => e.action !== EVENT_ACTIONS.COMMENT_ADDED || Boolean(e.details?.body))
+// Oldest change is v1. Comments without a body are not versions.
+export function numberedCardHistory(events: Event[]) {
+  return events
+    .filter((event) => event.action !== EVENT_ACTIONS.COMMENT_ADDED || Boolean(event.details?.body))
     .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())
-    .map((event, i) => ({ event, version: i + 1 }))
-    .reverse()
+    .map((event, index) => ({ event, version: index + 1 }))
+}
+
+export function withCommentEvents(events: Event[], comments: Comment[]): Event[] {
+  const extras = comments
+    .filter(
+      (comment) =>
+        !events.some(
+          (event) =>
+            event.action === EVENT_ACTIONS.COMMENT_ADDED &&
+            event.details?.body === comment.body &&
+            event.created_at.getTime() === comment.created_at.getTime()
+        )
+    )
+    .map(
+      (comment): Event => ({
+        action: EVENT_ACTIONS.COMMENT_ADDED,
+        ticket_key: comment.ticket_key,
+        project_key: comment.ticket_key.split("-")[0] ?? "",
+        actor: comment.author,
+        details: { body: comment.body },
+        created_at: comment.created_at,
+      })
+    )
+  return [...events, ...extras]
+}
+
+export function versionForComment(events: Event[], comment: Comment): number | undefined {
+  return numberedCardHistory(events).find(
+    ({ event }) =>
+      event.action === EVENT_ACTIONS.COMMENT_ADDED &&
+      event.details?.body === comment.body &&
+      event.created_at.getTime() === comment.created_at.getTime()
+  )?.version
+}
+
+function HistoryLine({ event, version }: { event: Event; version: number }) {
+  const name = useShortActorName(event.actor)
+  const comment = event.action === EVENT_ACTIONS.COMMENT_ADDED
+  return (
+    <span className="text-sm">
+      {name} <span className="text-muted-foreground">[{actionWord(event.action)}]</span>
+      {!comment && (
+        <span className="ml-2 font-mono text-xs text-muted-foreground">v{version}</span>
+      )}
+    </span>
+  )
+}
+
+// One short row per change. Comment text, the long actor badge, and the
+// timestamp stay with the comment. Other rows keep a single version number.
+export function ChangeHistory({ events }: { events: Event[] }) {
+  const versions = numberedCardHistory(events).reverse()
 
   if (versions.length === 0) {
     return <p className="text-sm text-muted-foreground">No changes yet.</p>
@@ -53,9 +91,9 @@ export function ChangeHistory({
 
   return (
     <ol className="flex flex-col">
-      {versions.map(({ event, version }, i) => {
-        const latest = i === 0
-        const last = i === versions.length - 1
+      {versions.map(({ event, version }, index) => {
+        const latest = index === 0
+        const last = index === versions.length - 1
         return (
           <motion.li
             key={eventId(event)}
@@ -63,36 +101,17 @@ export function ChangeHistory({
             initial={false}
             className="relative flex gap-3 pb-4 last:pb-0"
           >
-            {/* Timeline: a dot per version joined by a line */}
-            <span
-              className="relative flex w-3 shrink-0 justify-center"
-              aria-hidden
-            >
+            <span className="relative flex w-3 shrink-0 justify-center" aria-hidden>
               <span
                 className={cn(
                   "mt-1 size-3 rounded-full border-2 bg-background",
-                  latest
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground/60",
+                  latest ? "border-primary bg-primary" : "border-muted-foreground/60",
                   version === 1 && "border-foreground bg-foreground"
                 )}
               />
-              {!last && (
-                <span className="absolute top-4 -bottom-1 w-px bg-border" />
-              )}
+              {!last && <span className="absolute top-4 -bottom-1 w-px bg-border" />}
             </span>
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="font-mono text-xs text-muted-foreground">
-                v{version} · {timeAgo(event.created_at)}
-              </span>
-              <span className="text-sm">
-                {describeChange(event, categories)}
-              </span>
-              <ActorBadge
-                actor={event.actor}
-                className="text-xs text-muted-foreground"
-              />
-            </div>
+            <HistoryLine event={event} version={version} />
           </motion.li>
         )
       })}

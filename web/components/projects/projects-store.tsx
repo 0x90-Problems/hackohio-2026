@@ -4,9 +4,10 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
 
-import { ACTOR_TYPES, EVENT_ACTIONS, TICKET_STATUS } from "@/shared/names"
+import { ACTOR_TYPES, EVENT_ACTIONS } from "@/shared/names"
 import type {
   Actor,
+  Agent,
   Category,
   Comment,
   Event,
@@ -22,7 +23,7 @@ import {
   projects as allProjects,
   tickets as allTickets,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket } from "@/lib/board-db"
+import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
@@ -44,6 +45,16 @@ export { projectKeyOf }
 
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
+
+// Wait until typing pauses before writing the description. A burst of
+// keystrokes stays one save and one change-history version.
+const DESCRIPTION_PAUSE_MS = 700
+
+function reportDescriptionSave(error: unknown) {
+  toast.error("Couldn't save to the database", {
+    description: error instanceof Error ? error.message : undefined,
+  })
+}
 
 const BOARD_KEY = "buck2.board"
 
@@ -74,14 +85,20 @@ function useProjectsState() {
   // Always-current copy, so several actions in a row (like the assistant
   // creating two tickets at once) see each other's changes.
   const ticketsRef = useRef(tickets)
+  const gone = useRef(new Set<string>())
   function setTickets(update: (current: Ticket[]) => Ticket[]) {
     ticketsRef.current = update(ticketsRef.current)
     setTicketsState(ticketsRef.current)
   }
+  // Description text before this typing burst. One in-flight save per ticket.
+  const descriptionBaseline = useRef(new Map<string, string>())
+  const descriptionTimers = useRef(new Map<string, number>())
+  const descriptionChain = useRef(new Map<string, Promise<void>>())
   const [activity, setActivity] = useState<Event[]>(() =>
     [...allEvents].sort(newestFirst)
   )
   const [comments, setComments] = useState<Comment[]>(allComments)
+  const [boardAgents, setBoardAgents] = useState<Agent[]>([])
   // Remember what arrived after the page loaded, so only those animate in.
   const [newEventIds, setNewEventIds] = useState<Set<string>>(new Set())
   const [newTicketKeys, setNewTicketKeys] = useState<Set<string>>(new Set())
@@ -138,6 +155,7 @@ function useProjectsState() {
       setTicketsState(tickets)
       setComments(comments)
       setActivity(activity)
+      setBoardAgents(remote.agents ?? [])
       const latest = Math.max(
         0,
         ...projects.map((item) => item.created_at.getTime()),
@@ -160,6 +178,81 @@ function useProjectsState() {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!ready) return
+    let cancelled = false
+    async function refresh() {
+      try {
+        const remote = await loadBoard()
+        if (cancelled) return
+        setProjects((current) => {
+          const known = new Set(current.map((project) => project.key))
+          const added = remote.projects.filter((project) => !known.has(project.key)).map(withTemplateShape)
+          return added.length > 0 ? [...current, ...added] : current
+        })
+        setTickets((current) => {
+          const visible = current.filter((ticket) => !gone.current.has(ticket.key))
+          const known = new Set(visible.map((ticket) => ticket.key))
+          let changed = visible.length !== current.length
+          const next = visible.map((ticket) => {
+            const incoming = remote.tickets.find((item) => item.key === ticket.key)
+            if (!incoming) return ticket
+            const linked = [...(ticket.linked_commits ?? [])]
+            const seen = new Set(linked.map((commit) => commit.sha))
+            for (const commit of incoming.linked_commits ?? []) {
+              if (seen.has(commit.sha)) continue
+              linked.push(commit)
+              seen.add(commit.sha)
+            }
+            const createdBy = ticket.created_by.name ? ticket.created_by : incoming.created_by
+            const same =
+              incoming.status === ticket.status &&
+              incoming.title === ticket.title &&
+              linked.length === (ticket.linked_commits?.length ?? 0) &&
+              createdBy === ticket.created_by
+            if (same) return ticket
+            changed = true
+            return { ...ticket, title: incoming.title, status: incoming.status, linked_commits: linked, created_by: createdBy }
+          })
+          for (const incoming of remote.tickets) {
+            if (gone.current.has(incoming.key) || known.has(incoming.key)) continue
+            changed = true
+            next.push(incoming)
+          }
+          return changed ? next : current
+        })
+        setComments((current) => {
+          const known = new Set(current.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}:${comment.body}`))
+          const kept = current.filter((comment) => !gone.current.has(comment.ticket_key))
+          const added = remote.comments.filter(
+            (comment) => !gone.current.has(comment.ticket_key) && !known.has(`${comment.ticket_key}:${comment.created_at.toISOString()}:${comment.body}`),
+          )
+          return added.length > 0 || kept.length !== current.length ? [...kept, ...added] : current
+        })
+        setActivity((current) => {
+          const known = new Set(
+            current.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`),
+          )
+          const kept = current.filter((event) => !gone.current.has(event.ticket_key))
+          const added = remote.events.filter(
+            (event) => !gone.current.has(event.ticket_key) && !known.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`),
+          )
+          return added.length > 0 || kept.length !== current.length ? [...added, ...kept].sort(newestFirst) : current
+        })
+      } catch {
+        // Keep the last board that loaded.
+      }
+    }
+    const timer = setInterval(() => void refresh(), 4000)
+    const onFocus = () => void refresh()
+    window.addEventListener("focus", onFocus)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+      window.removeEventListener("focus", onFocus)
+    }
+  }, [ready])
 
   // Each project keeps its own columns (projects.categories in the schema)
   const categoriesOf = (projectKey: string) =>
@@ -274,7 +367,7 @@ function useProjectsState() {
 
   // `actor` is who did it: the signed-in person by default, or an agent
   // (the chat assistant) acting for them.
-  function createTicket(
+  async function createTicket(
     projectKey: string,
     input: {
       title: string
@@ -294,10 +387,18 @@ function useProjectsState() {
         stamp - ticket.created_at.getTime() < 10_000
     )
     if (recent) return recent.key
-    const numbers = ticketsRef.current
-      .filter((t) => projectKeyOf(t.key) === projectKey)
-      .map((t) => Number(t.key.split("-")[1]))
-    const key = `${projectKey}-${String(Math.max(0, ...numbers) + 1).padStart(2, "0")}`
+    const response = await fetch("/api/board", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "allocateKey", projectKey }),
+    })
+    const body = (await response.json().catch(() => null)) as { key?: string; error?: { message?: string } } | null
+    if (!response.ok || typeof body?.key !== "string") {
+      const error = new Error(body?.error?.message ?? "Could not assign a ticket key")
+      toast.error("Couldn't save to the database", { description: error.message })
+      throw error
+    }
+    const key = body.key
     const created_at = now()
     const ticket: Ticket = {
       key,
@@ -307,7 +408,6 @@ function useProjectsState() {
       status: input.status,
       ...(input.due_date && { due_date: input.due_date }),
       created_by: actor,
-      needs_approval: true,
       created_at,
     }
     setTickets((current) => [ticket, ...current])
@@ -328,10 +428,6 @@ function useProjectsState() {
   function moveTicket(ticketKey: string, to: string, actor: Actor = me) {
     const ticket = ticketsRef.current.find((t) => t.key === ticketKey)
     if (!ticket || ticket.status === to) return
-    if (to === TICKET_STATUS.DONE && ticket.needs_approval) {
-      toast.error(`A different person has to approve ${ticketKey} before it can close`)
-      return
-    }
     setStatus(ticketKey, to)
     addEvent({
       action: EVENT_ACTIONS.TICKET_MOVED,
@@ -364,20 +460,89 @@ function useProjectsState() {
     })
   }
 
-  function setDescription(ticketKey: string, description: string) {
+  // One save at a time. A newer draft waits, then writes the latest text,
+  // so a keystroke cannot collide with the save still in flight.
+  function flushDescription(ticketKey: string) {
+    const previous = descriptionChain.current.get(ticketKey) ?? Promise.resolve()
+    const run = previous.catch(() => undefined).then(async () => {
+      if (descriptionTimers.current.has(ticketKey)) return
+      if (!descriptionBaseline.current.has(ticketKey)) return
+      const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+      if (!ticket) return
+      const next = ticket.description ?? ""
+      const baseline = descriptionBaseline.current.get(ticketKey) ?? ""
+      if (next === baseline) {
+        descriptionBaseline.current.delete(ticketKey)
+        return
+      }
+      try {
+        await saveTicketQuiet(ticket)
+      } catch (error) {
+        const latest = ticketsRef.current.find((item) => item.key === ticketKey)?.description ?? ""
+        const stillTyping = descriptionTimers.current.has(ticketKey) || latest !== next
+        // A version conflict from this burst is retried with the latest text.
+        // A conflict that remains after typing stops is still reported.
+        if (stillTyping) return
+        reportDescriptionSave(error)
+        return
+      }
+      const latest = ticketsRef.current.find((item) => item.key === ticketKey)?.description ?? ""
+      if (latest !== next || descriptionTimers.current.has(ticketKey)) {
+        if (!descriptionTimers.current.has(ticketKey)) {
+          descriptionTimers.current.set(
+            ticketKey,
+            window.setTimeout(() => {
+              descriptionTimers.current.delete(ticketKey)
+              flushDescription(ticketKey)
+            }, 0)
+          )
+        }
+        return
+      }
+      addEvent({
+        action: EVENT_ACTIONS.TICKET_UPDATED,
+        ticket_key: ticketKey,
+        actor: me,
+        details: { body: next ? `Description: ${next}` : "Cleared the description" },
+        created_at: now(),
+      })
+      if ((ticketsRef.current.find((item) => item.key === ticketKey)?.description ?? "") === next) {
+        descriptionBaseline.current.delete(ticketKey)
+      }
+    })
+    descriptionChain.current.set(ticketKey, run)
+  }
+
+  function setDescription(ticketKey: string, description: string, commit = false) {
+    if (!descriptionBaseline.current.has(ticketKey)) {
+      const current = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
+      descriptionBaseline.current.set(ticketKey, current?.description ?? "")
+    }
     setTickets((current) =>
       current.map((ticket) =>
         ticket.key === ticketKey ? { ...ticket, description } : ticket
       )
     )
-    persistTicket(ticketKey)
-    addEvent({
-      action: EVENT_ACTIONS.TICKET_UPDATED,
-      ticket_key: ticketKey,
-      actor: me,
-      details: { body: description ? `Description: ${description}` : "Cleared the description" },
-      created_at: now(),
-    })
+    const pending = descriptionTimers.current.get(ticketKey)
+    if (pending) window.clearTimeout(pending)
+    const baseline = descriptionBaseline.current.get(ticketKey) ?? ""
+    if ((description ?? "") === baseline) {
+      descriptionTimers.current.delete(ticketKey)
+      descriptionBaseline.current.delete(ticketKey)
+      return
+    }
+    if (commit) {
+      descriptionTimers.current.delete(ticketKey)
+      flushDescription(ticketKey)
+      return
+    }
+    descriptionTimers.current.set(
+      ticketKey,
+      window.setTimeout(() => {
+        descriptionTimers.current.delete(ticketKey)
+        flushDescription(ticketKey)
+      }, DESCRIPTION_PAUSE_MS)
+    )
   }
 
   function setTicketColor(ticketKey: string, card_color?: CategoryColor) {
@@ -485,72 +650,48 @@ function useProjectsState() {
     })
   }
 
-  // A shared status word if that column still exists, otherwise the ticket's current column
-  const columnOr = (slug: string, ticketKey: string) =>
-    categoriesOfTicket(ticketKey).some((c) => c.slug === slug)
-      ? slug
-      : (ticketsRef.current.find((t) => t.key === ticketKey)?.status ?? slug)
-
-  function approve(ticketKey: string) {
-    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
-    const creatorId = ticket
-      ? ticket.created_by.type === ACTOR_TYPES.AGENT
-        ? ticket.created_by.acting_for
-        : ticket.created_by.id
-      : undefined
-    if (creatorId && creatorId === (account?._id ?? CURRENT_USER_ID)) {
-      toast.error("You can't approve your own ticket")
-      return
-    }
-    const to = columnOr(TICKET_STATUS.DONE, ticketKey)
-    setStatus(ticketKey, to, { needs_approval: false })
-    addEvent({
-      action: EVENT_ACTIONS.TICKET_CLOSED,
-      ticket_key: ticketKey,
-      actor: me,
-      details: { from: TICKET_STATUS.IN_REVIEW, to },
-      created_at: now(),
-    })
-    toast.success(`Approved ${ticketKey}`, {
-      description: `Moved to ${categoryName(to, categoriesOfTicket(ticketKey))}`,
-    })
-  }
-
-  function removeTicket(ticketKey: string) {
+  async function removeTicket(ticketKey: string) {
     const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
     if (!ticket) return
-    const creatorId = ticket.created_by.type === ACTOR_TYPES.AGENT ? ticket.created_by.acting_for : ticket.created_by.id
-    const mine = (account?._id ?? CURRENT_USER_ID) === creatorId
-    if (!mine && account?.admin !== true) {
-      toast.error("Only an admin or the creator can delete this ticket")
+    const ticketsSnapshot = ticketsRef.current
+    const commentsSnapshot = comments
+    const activitySnapshot = activity
+    gone.current.add(ticketKey)
+    setTickets((current) => current.filter((item) => item.key !== ticketKey))
+    setComments((current) => current.filter((item) => item.ticket_key !== ticketKey))
+    setActivity((current) => current.filter((item) => item.ticket_key !== ticketKey))
+    try {
+      await removeTicketRecord(ticketKey)
+    } catch (error) {
+      gone.current.delete(ticketKey)
+      setTickets(() => ticketsSnapshot)
+      setComments(commentsSnapshot)
+      setActivity(activitySnapshot)
+      toast.error("Couldn't delete the ticket", {
+        description: error instanceof Error ? error.message : "The delete failed",
+      })
       return
     }
-    setTickets((current) => current.filter((item) => item.key !== ticketKey))
-    removeTicketRecord(ticketKey)
-    addEvent({
-      action: EVENT_ACTIONS.TICKET_DELETED,
-      ticket_key: ticketKey,
-      actor: me,
-      details: { title: ticket.title },
-      created_at: now(),
-    })
     toast.success(`Deleted ${ticketKey}`)
   }
 
-  function requestChanges(ticketKey: string) {
-    const to = columnOr(TICKET_STATUS.IN_PROGRESS, ticketKey)
-    setStatus(ticketKey, to)
-    addEvent({
-      action: EVENT_ACTIONS.TICKET_MOVED,
-      ticket_key: ticketKey,
-      actor: me,
-      details: { from: TICKET_STATUS.IN_REVIEW, to },
-      created_at: now(),
-    })
-    toast(`Changes requested on ${ticketKey}`, {
-      description: `Moved to ${categoryName(to, categoriesOfTicket(ticketKey))}`,
-    })
-  }
+  const flushDescriptionRef = useRef(flushDescription)
+  flushDescriptionRef.current = flushDescription
+
+  useEffect(() => {
+    function flushPending() {
+      for (const [ticketKey, timer] of [...descriptionTimers.current]) {
+        window.clearTimeout(timer)
+        descriptionTimers.current.delete(ticketKey)
+        flushDescriptionRef.current(ticketKey)
+      }
+    }
+    window.addEventListener("pagehide", flushPending)
+    return () => {
+      window.removeEventListener("pagehide", flushPending)
+      flushPending()
+    }
+  }, [])
 
   return {
     ready,
@@ -560,6 +701,7 @@ function useProjectsState() {
     getTickets: () => ticketsRef.current,
     activity,
     comments,
+    boardAgents,
     newEventIds,
     newTicketKeys,
     newCommentIds,
@@ -581,8 +723,6 @@ function useProjectsState() {
     updateCategory,
     deleteCategory,
     comment,
-    approve,
-    requestChanges,
   }
 }
 

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import type { Category, ProjectLayout, Ticket, User } from "@/lib/types"
 import { TicketOwnerBadge } from "@/components/actor-badge"
+import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { TableView } from "@/components/board/table-view"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -56,6 +57,7 @@ export function ProjectViews({
   onFiltersChange,
   onOpenTicket,
   onDueDateChange,
+  onDelete,
 }: {
   tickets: Ticket[]
   categories: Category[]
@@ -68,6 +70,7 @@ export function ProjectViews({
   onFiltersChange: (filters: ProjectFilters) => void
   onOpenTicket: (ticket: Ticket) => void
   onDueDateChange: (ticketKey: string, date: string) => void
+  onDelete: (ticketKey: string) => void
 }) {
   const filteredTickets = filterProjectTickets(tickets, filters)
   const options = projectViewOptions(layout)
@@ -141,6 +144,7 @@ export function ProjectViews({
           categories={categories}
           fields={fields}
           onOpenTicket={onOpenTicket}
+          onDelete={onDelete}
         />
       )}
       {view === "calendar" && (
@@ -148,6 +152,7 @@ export function ProjectViews({
           tickets={filteredTickets}
           onOpenTicket={onOpenTicket}
           onDueDateChange={onDueDateChange}
+          onDelete={onDelete}
         />
       )}
     </section>
@@ -162,10 +167,12 @@ function CalendarView({
   tickets,
   onOpenTicket,
   onDueDateChange,
+  onDelete,
 }: {
   tickets: Ticket[]
   onOpenTicket: (ticket: Ticket) => void
   onDueDateChange: (ticketKey: string, date: string) => void
+  onDelete: (ticketKey: string) => void
 }) {
   const [monthOffset, setMonthOffset] = useState(0)
   const [draggingTicket, setDraggingTicket] = useState<string | null>(null)
@@ -275,8 +282,9 @@ function CalendarView({
                       >
                         {ticket.title}
                       </button>
-                      <div className="mt-1 flex flex-col gap-1 overflow-hidden text-xs">
+                      <div className="mt-1 flex items-center justify-between gap-1 overflow-hidden text-xs">
                         <TicketOwnerBadge ticket={ticket} />
+                        <DeleteCardButton ticketKey={ticket.key} onDelete={onDelete} />
                       </div>
                       <input
                         aria-label={`Edit due date ${ticket.key}`}
