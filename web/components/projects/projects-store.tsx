@@ -17,11 +17,7 @@ import type {
 import { useAuthUser } from "@/components/auth/auth-gate"
 import {
   CURRENT_USER_ID,
-  comments as allComments,
-  events as allEvents,
   projectKeyOf,
-  projects as allProjects,
-  tickets as allTickets,
 } from "@/lib/mock-data"
 import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
@@ -81,8 +77,9 @@ type BoardSnapshot = {
 function useProjectsState() {
   const account = useAuthUser()
   const [ready, setReady] = useState(false)
-  const [projects, setProjects] = useState<Project[]>(() => allProjects.map(withTemplateShape))
-  const [tickets, setTicketsState] = useState<Ticket[]>(allTickets)
+  // Empty until DocDB load — mock CLW/PIT/ST must not appear after a wipe.
+  const [projects, setProjects] = useState<Project[]>([])
+  const [tickets, setTicketsState] = useState<Ticket[]>([])
   // Always-current copy, so several actions in a row (like the assistant
   // creating two tickets at once) see each other's changes.
   const ticketsRef = useRef(tickets)
@@ -95,10 +92,8 @@ function useProjectsState() {
   const descriptionBaseline = useRef(new Map<string, string>())
   const descriptionTimers = useRef(new Map<string, number>())
   const descriptionChain = useRef(new Map<string, Promise<void>>())
-  const [activity, setActivity] = useState<Event[]>(() =>
-    [...allEvents].sort(newestFirst)
-  )
-  const [comments, setComments] = useState<Comment[]>(allComments)
+  const [activity, setActivity] = useState<Event[]>([])
+  const [comments, setComments] = useState<Comment[]>([])
   // Every agent saved in MongoDB, from the same load as the board
   const [boardAgents, setBoardAgents] = useState<Agent[]>([])
   // Remember what arrived after the page loaded, so only those animate in.
@@ -177,7 +172,12 @@ function useProjectsState() {
     }
     restore()
       .catch(() => {
-        setProjects((current) => current.map(withTemplateShape))
+        ticketsRef.current = []
+        setProjects([])
+        setTicketsState([])
+        setComments([])
+        setActivity([])
+        setBoardAgents([])
         if (readSession()?.secret) toast.error("Couldn't load the board from the database")
       })
       .finally(() => {

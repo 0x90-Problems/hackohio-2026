@@ -22,7 +22,6 @@ import {
 } from "@/shared/names"
 import type { Agent } from "@/lib/types"
 import {
-  agents as allAgents,
   agentTokens,
   getUser,
 } from "@/lib/mock-data"
@@ -84,7 +83,7 @@ function lastActive(agentId: string) {
 }
 
 export function AgentsView() {
-  const [agents, setAgents] = useState<Agent[]>(allAgents)
+  const [agents, setAgents] = useState<Agent[]>([])
   const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
 
@@ -104,10 +103,11 @@ export function AgentsView() {
       .then(([board, live]) => {
         if (cancelled) return
         const saved = board?.agents ?? []
-        if (saved.length === 0) allAgents.forEach(saveAgent)
-        setAgents(mergeAgentRecords(saved.length > 0 ? saved : allAgents, live))
+        // Empty DocDB stays empty — do not push mock demo agents back into the board.
+        setAgents(mergeAgentRecords(saved, live))
       })
       .catch(() => {
+        setAgents([])
         toast.error("Couldn't load agents from the database")
       })
     return () => {
