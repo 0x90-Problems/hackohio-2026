@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Put `MONGODB_URI` and `BOARD_API_URL` in `web/.env.local`. The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the API page offers `https://hackohio-2026.vercel.app/mcp`.
+Put `MONGODB_URI` and `BOARD_API_URL` in `web/.env.local`. The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the API page offers `https://hackohio-2026-eta.vercel.app/mcp`.
 
 ```text
 npm test

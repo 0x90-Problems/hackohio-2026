@@ -4,7 +4,7 @@
 
 export const MCP_SERVER_NAME = "nutshell"
 
-export const DEFAULT_MCP_URL = "https://hackohio-2026.vercel.app/mcp"
+export const DEFAULT_MCP_URL = "https://hackohio-2026-eta.vercel.app/mcp"
 
 export function mcpPublicUrl() {
   const configured = process.env.NEXT_PUBLIC_MCP_URL?.trim()

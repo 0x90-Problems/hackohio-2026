@@ -6,9 +6,9 @@ People use it to see projects, move tickets, approve an agent's work, and connec
 
 ## Use
 
-- Browse and edit the board at the Vercel app, [hackohio-2026.vercel.app](https://hackohio-2026.vercel.app).
+- Browse and edit the board at the Vercel app, [hackohio-2026-eta.vercel.app](https://hackohio-2026-eta.vercel.app).
 - Sign in with an LLDAP user. The password is checked by the board API. This app does not store it.
-- Give an agent `https://hackohio-2026.vercel.app/mcp`. That route forwards the call, and the bearer, to the board API.
+- Give an agent `https://hackohio-2026-eta.vercel.app/mcp`. That route forwards the call, and the bearer, to the board API.
 - Read the reports in [docs/architecture](docs/architecture), [docs/libraries](docs/libraries), and [docs/backend](docs/backend). The database shape is [docs/schema.md](docs/schema.md). The demo steps are [docs/demo-script.md](docs/demo-script.md).
 
 ## Run locally
@@ -36,7 +36,7 @@ Stop the directory with `docker compose --env-file .env.local down`. Do not publ
 
 ## Deploy
 
-The site is the Vercel project for this repository. Production needs `MONGODB_URI` for the Atlas database `hackathon`, and `BOARD_API_URL` set to the deployed board API (`https://0x90-board-api.vercel.app`). Set `NEXT_PUBLIC_MCP_URL` only when the install link should not be `https://hackohio-2026.vercel.app/mcp`.
+The site is the Vercel project for this repository. Production needs `MONGODB_URI` for the Atlas database `hackathon`, and `BOARD_API_URL` set to the deployed board API (`https://0x90-board-api.vercel.app`). Set `NEXT_PUBLIC_MCP_URL` only when the install link should not be `https://hackohio-2026-eta.vercel.app/mcp`.
 
 Bedrock credentials on Vercel turn Nutty on. The AWS tasks, LLDAP, Redis, and the git VPS are applied from Buc2AgentTerraform. This repository does not contain that stack.
 
