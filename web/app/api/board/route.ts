@@ -1,208 +1,121 @@
 import { NextResponse } from "next/server"
 
-import { agentDoc, commentDoc, eventDoc, projectDoc, ticketDoc } from "@/lib/board-docs"
-import { mergeBoardRecords } from "@/lib/board-merge"
-import { ensureBoardSchema, nextTicketKey } from "@/lib/ensure-board-schema"
-import { getDb } from "@/lib/mongodb"
-import type { Agent, Comment, Event, Project, Ticket } from "@/lib/types"
-import { COLLECTIONS } from "@/shared/names"
-
-const TICKET_FIELDS = new Set([
-  "key", "project_key", "title", "tags", "label", "status", "created_by", "reviewer_id",
-  "owner_id", "due_date", "description",
-  "card_color", "fields", "linked_commits", "created_at",
-])
-const ACTOR_FIELDS = new Set(["type", "id", "name", "acting_for"])
+import { proxyBoard } from "@/lib/board-proxy"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-async function deleteProjectDocs(db: Awaited<ReturnType<typeof getDb>>, key: string) {
-  const belongs = (ticketKey: string) => ticketKey.startsWith(`${key}-`)
-  await db.collection(COLLECTIONS.PROJECTS).deleteOne({ key })
-  await db.collection(COLLECTIONS.TICKETS).deleteMany({ project_key: key })
-  await db.collection(COLLECTIONS.COMMENTS).deleteMany({ ticket_key: { $regex: `^${key}-` } })
-  await db.collection(COLLECTIONS.EVENTS).deleteMany({ project_key: key })
-  const saved = await db.collection<{ _id: string; state?: BoardStateDoc }>("rest_state").findOne({ _id: "board" })
-  if (!saved?.state) return
-  saved.state.projects = saved.state.projects?.filter((project) => project.key !== key) ?? []
-  saved.state.tickets = saved.state.tickets?.filter((ticket) => !belongs(ticket.key)) ?? []
-  saved.state.comments = saved.state.comments?.filter((comment) => !belongs(comment.ticket_key)) ?? []
-  saved.state.events = saved.state.events?.filter((event) => !belongs(event.ticket_key)) ?? []
-  await db.collection<{ _id: string }>("rest_state").updateOne({ _id: "board" }, { $set: { state: saved.state } })
-}
-
-type BoardStateDoc = {
-  projects?: { key: string }[]
-  tickets?: { key: string }[]
-  comments?: { ticket_key: string }[]
-  events?: { ticket_key: string }[]
-}
-
-function validationDetails(error: unknown): unknown {
-  if (!error || typeof error !== "object") return undefined
-  const record = error as { errInfo?: unknown; errorResponse?: { errInfo?: unknown } }
-  return record.errInfo ?? record.errorResponse?.errInfo
-}
-
-function fail(error: unknown) {
-  const message = error instanceof Error ? error.message : "Database request failed"
-  const details = validationDetails(error)
-  if (details) console.error("board validation", JSON.stringify(details))
-  else if (message !== "MONGODB_URI is not set") console.error("board write", message)
-  const status = message === "MONGODB_URI is not set" ? 503 : 500
-  return NextResponse.json(
-    { error: { code: details ? "document_failed_validation" : "database", message, ...(details ? { details } : {}) } },
-    { status },
-  )
-}
-
-async function rememberTicket(
-  db: Awaited<ReturnType<typeof getDb>>,
-  doc: {
-    key: string
-    title: string
-    status: string
-    created_by: unknown
-    created_at: Date
-    linked_commits?: unknown
-  },
-) {
-  const saved = await db.collection<{ _id: string; revision?: number; state?: { tickets?: Record<string, unknown>[] } }>("rest_state").findOne({ _id: "board" })
-  const tickets = saved?.state?.tickets
-  if (!saved?.state || !tickets) return
-  const patch = {
-    key: doc.key,
-    title: doc.title,
-    status: doc.status,
-    created_by: doc.created_by,
-    created_at: doc.created_at.toISOString(),
-    linked_commits: Array.isArray(doc.linked_commits) ? doc.linked_commits : [],
-  }
-  const index = tickets.findIndex((ticket) => ticket.key === doc.key)
-  if (index >= 0) {
-    const current: Record<string, unknown> = { ...tickets[index], ...patch }
-    delete current.needs_approval
-    delete current.approved_by
-    delete current.approved_at
-    delete current.deleted_at
-    tickets[index] = current
-  } else tickets.push(patch)
-  const filter = typeof saved.revision === "number" ? { _id: "board", revision: saved.revision } : { _id: "board" }
-  await db.collection<{ _id: string; revision?: number }>("rest_state").updateOne(filter, { $set: { "state.tickets": tickets } })
-}
-
-async function forgetTicket(db: Awaited<ReturnType<typeof getDb>>, key: string) {
-  const saved = await db.collection<{
-    _id: string
-    state?: { tickets?: { key: string }[]; comments?: { ticket_key: string }[]; events?: { ticket_key: string }[] }
-  }>("rest_state").findOne({ _id: "board" })
-  if (!saved?.state) return
-  const tickets = saved.state.tickets?.filter((ticket) => ticket.key !== key) ?? []
-  const comments = saved.state.comments?.filter((comment) => comment.ticket_key !== key) ?? []
-  const events = saved.state.events?.filter((event) => event.ticket_key !== key) ?? []
-  await db.collection<{ _id: string }>("rest_state").updateOne(
-    { _id: "board" },
-    { $set: { "state.tickets": tickets, "state.comments": comments, "state.events": events } },
-  )
-}
-
-function unknownField(record: object, allowed: Set<string>): string | undefined {
-  return Object.keys(record).find((key) => !allowed.has(key))
-}
-
-export async function GET() {
-  try {
-    const db = await getDb()
-    await ensureBoardSchema(db)
-    const [projects, tickets, comments, events, agents, users, saved] = await Promise.all([
-      db.collection(COLLECTIONS.PROJECTS).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLLECTIONS.TICKETS).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLLECTIONS.COMMENTS).find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection(COLLECTIONS.EVENTS).find({}, { projection: { _id: 0 } }).sort({ created_at: -1 }).toArray(),
-      db.collection(COLLECTIONS.AGENTS).find({}).toArray(),
-      db.collection(COLLECTIONS.USERS).find({}, { projection: { name: 1, auth_username: 1, team: 1 } }).toArray(),
-      db.collection<{ _id: string; state?: unknown }>("rest_state").findOne({ _id: "board" }),
-    ])
-    const board = mergeBoardRecords(
-      { projects, tickets, comments, events, agents },
-      saved?.state,
-      { users, agents },
-    )
-    return NextResponse.json(board, { headers: { "cache-control": "private, no-store" } })
-  } catch (error) {
-    return fail(error)
-  }
+/**
+ * Board data path after Atlas shutdown: proxy to the AWS board API (DocumentDB).
+ * Clients must send Authorization: Bearer <session secret> (same token as login).
+ * Direct MONGODB_URI access is retired — DocDB is VPC-only.
+ */
+export async function GET(request: Request) {
+  return proxyBoard(request, "/board")
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = (await request.json()) as {
-      kind?: string
-      key?: string
-      projectKey?: string
-      project?: Project
-      ticket?: Ticket
-      comment?: Comment
-      event?: Event
-      agent?: Agent
-    }
-    const db = await getDb()
-    await ensureBoardSchema(db)
-    if (body.kind === "allocateKey" && body.projectKey && /^[A-Z][A-Z0-9]{1,5}$/.test(body.projectKey)) {
-      const key = await nextTicketKey(db, body.projectKey)
-      return NextResponse.json({ key })
-    } else if (body.kind === "deleteProject" && body.key && /^[A-Z][A-Z0-9]{1,5}$/.test(body.key)) {
-      await deleteProjectDocs(db, body.key)
-    } else if (body.kind === "deleteTicket" && body.key && /^[A-Z][A-Z0-9]{1,5}-\d+$/.test(body.key)) {
-      const existing = await db.collection(COLLECTIONS.TICKETS).findOne({ key: body.key })
-      if (!existing) {
-        return NextResponse.json({ error: { code: "not_found", message: `Ticket ${body.key} was not found` } }, { status: 404 })
-      }
-      if (existing.deleted_at) {
-        return NextResponse.json({ error: { code: "conflict", message: `Ticket ${body.key} is already deleted` } }, { status: 409 })
-      }
-      const result = await db.collection(COLLECTIONS.TICKETS).updateOne({ key: body.key }, { $set: { deleted_at: new Date() } })
-      if (result.matchedCount !== 1) {
-        return NextResponse.json({ error: { code: "not_found", message: `Ticket ${body.key} was not found` } }, { status: 404 })
-      }
-      await forgetTicket(db, body.key)
-    } else if (body.kind === "project" && body.project) {
-      const doc = projectDoc(body.project)
-      await db.collection(COLLECTIONS.PROJECTS).replaceOne({ key: doc.key }, doc, { upsert: true })
-    } else if (body.kind === "ticket" && body.ticket) {
-      const extra = unknownField(body.ticket, TICKET_FIELDS)
-      if (extra) {
-        return NextResponse.json({ error: { code: "invalid_input", message: `Unknown field ${extra}` } }, { status: 400 })
-      }
-      const actorExtra = unknownField(body.ticket.created_by ?? {}, ACTOR_FIELDS)
-      if (actorExtra) {
-        return NextResponse.json({ error: { code: "invalid_input", message: `Unknown field created_by.${actorExtra}` } }, { status: 400 })
-      }
-      const doc = ticketDoc(body.ticket)
-      const existing = await db.collection(COLLECTIONS.TICKETS).findOne({ key: doc.key })
-      if (existing?.deleted_at) {
-        return NextResponse.json({ error: { code: "conflict", message: `Ticket ${doc.key} is deleted` } }, { status: 409 })
-      }
-      await db.collection(COLLECTIONS.TICKETS).replaceOne({ key: doc.key }, doc, { upsert: true })
-      await rememberTicket(db, doc)
-    } else if (body.kind === "comment" && body.comment) {
-      const doc = commentDoc(body.comment)
-      await db.collection<{ _id: string }>(COLLECTIONS.COMMENTS).replaceOne({ _id: doc._id }, doc, { upsert: true })
-    } else if (body.kind === "event" && body.event) {
-      const doc = eventDoc(body.event)
-      await db.collection<{ _id: string }>(COLLECTIONS.EVENTS).replaceOne({ _id: doc._id }, doc, { upsert: true })
-    } else if (body.kind === "agent" && body.agent) {
-      const doc = agentDoc(body.agent)
-      await db.collection<{ _id: string }>(COLLECTIONS.AGENTS).replaceOne({ _id: doc._id }, doc, { upsert: true })
-    } else {
-      return NextResponse.json(
-        { error: { code: "invalid_input", message: "Missing board document" } },
-        { status: 400 }
-      )
-    }
-    return NextResponse.json({ ok: true })
-  } catch (error) {
-    return fail(error)
+  const authorization = request.headers.get("authorization")
+  if (!authorization) {
+    return NextResponse.json(
+      { error: { code: "unauthorized", message: "Sign in to change the board" } },
+      { status: 401 },
+    )
   }
+
+  let body: {
+    kind?: string
+    key?: string
+    projectKey?: string
+    project?: { name: string; key: string; template?: string }
+    ticket?: {
+      key: string
+      title: string
+      label?: string
+      status?: string
+      reviewer_id?: string
+      due_date?: string
+      project_key?: string
+    }
+    comment?: { ticket_key: string; body: string }
+    event?: unknown
+    agent?: { name: string; scopes?: string[]; connection?: string }
+  }
+  try {
+    body = (await request.json()) as typeof body
+  } catch {
+    return NextResponse.json({ error: { code: "invalid_input", message: "Body must be JSON" } }, { status: 400 })
+  }
+
+  const headers = {
+    accept: "application/json",
+    authorization,
+    "content-type": "application/json",
+  }
+
+  // Rebuild Request so proxyBoard can read the body we already consumed.
+  const forward = (path: string, method: string, payload?: unknown) =>
+    proxyBoard(
+      new Request(request.url, {
+        method,
+        headers,
+        body: payload === undefined ? undefined : JSON.stringify(payload),
+      }),
+      path,
+    )
+
+  if (body.kind === "allocateKey" && body.projectKey) {
+    return forward("/ticket-keys", "POST", { project: body.projectKey })
+  }
+  if (body.kind === "deleteProject" && body.key) {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "DELETE")
+  }
+  if (body.kind === "deleteTicket" && body.key) {
+    return forward(`/tickets/${encodeURIComponent(body.key)}`, "DELETE")
+  }
+  if (body.kind === "project" && body.project) {
+    return forward("/projects", "POST", {
+      name: body.project.name,
+      key: body.project.key,
+      template: body.project.template ?? "blank_board",
+    })
+  }
+  if (body.kind === "ticket" && body.ticket) {
+    const ticket = body.ticket
+    // Prefer PATCH when key exists; create when client omitted persistence of a new key.
+    if (ticket.key) {
+      return forward(`/tickets/${encodeURIComponent(ticket.key)}`, "PATCH", {
+        ...(ticket.title !== undefined ? { title: ticket.title } : {}),
+        ...(ticket.label !== undefined ? { label: ticket.label } : {}),
+        ...(ticket.status !== undefined ? { status: ticket.status } : {}),
+        ...(ticket.reviewer_id !== undefined ? { reviewer_id: ticket.reviewer_id } : {}),
+        ...(ticket.due_date !== undefined ? { due_date: ticket.due_date } : {}),
+      })
+    }
+    return forward("/tickets", "POST", {
+      title: ticket.title,
+      ...(ticket.label ? { label: ticket.label } : {}),
+      ...(ticket.reviewer_id ? { reviewer_id: ticket.reviewer_id } : {}),
+      ...(ticket.due_date ? { due_date: ticket.due_date } : {}),
+      ...(ticket.project_key ? { project: ticket.project_key } : {}),
+    })
+  }
+  if (body.kind === "comment" && body.comment) {
+    return forward(`/tickets/${encodeURIComponent(body.comment.ticket_key)}/comments`, "POST", {
+      body: body.comment.body,
+    })
+  }
+  if (body.kind === "event") {
+    // Events are recorded by the board API on mutations; acknowledge no-op for UI local echoes.
+    return NextResponse.json({ ok: true })
+  }
+  if (body.kind === "agent" && body.agent) {
+    return forward("/agents", "POST", {
+      name: body.agent.name,
+      scopes: body.agent.scopes ?? ["tickets:read", "tickets:write"],
+      ...(body.agent.connection ? { connection: body.agent.connection } : {}),
+    })
+  }
+
+  return NextResponse.json({ error: { code: "invalid_input", message: "Missing board document" } }, { status: 400 })
 }
