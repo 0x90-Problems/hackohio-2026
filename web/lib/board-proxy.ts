@@ -5,8 +5,8 @@ const UNAVAILABLE = {
   error: { code: "board_unavailable", message: "The board API is not configured" },
 }
 
-export async function proxyBoard(request: Request, path: string): Promise<Response> {
-  const base = apiOrigin()
+export async function proxyBoard(request: Request, path: string, origin?: URL | null): Promise<Response> {
+  const base = origin ?? apiOrigin()
   if (!base) return Response.json(UNAVAILABLE, { status: 503 })
 
   const headers = new Headers()
@@ -17,6 +17,8 @@ export async function proxyBoard(request: Request, path: string): Promise<Respon
   if (contentType) headers.set("content-type", contentType)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
+  const shadow = request.headers.get("x-nutshell-mcp-path")
+  if (shadow) headers.set("x-nutshell-mcp-path", shadow)
 
   let upstream: Response
   try {
