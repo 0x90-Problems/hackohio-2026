@@ -126,38 +126,38 @@ function useProjectsState() {
       const remote = await loadBoard()
       if (cancelled) return
       const local = readStorage<BoardSnapshot>(BOARD_KEY)
-      const projects = remote.projects.length > 0 ? remote.projects : (local?.projects ?? allProjects)
-      const tickets = remote.tickets.length > 0 ? remote.tickets : (local?.tickets ?? allTickets)
-      const comments = remote.comments.length > 0 ? remote.comments : (local?.comments ?? allComments)
-      const activity = [...(remote.events.length > 0 ? remote.events : (local?.activity ?? allEvents))].sort(newestFirst)
+      // Signed-in load is source of truth: a wiped DocDB stays empty in the UI.
+      // Local-only extras can still merge onto a non-empty remote board.
+      const projects = [...remote.projects]
+      const tickets = [...remote.tickets]
+      const comments = [...remote.comments]
+      const activity = [...remote.events].sort(newestFirst)
       const knownTickets = new Set(remote.tickets.map((ticket) => ticket.key))
       const knownProjects = new Set(remote.projects.map((project) => project.key))
       const knownComments = new Set(remote.comments.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}`))
       const knownEvents = new Set(remote.events.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
       // Do not seed mock/local data into DocDB when remote is empty — empty means empty.
-      if (remote.projects.length > 0) {
-        local?.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
-        local?.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
-        local?.comments
+      if (remote.projects.length > 0 && local) {
+        local.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
+        local.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
+        local.comments
           .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
           .forEach(saveComment)
-        local?.activity
+        local.activity
           .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
           .forEach(saveEvent)
-        if (local) {
-          const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
-          const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
-          const extraComments = local.comments.filter(
-            (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
-          )
-          const extraEvents = local.activity.filter(
-            (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
-          )
-          projects.push(...extraProjects)
-          tickets.push(...extraTickets)
-          comments.push(...extraComments)
-          activity.unshift(...extraEvents)
-        }
+        const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
+        const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
+        const extraComments = local.comments.filter(
+          (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
+        )
+        const extraEvents = local.activity.filter(
+          (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
+        )
+        projects.push(...extraProjects)
+        tickets.push(...extraTickets)
+        comments.push(...extraComments)
+        activity.unshift(...extraEvents)
       }
       ticketsRef.current = tickets
       setProjects(projects.map(withTemplateShape))
