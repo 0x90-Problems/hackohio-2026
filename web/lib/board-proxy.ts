@@ -40,14 +40,26 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders })
 }
 
+/** AWS board HTTP API — preferred while the Vercel board host is still 503. */
+const AWS_BOARD_FALLBACK = "https://um433hdwe5.execute-api.us-east-1.amazonaws.com"
+
 function apiOrigin(): URL | null {
-  const raw = process.env.BOARD_API_URL?.trim()
-  if (!raw) return null
-  try {
-    const url = new URL(raw)
-    if (url.protocol !== "http:" && url.protocol !== "https:") return null
-    return url
-  } catch {
-    return null
+  const configured = process.env.BOARD_API_URL?.trim()
+  const skipConfigured =
+    !configured ||
+    configured.includes("0x90-board-api.vercel.app")
+  const candidates = skipConfigured
+    ? [AWS_BOARD_FALLBACK, configured]
+    : [configured, AWS_BOARD_FALLBACK]
+  for (const raw of candidates) {
+    if (!raw) continue
+    try {
+      const url = new URL(raw)
+      if (url.protocol !== "http:" && url.protocol !== "https:") continue
+      return url
+    } catch {
+      // try next candidate
+    }
   }
+  return null
 }
