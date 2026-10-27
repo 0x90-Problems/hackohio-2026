@@ -1,14 +1,13 @@
 import type { Metadata } from "next"
 
-import { projects } from "@/lib/mock-data"
 import { BoardView } from "@/components/board/board-view"
 
 export async function generateMetadata({
   params,
 }: LayoutProps<"/projects/[key]/board">): Promise<Metadata> {
   const { key } = await params
-  const name = projects.find((p) => p.key === key)?.name ?? key
-  return { title: name }
+  // Do not read mock-data for titles — wiped boards have no demo projects.
+  return { title: key }
 }
 
 // The board lives in the layout, so it stays mounted (with its moves, categories
