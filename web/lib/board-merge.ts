@@ -24,13 +24,14 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined
 }
 
-function iso(value: unknown): string {
+function iso(value: unknown, fallback: "epoch" | "now" = "epoch"): string {
   if (value instanceof Date) return value.toISOString()
   if (typeof value === "string") {
     const date = new Date(value)
     if (!Number.isNaN(date.getTime())) return date.toISOString()
   }
-  return new Date(0).toISOString()
+  // Projects historically omitted created_at from the board API; epoch showed as ~20753 d ago.
+  return (fallback === "now" ? new Date() : new Date(0)).toISOString()
 }
 
 function asActor(value: unknown): Actor | undefined {
@@ -195,7 +196,7 @@ function projectFrom(value: unknown, team: string, users: NamedUser[], agents: N
     categories: categoriesFrom(project.categories ?? project.columns),
     ...(Array.isArray(project.starter_tags) ? { starter_tags: project.starter_tags.filter((tag): tag is string => typeof tag === "string") } : {}),
     created_by: withName(createdBy, users, agents),
-    created_at: new Date(iso(project.created_at)),
+    created_at: new Date(iso(project.created_at, "now")),
     ...(project.archived === true ? { archived: true } : {}),
   }
 }
