@@ -28,7 +28,7 @@ npm run dev
 
 Set `LLDAP_JWT_SECRET`, `LLDAP_KEY_SEED`, and `LLDAP_LDAP_USER_PASS` in `.env.local` before starting LLDAP. Two different `openssl rand -hex 32` values cover the first two. The admin UI is [http://localhost:17170](http://localhost:17170) and LDAP is `localhost:3890`. Create users whose usernames match `auth_username` in MongoDB (`dylan`, `raddy`, `naz`, `debora`).
 
-`BOARD_API_URL` is the board API origin. Login and signup forward there. Point the web app at the same origin from `web/.env.local`, and set `MONGODB_URI` there too. Nutty, the in-app assistant, also needs AWS credentials and a region in `web/.env.local`. Without them the chat page uses the offline assistant.
+`BOARD_API_URL` is the board API origin (AWS DocumentDB board). Login, signup, `/api/board`, and `/api/site` forward there. Point the web app at that origin from `web/.env.local`. `MONGODB_URI` is not required on Vercel after the DocDB cutover. Nutty, the in-app assistant, also needs AWS credentials and a region in `web/.env.local`. Without them the chat page uses the offline assistant.
 
 `npm run demo:restore -- --as <username>` puts the CLW demo project back for a rehearsal. Add `--reset` to recreate it.
 
@@ -36,7 +36,7 @@ Stop the directory with `docker compose --env-file .env.local down`. Do not publ
 
 ## Deploy
 
-The site is the Vercel project for this repository. Production needs `MONGODB_URI` for the Atlas database `hackathon`, and `BOARD_API_URL` set to the deployed board API (`https://0x90-board-api.vercel.app`). Set `NEXT_PUBLIC_MCP_URL` only when the install link should not be `https://hackohio-2026-eta.vercel.app/mcp`.
+The site is the Vercel project for this repository. Production needs `BOARD_API_URL` set to the AWS board API (`https://um433hdwe5.execute-api.us-east-1.amazonaws.com`). Leave `MONGODB_URI` unset — Teams/Organization use `/api/site` → board, not Atlas. Set `NEXT_PUBLIC_MCP_URL` only when the install link should not be `https://hackohio-2026-eta.vercel.app/mcp`.
 
 Bedrock credentials on Vercel turn Nutty on. The AWS tasks, LLDAP, Redis, and the git VPS are applied from Buc2AgentTerraform. This repository does not contain that stack.
 

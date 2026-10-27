@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     return forward("/projects", "POST", {
       name: body.project.name,
       key: body.project.key,
-      template: body.project.template ?? "blank_board",
+      template: body.project.template ?? "blank",
     })
   }
   if (body.kind === "ticket" && body.ticket) {

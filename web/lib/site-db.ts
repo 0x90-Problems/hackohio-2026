@@ -2,6 +2,7 @@
 
 import { toast } from "sonner"
 
+import { readSession } from "@/lib/board-auth"
 import { reviveValue } from "@/lib/local-store"
 
 export type SiteOrganization = {
@@ -27,8 +28,20 @@ export type SiteState = {
   users: { _id: string; auth_username: string; name: string; role?: string; team: string }[]
 }
 
+const EMPTY: SiteState = { organization: null, teams: [], apiKeys: [], users: [] }
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const session = readSession()
+  return {
+    ...(extra ?? {}),
+    ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
+  }
+}
+
 export async function loadSite(): Promise<SiteState> {
-  const response = await fetch("/api/site", { cache: "no-store" })
+  // DocDB is VPC-only — unsigned visitors get empty Teams/Org until login.
+  if (!readSession()?.secret) return EMPTY
+  const response = await fetch("/api/site", { cache: "no-store", headers: authHeaders() })
   const body = (await response.json()) as SiteState & { error?: { message?: string } }
   if (!response.ok) throw new Error(body.error?.message ?? "Could not load site settings")
   return reviveValue({
@@ -42,7 +55,7 @@ export async function loadSite(): Promise<SiteState> {
 async function save(body: object) {
   const response = await fetch("/api/site", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify(body),
   })
   if (!response.ok) {
