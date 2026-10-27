@@ -112,9 +112,17 @@ function useProjectsState() {
   const now = () => new Date((clock.current = Math.max(Date.now(), clock.current + 1)))
   const me: Actor = { type: ACTOR_TYPES.HUMAN, id: account?._id ?? CURRENT_USER_ID }
 
+  // Reload when dylan (or anyone) signs in — provider stays mounted across /login → /.
+  const sessionId = account?._id ?? null
+
   useEffect(() => {
     let cancelled = false
     async function restore() {
+      // Wait for a session before hitting the DocDB-backed board API.
+      if (!readSession()?.secret) {
+        if (!cancelled) setReady(true)
+        return
+      }
       const remote = await loadBoard()
       if (cancelled) return
       const local = readStorage<BoardSnapshot>(BOARD_KEY)
@@ -126,31 +134,30 @@ function useProjectsState() {
       const knownProjects = new Set(remote.projects.map((project) => project.key))
       const knownComments = new Set(remote.comments.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}`))
       const knownEvents = new Set(remote.events.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
-      if (remote.projects.length === 0) projects.forEach(saveProject)
-      if (remote.tickets.length === 0) tickets.forEach(saveTicket)
-      if (remote.comments.length === 0) comments.forEach(saveComment)
-      if (remote.events.length === 0) activity.forEach(saveEvent)
-      local?.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
-      local?.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
-      local?.comments
-        .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
-        .forEach(saveComment)
-      local?.activity
-        .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
-        .forEach(saveEvent)
-      if (local && remote.projects.length > 0) {
-        const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
-        const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
-        const extraComments = local.comments.filter(
-          (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
-        )
-        const extraEvents = local.activity.filter(
-          (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
-        )
-        projects.push(...extraProjects)
-        tickets.push(...extraTickets)
-        comments.push(...extraComments)
-        activity.unshift(...extraEvents)
+      // Do not seed mock/local data into DocDB when remote is empty — empty means empty.
+      if (remote.projects.length > 0) {
+        local?.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
+        local?.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
+        local?.comments
+          .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
+          .forEach(saveComment)
+        local?.activity
+          .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
+          .forEach(saveEvent)
+        if (local) {
+          const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
+          const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
+          const extraComments = local.comments.filter(
+            (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
+          )
+          const extraEvents = local.activity.filter(
+            (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
+          )
+          projects.push(...extraProjects)
+          tickets.push(...extraTickets)
+          comments.push(...extraComments)
+          activity.unshift(...extraEvents)
+        }
       }
       ticketsRef.current = tickets
       setProjects(projects.map(withTemplateShape))
@@ -171,7 +178,7 @@ function useProjectsState() {
     restore()
       .catch(() => {
         setProjects((current) => current.map(withTemplateShape))
-        toast.error("Couldn't load the board from the database")
+        if (readSession()?.secret) toast.error("Couldn't load the board from the database")
       })
       .finally(() => {
         if (!cancelled) setReady(true)
@@ -179,7 +186,7 @@ function useProjectsState() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sessionId])
 
   useEffect(() => {
     if (!ready) return
