@@ -2,7 +2,7 @@ section,name,from_component,to_component,interface,auth,notes
 process,Board API on Vercel,Browser or Nutshell or MCP,0x90-board-api.vercel.app,HTTPS rewrite to api/index.mjs,Bearer on board routes,One function. openBoardApi requires LLDAP Redis and NEXTAUTH_SECRET. Loads and saves Atlas when MONGODB_URI is set.
 process,Fargate board task,VPC clients,board.buc2agent.local:3000,HTTP,Bearer on board routes,Task env sets PORT only. Without MONGODB_URI the store is the in-memory demo board. Do not send Vercel tokens here.
 process,Nutshell auth proxy,Browser,Board API /auth/login and /auth/signup,HTTPS POST,None on the proxy,Forwards the body and the first X-Forwarded-For value. Does not store the password. On 200 upserts the user into Atlas.
-process,Nutshell MCP proxy,Agent client,Board API /mcp,HTTPS,Forwards the caller bearer,Install URL is https://hackohio-2026.vercel.app/mcp. This is not the Python MCP process.
+process,Nutshell MCP proxy,Agent client,Board API /mcp,HTTPS,Forwards the caller bearer,Install URL is https://hackohio-2026-eta.vercel.app/mcp. This is not the Python MCP process.
 process,Python MCP,Agent client,Board API at BOARD_API_URL,HTTP after the load balancer,Forwards the caller bearer,FastMCP on task port 8080 path /mcp. Empty BOARD_API_URL leaves the process up and fails the tool call.
 process,In-process MCP,Nutshell /mcp,Board store,JSON-RPC tools/call,Bearer on tools/call,Server name nutshell. Protocol 2025-03-26. Same policy as the HTTP routes.
 dependency,LLDAP,Board API,lldap.buc2agent.local,LDAP 3890,Simple bind,Login binds as uid=user ou=people dc=hackohio dc=local. Signup uses the password-modify operation. Admin UI is TCP 17170.

@@ -2,7 +2,7 @@
 
 The story: **an AI agent did real work, a human stayed in charge.** Claude Code, acting for Raddy, built a feature (CLW-16, ticket search), linked its commits and asked for review. The presenter, a different person, approves it and it moves to Done: nobody signs off on their own agent's work. Every step is on one board the whole team can see.
 
-Present from the **live site**: https://hackohio-2026.vercel.app (it needs internet; sign-in and the board live online now).
+Present from the **live site**: https://hackohio-2026-eta.vercel.app (it needs internet; sign-in and the board live online now).
 
 ## Before you present (10 minutes)
 
@@ -11,7 +11,7 @@ Present from the **live site**: https://hackohio-2026.vercel.app (it needs inter
    cd ~/Documents/GitHub/hackohio-2026 && npm run demo:restore -- --as raddyratt --reset
    ```
    Use the presenter's username after `--as`. It makes them CLW-16's reviewer. The work stays Raddy's agent's, because the app won't let anyone approve their own agent's ticket.
-2. Open https://hackohio-2026.vercel.app in Chrome and **sign in as the presenter**. Stay in this tab: sign-in is per tab.
+2. Open https://hackohio-2026-eta.vercel.app in Chrome and **sign in as the presenter**. Stay in this tab: sign-in is per tab.
 3. Make the window full screen and zoom to 110–125% (Cmd +) so judges can read it.
 4. Light mode is the default. If the site is dark, open your name in the top right and pick "Light mode".
 5. Check that **Home → Pending actions** shows "Waiting on you · CLW-16". If not, run step 1 again and reload.
@@ -41,7 +41,7 @@ Present from the **live site**: https://hackohio-2026.vercel.app (it needs inter
 ## If something goes wrong
 
 - **CLW-16 is already in Done, or "Waiting on you" is empty:** run step 1 (`npm run demo:restore -- --as <username> --reset`), then reload.
-- **"Directory sign-in is not configured":** you're on a preview link, not the live site. Use https://hackohio-2026.vercel.app.
+- **"Directory sign-in is not configured":** you're on a preview link, not the live site. Use https://hackohio-2026-eta.vercel.app.
 - **The site won't load (OSU Wi-Fi):** switch to your phone's hotspot. The site needs internet for sign-in and the board.
 - **Nutty says "offline mode":** that's expected on the live site; it still understands the suggestions shown in the chat.
 - **Anything else:** play the backup video. Localhost is no longer a fallback: it needs the same online sign-in.
