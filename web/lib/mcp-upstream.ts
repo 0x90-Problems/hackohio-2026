@@ -3,22 +3,28 @@
 
 export type McpRouteMode = "off" | "test" | "all"
 
+const AWS_MCP_GATEWAY_FALLBACK = "https://gisecl2xck.execute-api.us-east-1.amazonaws.com"
+
 export function mcpRouteMode(): McpRouteMode {
   const raw = process.env.MCP_ROUTE_TO_AWS?.trim().toLowerCase()
   if (raw === "test" || raw === "all") return raw
-  return "off"
+  // Default to shadow test mode so header opt-in works without a Vercel env change.
+  return "test"
 }
 
 export function awsMcpGatewayOrigin(): URL | null {
-  const raw = process.env.AWS_MCP_GATEWAY_URL?.trim()
-  if (!raw) return null
-  try {
-    const url = new URL(raw)
-    if (url.protocol !== "https:") return null
-    return url
-  } catch {
-    return null
+  const candidates = [process.env.AWS_MCP_GATEWAY_URL?.trim(), AWS_MCP_GATEWAY_FALLBACK]
+  for (const raw of candidates) {
+    if (!raw) continue
+    try {
+      const url = new URL(raw)
+      if (url.protocol !== "https:") continue
+      return url
+    } catch {
+      // try next
+    }
   }
+  return null
 }
 
 /** Test agents opt in with header x-nutshell-mcp-path: aws */
