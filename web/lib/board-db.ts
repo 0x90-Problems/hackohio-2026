@@ -2,6 +2,7 @@
 
 import { toast } from "sonner"
 
+import { readSession } from "@/lib/board-auth"
 import type { Agent, Comment, Event, Project, Ticket } from "@/lib/types"
 import { reviveValue } from "@/lib/local-store"
 
@@ -15,8 +16,16 @@ export type BoardRecords = {
 
 const EMPTY: BoardRecords = { projects: [], tickets: [], comments: [], events: [], agents: [] }
 
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const session = readSession()
+  return {
+    ...(extra ?? {}),
+    ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
+  }
+}
+
 export async function loadBoard(): Promise<BoardRecords> {
-  const response = await fetch("/api/board", { cache: "no-store" })
+  const response = await fetch("/api/board", { cache: "no-store", headers: authHeaders() })
   const body = (await response.json()) as BoardRecords & { error?: { message?: string } }
   if (!response.ok) throw new Error(body.error?.message ?? "Could not load the board")
   return reviveValue({
@@ -31,7 +40,7 @@ export async function loadBoard(): Promise<BoardRecords> {
 async function save(kind: string, document: object) {
   const response = await fetch("/api/board", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ kind, [kind]: document }),
   })
   if (!response.ok) {
@@ -53,7 +62,7 @@ export function saveProject(project: Project) {
 export function removeProject(key: string) {
   return fetch("/api/board", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ kind: "deleteProject", key }),
   })
     .then(async (response) => {
@@ -68,7 +77,7 @@ export function removeProject(key: string) {
 export async function removeTicketRecord(key: string) {
   const response = await fetch("/api/board", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ kind: "deleteTicket", key }),
   })
   if (!response.ok) {

@@ -24,6 +24,7 @@ import {
   tickets as allTickets,
 } from "@/lib/mock-data"
 import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket, saveTicketQuiet } from "@/lib/board-db"
+import { readSession } from "@/lib/board-auth"
 import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
@@ -388,9 +389,13 @@ function useProjectsState() {
         stamp - ticket.created_at.getTime() < 10_000
     )
     if (recent) return recent.key
+    const session = readSession()
     const response = await fetch("/api/board", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
+      },
       body: JSON.stringify({ kind: "allocateKey", projectKey }),
     })
     const body = (await response.json().catch(() => null)) as { key?: string; error?: { message?: string } } | null
