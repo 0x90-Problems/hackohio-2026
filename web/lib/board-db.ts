@@ -3,8 +3,8 @@
 import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
+import { mergeBoardRecords } from "@/lib/board-merge"
 import type { Agent, Comment, Event, Project, Ticket } from "@/lib/types"
-import { reviveValue } from "@/lib/local-store"
 
 export type BoardRecords = {
   projects: Project[]
@@ -25,16 +25,26 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 export async function loadBoard(): Promise<BoardRecords> {
+  // DocDB is VPC-only — unsigned visitors get an empty board until login.
+  if (!readSession()?.secret) return EMPTY
   const response = await fetch("/api/board", { cache: "no-store", headers: authHeaders() })
-  const body = (await response.json()) as BoardRecords & { error?: { message?: string } }
+  const body = (await response.json()) as BoardRecords & {
+    users?: unknown
+    error?: { message?: string }
+  }
   if (!response.ok) throw new Error(body.error?.message ?? "Could not load the board")
-  return reviveValue({
-    projects: body.projects ?? [],
-    tickets: body.tickets ?? [],
-    comments: body.comments ?? [],
-    events: body.events ?? [],
-    agents: body.agents ?? [],
-  })
+  // Normalize API shapes (columns → categories, project_key, actor names).
+  return mergeBoardRecords(
+    {
+      projects: body.projects ?? [],
+      tickets: body.tickets ?? [],
+      comments: body.comments ?? [],
+      events: body.events ?? [],
+      agents: body.agents ?? [],
+    },
+    null,
+    { users: body.users, agents: body.agents },
+  )
 }
 
 async function save(kind: string, document: object) {
