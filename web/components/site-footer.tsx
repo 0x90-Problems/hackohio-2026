@@ -35,15 +35,15 @@ const COLUMNS = [
 // Footer from the Home wireframe: brand, link columns, and where it was built.
 export function SiteFooter() {
   return (
-    <footer className="mt-12 border-t bg-muted/40">
+    <footer className="mt-0 border-t bg-muted/40">
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-8 px-4 py-10">
         <Logo className="text-lg" markClassName="size-8" />
-        <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-4 sm:divide-x sm:divide-border">
           {COLUMNS.map((column) => (
             <nav
               key={column.heading}
               aria-label={column.heading}
-              className="flex flex-col gap-2"
+              className="flex flex-col gap-2 sm:px-6 sm:first:pl-0"
             >
               <h2 className="font-semibold">{column.heading}</h2>
               {column.links.map((link) => (
@@ -57,7 +57,7 @@ export function SiteFooter() {
               ))}
             </nav>
           ))}
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 sm:px-6">
             <h2 className="font-semibold">Built at</h2>
             <p className="text-muted-foreground">HackOHI/O 2026</p>
             <p className="text-muted-foreground">Ohio Union, Columbus</p>

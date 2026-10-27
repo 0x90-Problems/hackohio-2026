@@ -18,11 +18,15 @@ export function FeedList<T extends FeedItem>({
   pageSize,
   loading,
   renderItem,
+  emptyTitle = "No activity yet",
+  emptyHint = "Changes from people and agents show up here.",
 }: {
   items: T[]
   pageSize: number
   loading: boolean
   renderItem: (item: T) => React.ReactNode
+  emptyTitle?: string
+  emptyHint?: string
 }) {
   const [page, setPage] = useState(1)
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize))
@@ -43,12 +47,7 @@ export function FeedList<T extends FeedItem>({
   }
 
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title="No activity yet"
-        hint="Changes from people and agents show up here."
-      />
-    )
+    return <EmptyState title={emptyTitle} hint={emptyHint} />
   }
 
   return (

@@ -1,10 +1,8 @@
 "use client"
 
-
 import type { Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { useProjects } from "@/components/projects/projects-store"
-import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
 import { FeedList, type FeedItem } from "@/components/feed-list"
 import { LiveDot } from "@/components/live-dot"
@@ -23,17 +21,20 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export function ChangesFeed() {
   const store = useProjects()
-  const loading = useMockLoading()
   const now = Date.now()
   const rows: Row[] = store.activity
     .filter((event) => now - event.created_at.getTime() <= DAY_MS)
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
-    .map((event) => ({ id: eventId(event), event }))
+    .map((event) => ({
+      id: eventId(event),
+      event,
+      isNew: store.newEventIds.has(eventId(event)),
+    }))
 
   return (
-    <Card>
+    <Card className="lg:sticky lg:top-20">
       <CardHeader>
-        <CardTitle>Recent changes</CardTitle>
+        <CardTitle>Changes</CardTitle>
         <CardDescription>Last 24 hours, newest first</CardDescription>
         <CardAction>
           <LiveDot label="Live" />
@@ -43,7 +44,9 @@ export function ChangesFeed() {
         <FeedList
           items={rows}
           pageSize={6}
-          loading={loading}
+          loading={false}
+          emptyTitle="No changes yet"
+          emptyHint="Moves, comments, and commits from people and agents show up here."
           renderItem={({ event }) => (
             <div className="flex flex-col gap-1.5 py-3">
               <div className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">

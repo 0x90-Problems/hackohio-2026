@@ -5,42 +5,49 @@ import Link from "next/link"
 import type { Comment } from "@/lib/types"
 import { useProjects } from "@/components/projects/projects-store"
 import { timeAgo } from "@/lib/format"
-import { useMockLoading } from "@/lib/use-mock-loading"
 import { ActorBadge } from "@/components/actor-badge"
-import { ticketHref } from "@/components/board/ticket-modal"
+import { commentId, ticketHref } from "@/components/board/ticket-modal"
 import { FeedList, type FeedItem } from "@/components/feed-list"
+import { LiveDot } from "@/components/live-dot"
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 
-type Row = FeedItem & { kind: "comment"; comment: Comment }
+type Row = FeedItem & { comment: Comment }
 
-const commentId = (c: Comment) => `comment-${c.ticket_key}-${c.created_at.getTime()}`
-
-// Same size the home feed already used per page. Extra comments stay off this page.
-const RECENT_COMMENT_CAP = 4
+const RECENT_COMMENT_CAP = 20
 
 export function PendingFeed() {
   const store = useProjects()
-  const loading = useMockLoading()
   const rows: Row[] = [...store.comments]
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
     .slice(0, RECENT_COMMENT_CAP)
-    .map((comment) => ({ id: commentId(comment), kind: "comment" as const, comment }))
+    .map((comment) => ({
+      id: commentId(comment),
+      kind: "comment" as const,
+      comment,
+      isNew: store.newCommentIds.has(commentId(comment)),
+    }))
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Recent comments</CardTitle>
+        <CardAction>
+          <LiveDot label="Streaming" />
+        </CardAction>
       </CardHeader>
       <CardContent>
         <FeedList
           items={rows}
           pageSize={4}
-          loading={loading}
+          loading={false}
+          emptyTitle="No comments yet"
+          emptyHint="People and agents leave notes on tickets here."
           renderItem={(row) => <CommentRow comment={row.comment} />}
         />
       </CardContent>
