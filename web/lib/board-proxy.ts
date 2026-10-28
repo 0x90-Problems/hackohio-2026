@@ -15,6 +15,9 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   if (authorization) headers.set("authorization", authorization)
   const contentType = request.headers.get("content-type")
   if (contentType) headers.set("content-type", contentType)
+  // Folder writes carry the folder's rev for optimistic concurrency.
+  const ifMatch = request.headers.get("if-match")
+  if (ifMatch) headers.set("if-match", ifMatch)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
   const shadow = request.headers.get("x-nutshell-mcp-path")
@@ -62,4 +65,17 @@ function apiOrigin(): URL | null {
     }
   }
   return null
+}
+
+/** Files service HTTP API (folders live under /fs/*). */
+const FILES_API_FALLBACK = "https://nzl07wu6wi.execute-api.us-east-1.amazonaws.com"
+
+export function filesOrigin(): URL {
+  const configured = process.env.FILES_API_URL?.trim()
+  try {
+    if (configured) return new URL(configured)
+  } catch {
+    // fall through to the default
+  }
+  return new URL(FILES_API_FALLBACK)
 }
