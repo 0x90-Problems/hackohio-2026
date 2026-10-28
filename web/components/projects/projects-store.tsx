@@ -238,12 +238,10 @@ function useProjectsState() {
           return added.length > 0 || kept.length !== current.length ? [...kept, ...added] : current
         })
         setActivity((current) => {
-          const known = new Set(
-            current.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`),
-          )
+          const known = new Set(current.map(activityKey))
           const kept = current.filter((event) => !gone.current.has(event.ticket_key))
           const added = remote.events.filter(
-            (event) => !gone.current.has(event.ticket_key) && !known.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`),
+            (event) => !gone.current.has(event.ticket_key) && !known.has(activityKey(event)),
           )
           return added.length > 0 || kept.length !== current.length ? [...added, ...kept].sort(newestFirst) : current
         })
@@ -394,6 +392,8 @@ function useProjectsState() {
         stamp - ticket.created_at.getTime() < 10_000
     )
     if (recent) return recent.key
+    // The create waits on the board API (slow on a cold start), so say so right away.
+    const pending = toast.loading("Creating ticket…", { description: input.title })
     const session = readSession()
     const response = await fetch("/api/board", {
       method: "POST",
@@ -411,17 +411,18 @@ function useProjectsState() {
           ...(input.due_date && { due_date: input.due_date }),
         },
       }),
-    })
-    const body = (await response.json().catch(() => null)) as
-      | { key?: string; status?: string; error?: { message?: string } }
+    }).catch(() => null)
+    const body = (await response?.json().catch(() => null)) as
+      | { key?: string; status?: string; created_at?: string; error?: { message?: string } }
       | null
-    if (!response.ok || typeof body?.key !== "string") {
+    if (!response?.ok || typeof body?.key !== "string") {
       const error = new Error(body?.error?.message ?? "Could not create the ticket")
-      toast.error("Couldn't save to the database", { description: error.message })
+      toast.error("Couldn't save to the database", { id: pending, description: error.message })
       throw error
     }
     const key = body.key
-    const created_at = now()
+    // Use the API's timestamp so this local echo matches the server's ticket_created event.
+    const created_at = body.created_at ? new Date(body.created_at) : now()
     const ticket: Ticket = {
       key,
       project_key: projectKey,
@@ -443,7 +444,7 @@ function useProjectsState() {
       details: { status: input.status },
       created_at,
     })
-    toast.success(`Created ${key}`, { description: input.title })
+    toast.success(`Created ${key}`, { id: pending, description: input.title })
     return key
   }
 
@@ -751,6 +752,13 @@ function useProjectsState() {
 
 type ProjectsStore = ReturnType<typeof useProjectsState>
 const ProjectsContext = createContext<ProjectsStore | null>(null)
+
+// Dedupe key for the live activity feed. A ticket is created once, so its local echo and
+// the server's ticket_created event match by key even when their clocks differ.
+function activityKey(event: Event) {
+  if (event.action === EVENT_ACTIONS.TICKET_CREATED) return `${event.action}:${event.ticket_key}`
+  return `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`
+}
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const store = useProjectsState()
