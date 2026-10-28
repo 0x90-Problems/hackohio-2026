@@ -7,11 +7,14 @@ import { useTheme } from "next-themes"
 import {
   BotIcon,
   Building2Icon,
+  FolderIcon,
   FolderKanbanIcon,
   KeyRoundIcon,
   LayoutGridIcon,
   LogOutIcon,
+  MessagesSquareIcon,
   MoonIcon,
+  PenToolIcon,
   SunIcon,
   UserIcon,
   UsersIcon,
@@ -46,6 +49,15 @@ const NAV_LINKS = [
   { href: "/api", label: "API", icon: KeyRoundIcon },
 ]
 
+// The launcher lists NutShell's services (not the page nav, which is already in
+// the header). Services that aren't built yet show as "Soon" and can't be opened.
+const SERVICES = [
+  { label: "Boards", description: "Projects, tickets and roadmaps", href: "/projects", icon: FolderKanbanIcon },
+  { label: "Folders", description: "Shared files and notes", icon: FolderIcon },
+  { label: "Workspace", description: "Team chat with channels", icon: MessagesSquareIcon },
+  { label: "Whiteboard", description: "Draw live with people and agents", icon: PenToolIcon },
+] as const
+
 // Pages that show without the header.
 const NO_HEADER = ["/login", "/signup"]
 
@@ -65,22 +77,68 @@ export function AppHeader() {
         {/* Left: app launcher + logo */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Open app launcher">
+            <Button variant="ghost" size="icon" aria-label="Open NutShell apps">
               <LayoutGridIcon aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-48">
-            <DropdownMenuItem asChild>
-              <Link href="/">Home</Link>
-            </DropdownMenuItem>
-            {NAV_LINKS.map((link) => (
-              <DropdownMenuItem key={link.href} asChild>
-                <Link href={link.href}>
-                  {link.icon && <link.icon className="size-4" aria-hidden="true" />}
-                  {link.label}
-                </Link>
+          <DropdownMenuContent align="start" className="w-80 p-2">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">NutShell apps</DropdownMenuLabel>
+            <div className="grid grid-cols-2 gap-1">
+              {SERVICES.map((service) => {
+                const tile = (
+                  <>
+                    <span className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">
+                      <service.icon className="size-5" aria-hidden="true" />
+                    </span>
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      {service.label}
+                      {!("href" in service) && (
+                        <span className="rounded border border-dashed px-1 text-[10px] font-normal text-muted-foreground">
+                          Soon
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs leading-snug text-muted-foreground">{service.description}</span>
+                  </>
+                )
+                return "href" in service ? (
+                  <DropdownMenuItem
+                    key={service.label}
+                    asChild
+                    className={cn(
+                      "flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal",
+                      pathname.startsWith(service.href) && "bg-muted"
+                    )}
+                  >
+                    <Link href={service.href}>{tile}</Link>
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    key={service.label}
+                    disabled
+                    aria-label={`${service.label}, coming soon`}
+                    className="flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal"
+                  >
+                    {tile}
+                  </DropdownMenuItem>
+                )
+              })}
+            </div>
+            {/* The page nav is hidden below xl, so the launcher carries it there. */}
+            <div className="xl:hidden">
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/">Home</Link>
               </DropdownMenuItem>
-            ))}
+              {NAV_LINKS.map((link) => (
+                <DropdownMenuItem key={link.href} asChild>
+                  <Link href={link.href}>
+                    <link.icon className="size-4" aria-hidden="true" />
+                    {link.label}
+                  </Link>
+                </DropdownMenuItem>
+              ))}
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
 
