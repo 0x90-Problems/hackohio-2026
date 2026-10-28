@@ -5,7 +5,7 @@ import { useState } from "react"
 import { TicketOwnerBadge } from "@/components/actor-badge"
 import { ColorDot } from "@/components/board/category-dialogs"
 import { Button } from "@/components/ui/button"
-import { CATEGORY_COLORS } from "@/lib/categories"
+import { CATEGORY_COLORS, categoryName } from "@/lib/categories"
 import type { Category, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -29,13 +29,38 @@ function daysBetween(from: Date, to: Date) {
   return Math.round((to.getTime() - from.getTime()) / DAY)
 }
 
+// Calendar arithmetic, not `+ n * DAY`: a DST change makes a day 23 or 25 hours,
+// which would push every later "midnight" onto the wrong date.
+function addDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+}
+
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
 
-type Span = { ticket: Ticket; start: Date; end: Date; dated: boolean }
+// "range": start and end known. "start": only a start date. "none": no dates.
+type Span = { ticket: Ticket; start: Date; end: Date; kind: "range" | "start" | "none" }
+
+// Where a ticket sits on the timeline. Bars run from the start date (or, without
+// one, the day it was created) to the due date.
+export function ticketSpan(ticket: Ticket, today: Date = startOfDay(new Date())): Span {
+  // The board API falls back to the epoch for a missing created_at; a 1970 date
+  // would stretch the timeline across ~20,000 days, so treat it as unknown.
+  const created = ticket.created_at.getTime() > 0 ? startOfDay(ticket.created_at) : undefined
+  const start = parseDay(ticket.start_date)
+  const due = parseDay(ticket.due_date)
+  if (due) {
+    // A start after the due date (e.g. set through the API) collapses to the due day.
+    const from = start ?? created
+    return { ticket, start: from && from <= due ? from : due, end: due, kind: "range" }
+  }
+  if (start) return { ticket, start, end: start, kind: "start" }
+  const at = created ?? today
+  return { ticket, start: at, end: at, kind: "none" }
+}
 
 // Roadmap timeline: one lane per column (Now / Next / Later ...), one bar per
-// ticket from when it was created to its due date. Undated tickets show as a
-// dashed marker so nothing on the roadmap silently disappears.
+// ticket. Tickets without dates show as a dashed marker so nothing on the
+// roadmap silently disappears.
 export function TimelineView({
   tickets,
   categories,
@@ -48,34 +73,39 @@ export function TimelineView({
   const [zoom, setZoom] = useState<Zoom>("weeks")
   const today = startOfDay(new Date())
 
-  const spans: Span[] = tickets.map((ticket) => {
-    const created = startOfDay(ticket.created_at)
-    const due = parseDay(ticket.due_date)
-    if (!due) return { ticket, start: created, end: created, dated: false }
-    return due < created
-      ? { ticket, start: due, end: due, dated: true }
-      : { ticket, start: created, end: due, dated: true }
-  })
+  const spans = tickets.map((ticket) => ticketSpan(ticket, today))
 
   if (spans.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-        Nothing on the roadmap yet. Add a ticket, and give it a due date to see it on the timeline.
+        No tickets to show. Add a ticket (or clear the owner filter) and give it a start and due date to see it on
+        the timeline.
       </div>
     )
   }
 
-  const earliest = Math.min(today.getTime(), ...spans.map((span) => span.start.getTime()))
-  const latest = Math.max(today.getTime(), ...spans.map((span) => span.end.getTime()))
-  const rangeStart = new Date(earliest - 7 * DAY)
-  const totalDays = Math.max(42, daysBetween(rangeStart, new Date(latest)) + 14)
+  let earliest = today
+  let latest = today
+  for (const span of spans) {
+    if (span.start < earliest) earliest = span.start
+    if (span.end > latest) latest = span.end
+  }
+  const rangeStart = addDays(earliest, -7)
+  const totalDays = Math.max(42, daysBetween(rangeStart, latest) + 14)
   const dayWidth = DAY_WIDTH[zoom]
   const trackWidth = totalDays * dayWidth
   const offset = (date: Date) => daysBetween(rangeStart, date) * dayWidth
 
-  const days = Array.from({ length: totalDays }, (_, index) => new Date(rangeStart.getTime() + index * DAY))
-  const months = days.filter((day, index) => index === 0 || day.getDate() === 1)
-  const weekStarts = days.filter((day) => day.getDay() === 1)
+  const months: Date[] = []
+  const weekStarts: Date[] = []
+  // Label the partial first month only if it has room before the next month's label.
+  const nextMonth = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 1, 1)
+  if (rangeStart.getDate() !== 1 && daysBetween(rangeStart, nextMonth) * dayWidth >= 120) months.push(rangeStart)
+  for (let index = 0; index < totalDays; index++) {
+    const day = addDays(rangeStart, index)
+    if (day.getDate() === 1) months.push(day)
+    if (day.getDay() === 1) weekStarts.push(day)
+  }
 
   const known = new Set(categories.map((category) => category.slug))
   const lanes = [
@@ -85,7 +115,7 @@ export function TimelineView({
       color: category.color,
     })),
     ...[...new Set(spans.map((span) => span.ticket.status).filter((status) => !known.has(status)))].map(
-      (status) => ({ slug: status, name: status, color: "gray" as const })
+      (status) => ({ slug: status, name: categoryName(status, categories), color: "gray" as const })
     ),
   ]
     .map((lane) => ({
@@ -161,7 +191,7 @@ export function TimelineView({
           </div>
 
           {lanes.map((lane) => (
-            <div key={lane.slug} role="list" aria-label={lane.name} className="contents">
+            <div key={lane.slug} role="group" aria-label={lane.name} className="contents">
               <div className="sticky left-0 z-10 flex items-center gap-2 border-r border-b bg-muted/40 px-2 py-1.5 text-sm font-medium">
                 <ColorDot color={lane.color} />
                 {lane.name}
@@ -177,11 +207,15 @@ export function TimelineView({
                 const left = offset(span.start)
                 const width = Math.max(dayWidth, (daysBetween(span.start, span.end) + 1) * dayWidth)
                 const milestone = ticket.fields?.Milestone
-                const label = span.dated
-                  ? `${ticket.key} ${ticket.title}, ${shortDate.format(span.start)} to ${shortDate.format(span.end)}`
-                  : `${ticket.key} ${ticket.title}, no due date`
+                const dated = span.kind === "range"
+                const label =
+                  span.kind === "range"
+                    ? `${ticket.key} ${ticket.title}, ${shortDate.format(span.start)} to ${shortDate.format(span.end)}`
+                    : span.kind === "start"
+                      ? `${ticket.key} ${ticket.title}, starts ${shortDate.format(span.start)}, no due date`
+                      : `${ticket.key} ${ticket.title}, no dates`
                 return (
-                  <div key={ticket.key} role="listitem" className="contents">
+                  <div key={ticket.key} className="contents">
                     <button
                       type="button"
                       onClick={() => onOpenTicket(ticket)}
@@ -204,18 +238,20 @@ export function TimelineView({
                         onClick={() => onOpenTicket(ticket)}
                         className={cn(
                           "absolute top-1/2 flex h-8 -translate-y-1/2 items-center gap-1.5 overflow-hidden rounded-full px-2.5 text-xs font-medium whitespace-nowrap shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300",
-                          span.dated
+                          dated
                             ? CATEGORY_COLORS[lane.color].card
                             : "border border-dashed bg-background text-muted-foreground"
                         )}
                         style={{
                           left,
-                          width: span.dated ? width : undefined,
-                          minWidth: span.dated ? undefined : "7rem",
+                          width: dated ? width : undefined,
+                          minWidth: dated ? undefined : "7rem",
                           animationDelay: `${Math.min(index, 12) * 30}ms`,
                         }}
                       >
-                        <span className="truncate">{span.dated ? milestone || ticket.title : "No due date"}</span>
+                        <span className="truncate">
+                          {dated ? milestone || ticket.title : span.kind === "start" ? "No due date" : "No dates"}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -226,7 +262,7 @@ export function TimelineView({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Bars run from when a ticket was created to its due date. Set due dates in the ticket or the Calendar view.
+        Bars run from a ticket&apos;s start date (or the day it was created) to its due date. Set both in the ticket.
       </p>
     </div>
   )

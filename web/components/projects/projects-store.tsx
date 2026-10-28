@@ -239,10 +239,20 @@ function useProjectsState() {
         })
         setActivity((current) => {
           const known = new Set(current.map(activityKey))
-          const kept = current.filter((event) => !gone.current.has(event.ticket_key))
           const added = remote.events.filter(
             (event) => !gone.current.has(event.ticket_key) && !known.has(activityKey(event)),
           )
+          // Each server event replaces at most one local echo of the same change, so a
+          // move or comment shows once instead of once per clock.
+          const unconfirmed = new Set(added)
+          const kept = current.filter((event) => {
+            if (gone.current.has(event.ticket_key)) return false
+            if (!event.local) return true
+            const match = [...unconfirmed].find((server) => confirmsEcho(event, server))
+            if (!match) return true
+            unconfirmed.delete(match)
+            return false
+          })
           return added.length > 0 || kept.length !== current.length ? [...added, ...kept].sort(newestFirst) : current
         })
       } catch {
@@ -290,6 +300,7 @@ function useProjectsState() {
     const event: Event = {
       ...input,
       project_key: projectKeyOf(input.ticket_key),
+      local: true,
     }
     setActivity((current) => [event, ...current])
     setNewEventIds((ids) => new Set(ids).add(eventId(event)))
@@ -378,6 +389,7 @@ function useProjectsState() {
       title: string
       status: string
       tags: string[]
+      start_date?: string
       due_date?: string
     },
     actor: Actor = me
@@ -410,6 +422,7 @@ function useProjectsState() {
           title: input.title,
           // Create straight into the picked column: one write, one ticket_created event.
           status: input.status,
+          ...(input.start_date && { start_date: input.start_date }),
           ...(input.due_date && { due_date: input.due_date }),
         },
       }),
@@ -431,6 +444,7 @@ function useProjectsState() {
       title: input.title,
       ...(input.tags.length > 0 && { tags: input.tags }),
       status: input.status,
+      ...(input.start_date && { start_date: input.start_date }),
       ...(input.due_date && { due_date: input.due_date }),
       created_by: actor,
       created_at,
@@ -600,24 +614,39 @@ function useProjectsState() {
     })
   }
 
-  function setDueDate(ticketKey: string, due_date: string) {
-    setTickets((current) =>
-      current.map((ticket) => {
-        if (ticket.key !== ticketKey) return ticket
-        if (due_date) return { ...ticket, due_date }
-        const withoutDueDate = { ...ticket }
-        delete withoutDueDate.due_date
-        return withoutDueDate
-      })
-    )
-    persistTicket(ticketKey)
+  // Dates are sent explicitly, with "" meaning cleared: a ticket that simply lacks
+  // the field would look unchanged to the API, so a cleared date never saved.
+  function setTicketDate(ticketKey: string, field: "start_date" | "due_date", value: string) {
+    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+    if (!ticket || (ticket[field] ?? "") === value) return
+    const start = field === "start_date" ? value : ticket.start_date
+    const due = field === "due_date" ? value : ticket.due_date
+    if (start && due && start > due) {
+      toast.error("Start date must be on or before the due date")
+      return
+    }
+    const next = { ...ticket }
+    if (value) next[field] = value
+    else delete next[field]
+    setTickets((current) => current.map((item) => (item.key === ticketKey ? next : item)))
+    saveTicket({ ...next, [field]: value })
+    const label = field === "start_date" ? "Start date" : "Due date"
     addEvent({
       action: EVENT_ACTIONS.TICKET_UPDATED,
       ticket_key: ticketKey,
       actor: me,
-      details: { body: due_date ? `Due date: ${due_date}` : "Cleared the due date" },
+      // Same wording as the board API's event, so the server copy replaces this echo.
+      details: { body: value ? `${label}: ${value}` : `${label} cleared` },
       created_at: now(),
     })
+  }
+
+  function setDueDate(ticketKey: string, due_date: string) {
+    setTicketDate(ticketKey, "due_date", due_date)
+  }
+
+  function setStartDate(ticketKey: string, start_date: string) {
+    setTicketDate(ticketKey, "start_date", start_date)
   }
 
   function createCategory(
@@ -743,6 +772,7 @@ function useProjectsState() {
     setDescription,
     setTicketColor,
     setDueDate,
+    setStartDate,
     setReviewer,
     deleteTicket: removeTicket,
     createCategory,
@@ -757,6 +787,19 @@ const ProjectsContext = createContext<ProjectsStore | null>(null)
 
 // Dedupe key for the live activity feed. A ticket is created once, so its local echo and
 // the server's ticket_created event match by key even when their clocks differ.
+// A server event confirms a local echo when it is the same change on the same
+// ticket within a few minutes (the browser and server clocks differ).
+function confirmsEcho(local: Event, server: Event) {
+  if (local.action !== server.action || local.ticket_key !== server.ticket_key) return false
+  if (Math.abs(local.created_at.getTime() - server.created_at.getTime()) > 5 * 60_000) return false
+  for (const field of ["to", "body", "sha"] as const) {
+    const a = local.details?.[field]
+    const b = server.details?.[field]
+    if (a !== undefined && b !== undefined && a !== b) return false
+  }
+  return true
+}
+
 function activityKey(event: Event) {
   if (event.action === EVENT_ACTIONS.TICKET_CREATED) return `${event.action}:${event.ticket_key}`
   return `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}:${event.details?.body ?? ""}:${event.details?.sha ?? ""}`
