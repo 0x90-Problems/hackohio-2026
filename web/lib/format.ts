@@ -46,6 +46,15 @@ export function describeEvent(
       return `Linked commit ${event.details?.sha ?? ""} to ${key}`
     case EVENT_ACTIONS.TICKET_CLOSED:
       return `Closed ${key}`
+    case EVENT_ACTIONS.TICKET_UPDATED: {
+      const change = event.details?.body
+      return change ? `Updated ${key} · ${change}` : `Updated ${key}`
+    }
+    case EVENT_ACTIONS.TICKET_DELETED:
+      return `Deleted ${key}`
+    default:
+      // Never render an empty row for an action this app doesn't know yet.
+      return `${String(event.action).replaceAll("_", " ")} · ${key}`
   }
 }
 
