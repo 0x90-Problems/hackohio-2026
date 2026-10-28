@@ -78,7 +78,6 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             made it, and agents always act for a person.
           </p>
         </div>
-        <p className="text-sm text-muted-foreground">Built at HackOHI/O 2026</p>
       </section>
 
       <div className="flex flex-col items-center justify-center gap-6 p-4">

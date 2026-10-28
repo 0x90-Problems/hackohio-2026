@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select"
 
 // No organization collection yet, so the name is a placeholder.
-const DEFAULT_ORG_NAME = "HackOHI/O 2026"
+const DEFAULT_ORG_NAME = "NutShell"
 
 const EXPIRY_OPTIONS = [
   { hours: 1, label: "1 hour" },

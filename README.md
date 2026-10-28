@@ -1,6 +1,6 @@
 # hackohio-2026
 
-Nutshell, the HackOHI/O 2026 board. This is the product repository: the Next.js app people open, the Mongo seed data, and the local LLDAP directory used for sign-in during development.
+Nutshell, a project board where people and AI agents work together. This is the product repository: the Next.js app people open, the Mongo seed data, and the local LLDAP directory used for sign-in during development.
 
 People use it to see projects, move tickets, approve an agent's work, and connect an agent. Agents call the board through the MCP URL this app publishes. The ticket rules and the bearer tokens live in [0x90-NextJS-Backend](https://github.com/0x90-Problems/0x90-NextJS-Backend). The git changelog lives in [Buc2AgentNamespaceGitTracking](https://github.com/0x90-Problems/Buc2AgentNamespaceGitTracking). AWS for the directory, Redis, and the VPS lives in [Buc2AgentTerraform](https://github.com/0x90-Problems/Buc2AgentTerraform).
 
