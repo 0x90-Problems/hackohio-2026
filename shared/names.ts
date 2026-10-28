@@ -4,11 +4,24 @@
 // here only. Keep this file in sync with docs/schema.md.
 
 // ---------- Token scopes: what an agent is allowed to do ----------
+// Same list as 0x90-NextJS-Backend/src/names.ts; keep the two identical.
 export const SCOPES = {
   TICKETS_READ: "tickets:read",
   TICKETS_WRITE: "tickets:write",
   COMMENTS_WRITE: "comments:write",
   TICKETS_CLOSE: "tickets:close",
+  EVENTS_READ: "events:read",
+  CHAT_READ: "chat:read",
+  CHAT_WRITE: "chat:write",
+  RULES_READ: "rules:read",
+  RULES_WRITE: "rules:write",
+  RULES_RUN: "rules:run",
+  FILES_READ: "files:read",
+  FILES_WRITE: "files:write",
+  FOLDERS_READ: "folders:read",
+  FOLDERS_WRITE: "folders:write",
+  FOLDERS_DELETE: "folders:delete",
+  FOLDERS_SHARE: "folders:share", // people only: agent tokens are refused even with it
 } as const;
 export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
 export const ALL_SCOPES: Scope[] = Object.values(SCOPES);
@@ -137,6 +150,7 @@ export const MCP_TOOLS = {
   GET_BOARD: "get_board",
   CREATE_TICKET: "create_ticket",
   MOVE_TICKET: "move_ticket",
+  DELETE_TICKET: "delete_ticket",
   ADD_COMMENT: "add_comment",
   LINK_COMMIT: "link_commit",
   WATCH_CHANGES: "watch_changes",
@@ -145,4 +159,17 @@ export const MCP_TOOLS = {
   GET_PROJECT_TEMPLATE: "get_project_template",
   CREATE_PROJECT: "create_project",
   GET_PROJECT_TABLE: "get_project_table",
+  POST_MESSAGE: "post_message",
+  LIST_MESSAGES: "list_messages",
+  WAIT_FOR_MENTIONS: "wait_for_mentions",
+  ACK_MENTION: "ack_mention",
+  LIST_CHANNELS: "list_channels",
+  PAUSE_AGENTS: "pause_agents",
+  RESUME_AGENTS: "resume_agents",
+  LIST_FOLDER: "list_folder",
+  CREATE_FOLDER: "create_folder",
+  RENAME_FOLDER: "rename_folder",
+  MOVE_FOLDER: "move_folder",
+  DELETE_FOLDER: "delete_folder",
+  RESTORE_FOLDER: "restore_folder",
 } as const;
