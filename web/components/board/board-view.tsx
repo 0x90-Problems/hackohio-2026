@@ -275,7 +275,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
             <NewTicketDialog
               categories={categories}
               tagSuggestions={tagSuggestions}
-              onCreate={(input) => store.createTicket(projectKey, input)}
+              onCreate={(input) => void store.createTicket(projectKey, input).catch(() => {})}
             />
           </div>
         </div>
