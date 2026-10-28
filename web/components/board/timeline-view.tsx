@@ -5,7 +5,7 @@ import { useState } from "react"
 import { TicketOwnerBadge } from "@/components/actor-badge"
 import { ColorDot } from "@/components/board/category-dialogs"
 import { Button } from "@/components/ui/button"
-import { CATEGORY_COLORS } from "@/lib/categories"
+import { CATEGORY_COLORS, categoryName } from "@/lib/categories"
 import type { Category, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -29,6 +29,12 @@ function daysBetween(from: Date, to: Date) {
   return Math.round((to.getTime() - from.getTime()) / DAY)
 }
 
+// Calendar arithmetic, not `+ n * DAY`: a DST change makes a day 23 or 25 hours,
+// which would push every later "midnight" onto the wrong date.
+function addDays(date: Date, days: number) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
+}
+
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
 
 // "range": start and end known. "start": only a start date. "none": no dates.
@@ -36,16 +42,20 @@ type Span = { ticket: Ticket; start: Date; end: Date; kind: "range" | "start" | 
 
 // Where a ticket sits on the timeline. Bars run from the start date (or, without
 // one, the day it was created) to the due date.
-export function ticketSpan(ticket: Ticket): Span {
-  const created = startOfDay(ticket.created_at)
+export function ticketSpan(ticket: Ticket, today: Date = startOfDay(new Date())): Span {
+  // The board API falls back to the epoch for a missing created_at; a 1970 date
+  // would stretch the timeline across ~20,000 days, so treat it as unknown.
+  const created = ticket.created_at.getTime() > 0 ? startOfDay(ticket.created_at) : undefined
   const start = parseDay(ticket.start_date)
   const due = parseDay(ticket.due_date)
   if (due) {
-    const from = start ?? (created <= due ? created : due)
-    return { ticket, start: from, end: due, kind: "range" }
+    // A start after the due date (e.g. set through the API) collapses to the due day.
+    const from = start ?? created
+    return { ticket, start: from && from <= due ? from : due, end: due, kind: "range" }
   }
   if (start) return { ticket, start, end: start, kind: "start" }
-  return { ticket, start: created, end: created, kind: "none" }
+  const at = created ?? today
+  return { ticket, start: at, end: at, kind: "none" }
 }
 
 // Roadmap timeline: one lane per column (Now / Next / Later ...), one bar per
@@ -63,27 +73,39 @@ export function TimelineView({
   const [zoom, setZoom] = useState<Zoom>("weeks")
   const today = startOfDay(new Date())
 
-  const spans = tickets.map(ticketSpan)
+  const spans = tickets.map((ticket) => ticketSpan(ticket, today))
 
   if (spans.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-        Nothing on the roadmap yet. Add a ticket and give it a start and due date to see it on the timeline.
+        No tickets to show. Add a ticket (or clear the owner filter) and give it a start and due date to see it on
+        the timeline.
       </div>
     )
   }
 
-  const earliest = Math.min(today.getTime(), ...spans.map((span) => span.start.getTime()))
-  const latest = Math.max(today.getTime(), ...spans.map((span) => span.end.getTime()))
-  const rangeStart = new Date(earliest - 7 * DAY)
-  const totalDays = Math.max(42, daysBetween(rangeStart, new Date(latest)) + 14)
+  let earliest = today
+  let latest = today
+  for (const span of spans) {
+    if (span.start < earliest) earliest = span.start
+    if (span.end > latest) latest = span.end
+  }
+  const rangeStart = addDays(earliest, -7)
+  const totalDays = Math.max(42, daysBetween(rangeStart, latest) + 14)
   const dayWidth = DAY_WIDTH[zoom]
   const trackWidth = totalDays * dayWidth
   const offset = (date: Date) => daysBetween(rangeStart, date) * dayWidth
 
-  const days = Array.from({ length: totalDays }, (_, index) => new Date(rangeStart.getTime() + index * DAY))
-  const months = days.filter((day, index) => index === 0 || day.getDate() === 1)
-  const weekStarts = days.filter((day) => day.getDay() === 1)
+  const months: Date[] = []
+  const weekStarts: Date[] = []
+  // Label the partial first month only if it has room before the next month's label.
+  const nextMonth = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 1, 1)
+  if (rangeStart.getDate() !== 1 && daysBetween(rangeStart, nextMonth) * dayWidth >= 120) months.push(rangeStart)
+  for (let index = 0; index < totalDays; index++) {
+    const day = addDays(rangeStart, index)
+    if (day.getDate() === 1) months.push(day)
+    if (day.getDay() === 1) weekStarts.push(day)
+  }
 
   const known = new Set(categories.map((category) => category.slug))
   const lanes = [
@@ -93,7 +115,7 @@ export function TimelineView({
       color: category.color,
     })),
     ...[...new Set(spans.map((span) => span.ticket.status).filter((status) => !known.has(status)))].map(
-      (status) => ({ slug: status, name: status, color: "gray" as const })
+      (status) => ({ slug: status, name: categoryName(status, categories), color: "gray" as const })
     ),
   ]
     .map((lane) => ({
@@ -169,7 +191,7 @@ export function TimelineView({
           </div>
 
           {lanes.map((lane) => (
-            <div key={lane.slug} role="list" aria-label={lane.name} className="contents">
+            <div key={lane.slug} role="group" aria-label={lane.name} className="contents">
               <div className="sticky left-0 z-10 flex items-center gap-2 border-r border-b bg-muted/40 px-2 py-1.5 text-sm font-medium">
                 <ColorDot color={lane.color} />
                 {lane.name}
@@ -193,7 +215,7 @@ export function TimelineView({
                       ? `${ticket.key} ${ticket.title}, starts ${shortDate.format(span.start)}, no due date`
                       : `${ticket.key} ${ticket.title}, no dates`
                 return (
-                  <div key={ticket.key} role="listitem" className="contents">
+                  <div key={ticket.key} className="contents">
                     <button
                       type="button"
                       onClick={() => onOpenTicket(ticket)}
