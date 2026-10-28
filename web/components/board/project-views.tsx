@@ -5,18 +5,22 @@ import type { Category, ProjectLayout, Ticket, User } from "@/lib/types"
 import { TicketOwnerBadge } from "@/components/actor-badge"
 import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { TableView } from "@/components/board/table-view"
+import { TimelineView } from "@/components/board/timeline-view"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-export type ProjectView = "board" | "table" | "calendar"
+export type ProjectView = "board" | "table" | "calendar" | "timeline"
 
 export function projectViewOptions(layout: ProjectLayout | undefined): ProjectView[] {
   if (layout === "table") return ["table", "board", "calendar"]
+  if (layout === "roadmap") return ["timeline", "board", "calendar"]
   return ["board", "calendar"]
 }
 
 export function defaultProjectView(layout: ProjectLayout | undefined): ProjectView {
-  return layout === "table" ? "table" : "board"
+  if (layout === "table") return "table"
+  if (layout === "roadmap") return "timeline"
+  return "board"
 }
 
 export type ProjectFilters = {
@@ -27,6 +31,7 @@ const VIEW_LABELS: Record<ProjectView, string> = {
   board: "Board",
   table: "Table",
   calendar: "Calendar",
+  timeline: "Timeline",
 }
 
 export function ticketOwnerId(ticket: Ticket) {
@@ -145,6 +150,13 @@ export function ProjectViews({
           fields={fields}
           onOpenTicket={onOpenTicket}
           onDelete={onDelete}
+        />
+      )}
+      {view === "timeline" && (
+        <TimelineView
+          tickets={filteredTickets}
+          categories={categories}
+          onOpenTicket={onOpenTicket}
         />
       )}
       {view === "calendar" && (
