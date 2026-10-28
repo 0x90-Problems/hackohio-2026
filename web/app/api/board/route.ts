@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     projectKey?: string
     project?: { name: string; key: string; template?: string }
     ticket?: {
-      key: string
+      key?: string
       title: string
       label?: string
       status?: string
@@ -78,6 +78,17 @@ export async function POST(request: Request) {
       name: body.project.name,
       key: body.project.key,
       template: body.project.template ?? "blank",
+    })
+  }
+  if (body.kind === "createTicket" && body.ticket) {
+    // The board API assigns the key, so a create is never a PATCH of an unsaved key.
+    const ticket = body.ticket
+    return forward("/tickets", "POST", {
+      title: ticket.title,
+      ...(ticket.label ? { label: ticket.label } : {}),
+      ...(ticket.reviewer_id ? { reviewer_id: ticket.reviewer_id } : {}),
+      ...(ticket.due_date ? { due_date: ticket.due_date } : {}),
+      ...(ticket.project_key ? { project: ticket.project_key } : {}),
     })
   }
   if (body.kind === "ticket" && body.ticket) {

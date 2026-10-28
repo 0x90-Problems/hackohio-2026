@@ -127,14 +127,14 @@ function useProjectsState() {
       const tickets = [...remote.tickets]
       const comments = [...remote.comments]
       const activity = [...remote.events].sort(newestFirst)
-      const knownTickets = new Set(remote.tickets.map((ticket) => ticket.key))
       const knownProjects = new Set(remote.projects.map((project) => project.key))
       const knownComments = new Set(remote.comments.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}`))
       const knownEvents = new Set(remote.events.map((event) => `${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
       // Do not seed mock/local data into DocDB when remote is empty — empty means empty.
       if (remote.projects.length > 0 && local) {
         local.projects.filter((project) => !knownProjects.has(project.key)).forEach(saveProject)
-        local.tickets.filter((ticket) => !knownTickets.has(ticket.key)).forEach(saveTicket)
+        // Local-only tickets were never created on the API (their save failed), so
+        // PATCHing them only 404s. Drop them; the API is the source of truth for tickets.
         local.comments
           .filter((comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`))
           .forEach(saveComment)
@@ -142,7 +142,6 @@ function useProjectsState() {
           .filter((event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`))
           .forEach(saveEvent)
         const extraProjects = local.projects.filter((project) => !knownProjects.has(project.key))
-        const extraTickets = local.tickets.filter((ticket) => !knownTickets.has(ticket.key))
         const extraComments = local.comments.filter(
           (comment) => !knownComments.has(`${comment.ticket_key}:${comment.created_at.toISOString()}`)
         )
@@ -150,7 +149,6 @@ function useProjectsState() {
           (event) => !knownEvents.has(`${event.action}:${event.ticket_key}:${event.created_at.toISOString()}`)
         )
         projects.push(...extraProjects)
-        tickets.push(...extraTickets)
         comments.push(...extraComments)
         activity.unshift(...extraEvents)
       }
@@ -403,11 +401,22 @@ function useProjectsState() {
         "content-type": "application/json",
         ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
       },
-      body: JSON.stringify({ kind: "allocateKey", projectKey }),
+      // Create on the board API first; it assigns the key. Reserving a key and then
+      // saving would PATCH a ticket that does not exist yet ("Ticket X was not found").
+      body: JSON.stringify({
+        kind: "createTicket",
+        ticket: {
+          project_key: projectKey,
+          title: input.title,
+          ...(input.due_date && { due_date: input.due_date }),
+        },
+      }),
     })
-    const body = (await response.json().catch(() => null)) as { key?: string; error?: { message?: string } } | null
+    const body = (await response.json().catch(() => null)) as
+      | { key?: string; status?: string; error?: { message?: string } }
+      | null
     if (!response.ok || typeof body?.key !== "string") {
-      const error = new Error(body?.error?.message ?? "Could not assign a ticket key")
+      const error = new Error(body?.error?.message ?? "Could not create the ticket")
       toast.error("Couldn't save to the database", { description: error.message })
       throw error
     }
@@ -425,7 +434,8 @@ function useProjectsState() {
     }
     setTickets((current) => [ticket, ...current])
     setNewTicketKeys((keys) => new Set(keys).add(key))
-    saveTicket(ticket)
+    // The API creates tickets in the default column; move it if the user picked another.
+    if (body.status !== input.status) saveTicket(ticket)
     addEvent({
       action: EVENT_ACTIONS.TICKET_CREATED,
       ticket_key: key,
