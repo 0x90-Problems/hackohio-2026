@@ -39,6 +39,7 @@ export function NewTicketDialog({
     title: string
     status: string
     tags: string[]
+    start_date?: string
     due_date?: string
   }) => void
 }) {
@@ -46,23 +47,29 @@ export function NewTicketDialog({
   const [title, setTitle] = useState("")
   const [status, setStatus] = useState<string>()
   const [tags, setTags] = useState<string[]>([])
+  const [start, setStart] = useState("")
   const [deadline, setDeadline] = useState("")
   // Default to the first column, and fall back to it if the picked one was deleted
   const startIn = categories.some((c) => c.slug === status)
     ? status
     : categories[0]?.slug
+  // Native min/max don't stop a typed date, so check the span here too.
+  const badSpan = Boolean(start && deadline && start > deadline)
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim() || !startIn) return
+    if (badSpan) return
     onCreate({
       title: title.trim(),
       status: startIn,
       tags,
+      ...(start && { start_date: start }),
       ...(deadline && { due_date: deadline }),
     })
     setTitle("")
     setTags([])
+    setStart("")
     setDeadline("")
     setOpen(false)
   }
@@ -94,14 +101,34 @@ export function NewTicketDialog({
               required
             />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="ticket-deadline">Deadline</Label>
-            <Input
-              id="ticket-deadline"
-              type="date"
-              value={deadline}
-              onChange={(event) => setDeadline(event.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ticket-start">Start date</Label>
+              <Input
+                id="ticket-start"
+                type="date"
+                value={start}
+                max={deadline || undefined}
+                onChange={(event) => setStart(event.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ticket-deadline">Due date</Label>
+              <Input
+                id="ticket-deadline"
+                type="date"
+                value={deadline}
+                min={start || undefined}
+                aria-invalid={badSpan || undefined}
+                aria-describedby={badSpan ? "ticket-dates-error" : undefined}
+                onChange={(event) => setDeadline(event.target.value)}
+              />
+            </div>
+            {badSpan && (
+              <p id="ticket-dates-error" role="alert" className="col-span-2 text-sm text-destructive">
+                The start date must be on or before the due date.
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="ticket-status">Starts in</Label>
@@ -133,7 +160,7 @@ export function NewTicketDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={!title.trim() || !startIn}>
+            <Button type="submit" disabled={!title.trim() || !startIn || badSpan}>
               Create ticket
             </Button>
           </DialogFooter>

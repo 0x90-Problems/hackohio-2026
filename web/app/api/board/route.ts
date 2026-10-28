@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       label?: string
       status?: string
       reviewer_id?: string
+      start_date?: string
       due_date?: string
       project_key?: string
     }
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
       title: ticket.title,
       ...(ticket.label ? { label: ticket.label } : {}),
       ...(ticket.reviewer_id ? { reviewer_id: ticket.reviewer_id } : {}),
+      ...(ticket.start_date ? { start_date: ticket.start_date } : {}),
       ...(ticket.due_date ? { due_date: ticket.due_date } : {}),
       ...(ticket.project_key ? { project: ticket.project_key } : {}),
       ...(ticket.status ? { status: ticket.status } : {}),
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
         ...(ticket.label !== undefined ? { label: ticket.label } : {}),
         ...(ticket.status !== undefined ? { status: ticket.status } : {}),
         ...(ticket.reviewer_id !== undefined ? { reviewer_id: ticket.reviewer_id } : {}),
+        ...(ticket.start_date !== undefined ? { start_date: ticket.start_date } : {}),
         ...(ticket.due_date !== undefined ? { due_date: ticket.due_date } : {}),
       })
     }

@@ -55,6 +55,7 @@ export type TicketActions = {
   onDescriptionChange: (ticketKey: string, description: string, commit?: boolean) => void
   onColorChange: (ticketKey: string, color?: CategoryColor) => void
   onDueDateChange: (ticketKey: string, dueDate: string) => void
+  onStartDateChange: (ticketKey: string, startDate: string) => void
   onReviewerChange: (ticketKey: string, reviewerId: string) => void
   onDelete: (ticketKey: string) => void
 }
@@ -134,6 +135,7 @@ function TicketDetail({
   onDescriptionChange,
   onColorChange,
   onDueDateChange,
+  onStartDateChange,
   onReviewerChange,
   onDelete,
 }: {
@@ -357,6 +359,17 @@ function TicketDetail({
               ))}
             </select>
           </dd>
+          <dt className="text-muted-foreground">Start date</dt>
+          <dd>
+            <input
+              aria-label="Start date"
+              type="date"
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+              value={ticket.start_date ?? ""}
+              max={ticket.due_date}
+              onChange={(event) => onStartDateChange(ticket.key, event.target.value)}
+            />
+          </dd>
           <dt className="text-muted-foreground">Due date</dt>
           <dd>
             <input
@@ -364,6 +377,7 @@ function TicketDetail({
               type="date"
               className="h-8 rounded-md border bg-background px-2 text-sm"
               value={ticket.due_date ?? ""}
+              min={ticket.start_date}
               onChange={(event) => onDueDateChange(ticket.key, event.target.value)}
             />
           </dd>

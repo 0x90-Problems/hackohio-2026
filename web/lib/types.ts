@@ -95,6 +95,8 @@ export type Ticket = {
   reviewer_id?: string
   linked_commits?: LinkedCommit[]
   owner_id?: string
+  // YYYY-MM-DD. Where the ticket starts on a roadmap timeline; due_date is where it ends.
+  start_date?: string
   due_date?: string
   description?: string
   card_color?: CategoryColor
@@ -117,4 +119,6 @@ export type Event = {
   actor: Actor
   details?: Record<string, string>
   created_at: Date
+  // Client only: a local echo shown right away, replaced when the server's copy arrives.
+  local?: true
 }
