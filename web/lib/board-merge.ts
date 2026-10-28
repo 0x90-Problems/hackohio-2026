@@ -117,6 +117,7 @@ function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): T
     ...(text(ticket.reviewer_id) ? { reviewer_id: text(ticket.reviewer_id) } : {}),
     linked_commits: commitsOf(ticket.linked_commits),
     ...(text(ticket.owner_id) ? { owner_id: text(ticket.owner_id) } : {}),
+    ...(text(ticket.start_date) ? { start_date: text(ticket.start_date) } : {}),
     ...(text(ticket.due_date) ? { due_date: text(ticket.due_date) } : {}),
     ...(text(ticket.description) ? { description: text(ticket.description) } : {}),
     ...(text(ticket.card_color) ? { card_color: text(ticket.card_color) as Ticket["card_color"] } : {}),
@@ -277,6 +278,7 @@ export function mergeBoardRecords(
     if (!existing.created_by.name && ticket.created_by.name) existing.created_by = ticket.created_by
     else existing.created_by = withName(existing.created_by, users, agents)
     if (ticket.reviewer_id && !existing.reviewer_id) existing.reviewer_id = ticket.reviewer_id
+    if (ticket.start_date && !existing.start_date) existing.start_date = ticket.start_date
     if (ticket.due_date && !existing.due_date) existing.due_date = ticket.due_date
   }
 

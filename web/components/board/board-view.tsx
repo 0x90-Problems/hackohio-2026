@@ -568,6 +568,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         onDescriptionChange={store.setDescription}
         onColorChange={store.setTicketColor}
         onDueDateChange={store.setDueDate}
+        onStartDateChange={store.setStartDate}
         onReviewerChange={store.setReviewer}
         onDelete={store.deleteTicket}
       />
