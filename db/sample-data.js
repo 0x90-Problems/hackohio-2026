@@ -158,7 +158,7 @@ const defaultCategories = [BACKLOG, IN_PROGRESS, IN_REVIEW, DONE].map((slug, ord
 const projects = [
   {
     key: "CLW",
-    name: "HackOHI/O build",
+    name: "NutShell app",
     description: "The NutShell app we demo on Sunday.",
     created_by: human("user_dylan"),
     created: 1440,

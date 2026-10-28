@@ -1,4 +1,4 @@
-// Adds the CLW demo project (HackOHI/O build, with demo ticket CLW-16) to the
+// Adds the CLW demo project (NutShell app, with demo ticket CLW-16) to the
 // database without touching anything else. See docs/demo-script.md.
 //
 //   npm run demo:restore -- --as raddyratt            add CLW if it isn't there

@@ -38,7 +38,7 @@ export function SiteFooter() {
     <footer className="mt-0 border-t bg-muted/40">
       <div className="mx-auto flex max-w-screen-2xl flex-col gap-8 px-4 py-10">
         <Logo className="text-lg" markClassName="size-8" />
-        <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-4 sm:divide-x sm:divide-border">
+        <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-3 sm:divide-x sm:divide-border">
           {COLUMNS.map((column) => (
             <nav
               key={column.heading}
@@ -57,15 +57,9 @@ export function SiteFooter() {
               ))}
             </nav>
           ))}
-          <div className="flex flex-col gap-2 sm:px-6">
-            <h2 className="font-semibold">Built at</h2>
-            <p className="text-muted-foreground">HackOHI/O 2026</p>
-            <p className="text-muted-foreground">Ohio Union, Columbus</p>
-            <p className="text-muted-foreground">Team {TEAM}</p>
-          </div>
         </div>
         <p className="border-t pt-6 text-xs text-muted-foreground">
-          © 2026 {TEAM}. Built in 24 hours.
+          © 2026 {TEAM}.
         </p>
       </div>
     </footer>
