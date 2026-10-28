@@ -89,6 +89,7 @@ export async function POST(request: Request) {
       ...(ticket.reviewer_id ? { reviewer_id: ticket.reviewer_id } : {}),
       ...(ticket.due_date ? { due_date: ticket.due_date } : {}),
       ...(ticket.project_key ? { project: ticket.project_key } : {}),
+      ...(ticket.status ? { status: ticket.status } : {}),
     })
   }
   if (body.kind === "ticket" && body.ticket) {

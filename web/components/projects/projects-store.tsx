@@ -408,6 +408,8 @@ function useProjectsState() {
         ticket: {
           project_key: projectKey,
           title: input.title,
+          // Create straight into the picked column: one write, one ticket_created event.
+          status: input.status,
           ...(input.due_date && { due_date: input.due_date }),
         },
       }),
@@ -435,7 +437,7 @@ function useProjectsState() {
     }
     setTickets((current) => [ticket, ...current])
     setNewTicketKeys((keys) => new Set(keys).add(key))
-    // The API creates tickets in the default column; move it if the user picked another.
+    // Only if the API put it somewhere else (it shouldn't): move it to the picked column.
     if (body.status !== input.status) saveTicket(ticket)
     addEvent({
       action: EVENT_ACTIONS.TICKET_CREATED,
