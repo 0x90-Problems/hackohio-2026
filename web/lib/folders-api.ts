@@ -10,7 +10,10 @@ export const ROOT = "root"
 
 export type Folder = {
   id: string
-  type: "folder"
+  type: "folder" | "file" | "note"
+  current_version?: number
+  size?: number
+  content_type?: string
   parent_id: string | null
   name: string
   rev: number
@@ -22,6 +25,19 @@ export type Folder = {
   deleted_by?: Actor
   role?: "viewer" | "editor" | "manager"
 }
+
+export type Version = {
+  version: number
+  size?: number
+  content_type?: string
+  created_by?: Actor
+  created_at?: string
+  reason?: string | null
+  restored_from?: number
+  body?: string
+}
+
+export type UploadState = { status: "waiting_for_upload" | "scanning" | "committed"; file?: Folder; version?: number }
 
 export type Workspace = { ws_id: string; team_name: string; role: "owner" | "member"; root_id: string }
 export type Crumb = { id: string; name: string }
@@ -62,6 +78,8 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; re
 }
 
 const seg = (id: string) => encodeURIComponent(id || ROOT)
+// Files and notes have their own routes for the same tree operations.
+const base = (node: Folder) => `${node.type === "folder" ? "folders" : "files"}/${seg(node.id)}`
 
 export const foldersApi = {
   async enabled(): Promise<boolean> {
@@ -79,11 +97,48 @@ export const foldersApi = {
     ),
   path: (id: string) => call<{ items: Crumb[] }>(`folders/${seg(id)}/path`),
   create: (parentId: string, name: string) => call<Folder>("folders", { method: "POST", body: { parent_id: parentId, name } }),
-  rename: (folder: Folder, name: string) =>
-    call<Folder>(`folders/${seg(folder.id)}`, { method: "PATCH", body: { name }, rev: folder.rev }),
-  move: (folder: Folder, parentId: string) =>
-    call<Folder>(`folders/${seg(folder.id)}`, { method: "PATCH", body: { parent_id: parentId }, rev: folder.rev }),
-  trash: (folder: Folder) => call<Folder>(`folders/${seg(folder.id)}`, { method: "DELETE", rev: folder.rev }),
-  restore: (folder: Folder) => call<Folder>(`folders/${seg(folder.id)}/restore`, { method: "POST", body: {} }),
+  rename: (node: Folder, name: string) => call<Folder>(base(node), { method: "PATCH", body: { name }, rev: node.rev }),
+  move: (node: Folder, parentId: string) => call<Folder>(base(node), { method: "PATCH", body: { parent_id: parentId }, rev: node.rev }),
+  trash: (node: Folder) => call<Folder>(base(node), { method: "DELETE", rev: node.rev }),
+  restore: (node: Folder) => call<Folder>(`${base(node)}/restore`, { method: "POST", body: {} }),
   listTrash: () => call<{ items: Folder[] }>("trash"),
+
+  // Files and notes
+  versions: (id: string) => call<{ items: Version[] }>(`files/${seg(id)}/versions`),
+  link: (id: string, version?: number) =>
+    call<{ url: string; version: number }>(`files/${seg(id)}${version ? `/versions/${version}` : ""}/link`),
+  readNote: (id: string, version?: number) =>
+    call<Version & { note: Folder }>(`files/${seg(id)}/versions/${version ?? 0}`),
+  createNote: (parentId: string, name: string, body: string) =>
+    call<Folder>("notes", { method: "POST", body: { parent_id: parentId, name, body } }),
+  updateNote: (note: Folder, body: string, reason?: string) =>
+    call<Folder>(`notes/${seg(note.id)}`, { method: "PUT", body: { base_version: note.current_version, body, ...(reason ? { reason } : {}) } }),
+  restoreVersion: (node: Folder, version: number) =>
+    call<Folder>(`files/${seg(node.id)}/restore-version`, { method: "POST", body: { version, base_version: node.current_version } }),
+
+  /**
+   * Upload a new file (parentId) or a new version (node). Bytes go straight to S3
+   * with a presigned PUT; the file only appears once the security scan is clean.
+   */
+  async upload(file: File, target: { parentId: string } | { node: Folder }, onStatus?: (status: string) => void): Promise<UploadState> {
+    const started = await call<{ upload_id: string; upload_url: string; headers: Record<string, string> }>("uploads", {
+      method: "POST",
+      body: {
+        name: file.name,
+        content_type: file.type,
+        size_bytes: file.size,
+        ...("node" in target ? { file_id: target.node.id, base_version: target.node.current_version } : { parent_id: target.parentId }),
+      },
+    })
+    onStatus?.("Uploading")
+    const put = await fetch(started.upload_url, { method: "PUT", headers: started.headers, body: file }).catch(() => null)
+    if (!put?.ok) throw new FoldersError("upload_failed", "The upload didn't go through. Try again.", put?.status ?? 0)
+    onStatus?.("Scanning")
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const state = await call<UploadState>(`uploads/${seg(started.upload_id)}`)
+      if (state.status === "committed") return state
+      await new Promise((resolve) => setTimeout(resolve, attempt < 10 ? 1000 : 3000))
+    }
+    throw new FoldersError("scan_timeout", "The security scan is taking longer than usual. Check back in a minute.", 0)
+  },
 }
