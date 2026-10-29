@@ -14,7 +14,7 @@ export const revalidate = 0
 type SitePostBody = {
   kind?: string
   organization?: { name: string; token_expiry_hours: number; rules: Record<string, boolean> }
-  team?: { name: string }
+  team?: { name: string; rename_from?: string }
   apiKey?: {
     id?: string
     name: string
@@ -170,6 +170,20 @@ export async function POST(request: Request) {
     })
     if (result.status >= 400) {
       return NextResponse.json(result.json ?? { error: { code: "database", message: "Could not save organization" } }, {
+        status: result.status,
+      })
+    }
+    return NextResponse.json({ ok: true })
+  }
+
+  if (body.kind === "team" && body.team?.name && body.team.rename_from) {
+    // Renaming moves every member on the board; Folders follow via previous_names.
+    const result = await boardJson(request, "/teams/rename", {
+      method: "POST",
+      body: { from: body.team.rename_from, to: body.team.name },
+    })
+    if (result.status >= 400) {
+      return NextResponse.json(result.json ?? { error: { code: "database", message: "Could not rename the team" } }, {
         status: result.status,
       })
     }
