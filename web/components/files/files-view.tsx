@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
@@ -9,6 +9,8 @@ import { ActorBadge } from "@/components/actor-badge"
 import {
   ArchiveIcon,
   ArrowRightIcon,
+  FileIcon,
+  FileTextIcon,
   FolderIcon,
   HistoryIcon,
   MoreHorizontalIcon,
@@ -45,9 +47,12 @@ import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { timeAgo } from "@/lib/format"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
+import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 
 type Dialogs =
   | { kind: "create" }
+  | { kind: "note"; node?: Folder }
+  | { kind: "file"; node: Folder }
   | { kind: "rename"; folder: Folder }
   | { kind: "move"; folder: Folder }
   | { kind: "trash"; folder: Folder }
@@ -110,6 +115,9 @@ export function FilesView() {
   const [cursor, setCursor] = useState<string | null>(null)
   const [message, setMessage] = useState("")
   const [dialog, setDialog] = useState<Dialogs>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
+
+
 
   const go = useCallback(
     (next: { folder?: string; view?: "trash" }) => {
@@ -141,6 +149,16 @@ export function FilesView() {
     [folderId, showTrash, viewKey, apply]
   )
 
+  async function uploadNew(file: File) {
+    const toastId = toast.loading(`Uploading ${file.name}…`)
+    try {
+      await foldersApi.upload(file, { parentId: folderId }, (status) => toast.loading(`${status} ${file.name}…`, { id: toastId }))
+      toast.success(`Added ${file.name}`, { id: toastId, description: "It passed the security scan." })
+      await load()
+    } catch (error) {
+      toast.error(`Couldn't add ${file.name}`, { id: toastId, description: explain(error) })
+    }
+  }
   useEffect(() => {
     let cancelled = false
     void fetchView(folderId, showTrash).then((view) => {
@@ -199,10 +217,32 @@ export function FilesView() {
               {showTrash ? "Back to folders" : "Trash"}
             </Button>
             {!showTrash && canEdit(role) && (
-              <Button onClick={() => setDialog({ kind: "create" })}>
-                <PlusIcon data-icon="inline-start" aria-hidden="true" />
-                New folder
-              </Button>
+              <>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={(event) => {
+                    const picked = event.target.files?.[0]
+                    event.target.value = ""
+                    if (picked) void uploadNew(picked)
+                  }}
+                />
+                <Button variant="outline" onClick={() => fileInput.current?.click()}>
+                  <FileIcon data-icon="inline-start" aria-hidden="true" />
+                  Upload
+                </Button>
+                <Button variant="outline" onClick={() => setDialog({ kind: "note" })}>
+                  <FileTextIcon data-icon="inline-start" aria-hidden="true" />
+                  New note
+                </Button>
+                <Button onClick={() => setDialog({ kind: "create" })}>
+                  <PlusIcon data-icon="inline-start" aria-hidden="true" />
+                  New folder
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -285,10 +325,24 @@ export function FilesView() {
               key={folder.id}
               className="group relative flex items-start gap-3 rounded-xl border bg-card p-4 transition-shadow hover:-translate-y-0.5 hover:shadow-md motion-safe:transition-transform motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
             >
-              <FolderIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              {folder.type === "note" ? (
+                <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              ) : folder.type === "file" ? (
+                <FileIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              ) : (
+                <FolderIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              )}
               <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                 {showTrash ? (
                   <span className="truncate font-medium">{folder.name}</span>
+                ) : folder.type !== "folder" ? (
+                  <button
+                    type="button"
+                    onClick={() => setDialog(folder.type === "note" ? { kind: "note", node: folder } : { kind: "file", node: folder })}
+                    className="truncate text-left font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                  >
+                    {folder.name}
+                  </button>
                 ) : (
                   <Link
                     href={`/files?folder=${encodeURIComponent(folder.id)}`}
@@ -304,6 +358,12 @@ export function FilesView() {
                   <span>
                     {showTrash ? "Trashed" : "Updated"} {ago(showTrash ? folder.deleted_at : folder.updated_at)}
                   </span>
+                  {folder.type !== "folder" && folder.current_version && (
+                    <span>
+                      v{folder.current_version}
+                      {folder.size !== undefined ? ` · ${nodeSize(folder.size)}` : ""}
+                    </span>
+                  )}
                   {folder.acl_mode === "restricted" && <span className="rounded border px-1">Restricted</span>}
                 </div>
               </div>
@@ -366,6 +426,19 @@ export function FilesView() {
             : run(() => foldersApi.create(folderId, name), `Created ${name}`)
         }
       />
+
+      {dialog?.kind === "file" && (
+        <FilePanel file={dialog.node} canEdit={canEdit(dialog.node.role)} onClose={() => setDialog(null)} onChanged={() => void load()} />
+      )}
+      {dialog?.kind === "note" && (
+        <NoteDialog
+          note={dialog.node}
+          parentId={folderId}
+          canEdit={dialog.node ? canEdit(dialog.node.role) : canEdit(role)}
+          onClose={() => setDialog(null)}
+          onChanged={() => void load()}
+        />
+      )}
 
       {dialog?.kind === "move" && (
         <MoveDialog folder={dialog.folder} onClose={() => setDialog(null)} onMove={(target, label) => run(() => foldersApi.move(dialog.folder, target), `Moved to ${label}`)} />
@@ -489,7 +562,7 @@ function MoveDialog({
     foldersApi
       .children(current)
       .then((page) => {
-        if (!cancelled) setOptions(page.items.filter((item) => item.id !== folder.id))
+        if (!cancelled) setOptions(page.items.filter((item) => item.type === "folder" && item.id !== folder.id))
       })
       .catch(() => {
         if (!cancelled) setOptions([])

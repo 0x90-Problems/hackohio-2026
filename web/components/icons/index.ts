@@ -15,6 +15,8 @@ export {
   ChevronUp as ChevronUpIcon,
   ChevronsUpDown as ChevronsUpDownIcon,
   Copy as CopyIcon,
+  File as FileIcon,
+  FileText as FileTextIcon,
   Folder as FolderIcon,
   FolderKanban as FolderKanbanIcon,
   History as HistoryIcon,
