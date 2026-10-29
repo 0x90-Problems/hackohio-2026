@@ -43,7 +43,8 @@ export function ExplorerView({
   const open = (node: Folder) => (node.type === "folder" && !showTrash ? onOpenFolder(node.id) : onOpen(node))
 
   return (
-    <div className="grid min-h-[28rem] overflow-hidden rounded-xl border md:grid-cols-[14rem_minmax(0,1fr)] lg:grid-cols-[15rem_minmax(0,1fr)_20rem]">
+    // Fills the window below the page header; each pane scrolls on its own.
+    <div className="grid min-h-[28rem] overflow-hidden rounded-xl border md:h-[calc(100dvh-16rem)] md:grid-cols-[15rem_minmax(0,1fr)] lg:grid-cols-[16rem_minmax(0,1fr)_22rem] 2xl:grid-cols-[18rem_minmax(0,1fr)_26rem]">
       {!showTrash ? (
         <nav aria-label="Folder tree" className="hidden overflow-y-auto border-r bg-muted/20 p-2 md:block">
           <FolderTree folderId={folderId} openIds={crumbs.map((crumb) => crumb.id)} rootLabel={rootLabel} onOpen={onOpenFolder} />
@@ -52,7 +53,7 @@ export function ExplorerView({
         <div className="hidden border-r bg-muted/20 p-4 text-sm text-muted-foreground md:block">Trash</div>
       )}
 
-      <div className="min-w-0 overflow-x-auto">
+      <div className="flex min-w-0 flex-col overflow-auto">
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background text-left text-xs text-muted-foreground">
             <tr className="border-b">
@@ -105,12 +106,12 @@ export function ExplorerView({
             ))}
           </tbody>
         </table>
-        <p className="border-t px-3 py-2 text-xs text-muted-foreground">
+        <p className="mt-auto border-t px-3 py-2 text-xs text-muted-foreground">
           Click to preview · double-click or Enter to open
         </p>
       </div>
 
-      <aside aria-label="Preview" className="border-t p-4 lg:border-t-0 lg:border-l">
+      <aside aria-label="Preview" className="overflow-y-auto border-t p-4 lg:border-t-0 lg:border-l">
         {selected ? (
           <Preview key={`${selected.id}:${selected.current_version ?? ""}`} node={selected} showTrash={showTrash} onOpen={() => open(selected)} />
         ) : (
@@ -251,7 +252,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
           <Skeleton className="aspect-video w-full" />
         ) : image ? (
           // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static asset
-          <img src={image} alt={`Preview of ${node.name}`} className="max-h-64 w-full rounded-lg border object-contain" />
+          <img src={image} alt={`Preview of ${node.name}`} className="max-h-[50dvh] w-full rounded-lg border object-contain" />
         ) : (
           <p className="text-sm text-muted-foreground">No preview available.</p>
         ))}
@@ -262,7 +263,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
           <Skeleton className="h-32 w-full" />
         ) : (
           // Plain text: note bodies are user content, never rendered as HTML.
-          <div className="max-h-64 overflow-y-auto rounded-lg border bg-muted/30 p-3 text-xs break-words whitespace-pre-wrap">
+          <div className="max-h-[50dvh] overflow-y-auto rounded-lg border bg-muted/30 p-3 text-xs break-words whitespace-pre-wrap">
             {note.slice(0, 4000) || <span className="text-muted-foreground">This note is empty.</span>}
           </div>
         ))}

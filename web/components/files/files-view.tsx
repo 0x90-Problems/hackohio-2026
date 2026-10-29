@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { timeAgo } from "@/lib/format"
+import { cn } from "@/lib/utils"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
@@ -117,7 +118,8 @@ export function FilesView() {
   const folderId = params.get("folder") || ROOT
   const showTrash = params.get("view") === "trash"
   // Two layouts over the same data: cards (grid) or tree + list + preview (explorer).
-  const mode: "grid" | "explorer" = (params.get("mode") ?? storedMode()) === "explorer" ? "explorer" : "grid"
+  // Explorer is the default; ?mode=grid (or this browser's last choice) switches to cards.
+  const mode: "grid" | "explorer" = (params.get("mode") ?? storedMode()) === "grid" ? "grid" : "explorer"
 
   const [state, setState] = useState<"off" | "ready" | "error">("ready")
   // Which view the data on screen belongs to; anything else is still loading.
@@ -140,7 +142,7 @@ export function FilesView() {
       if (next.folder && next.folder !== ROOT) search.set("folder", next.folder)
       if (next.view) search.set("view", next.view)
       const nextMode = next.mode ?? mode
-      if (nextMode === "explorer") search.set("mode", "explorer")
+      if (nextMode === "grid") search.set("mode", "grid")
       const query = search.toString()
       router.push(query ? `/files?${query}` : "/files")
     },
@@ -270,7 +272,7 @@ export function FilesView() {
   }
 
   return (
-    <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
+    <main className={cn("mx-auto flex flex-col gap-6 px-4 py-6", mode === "explorer" ? "max-w-none" : "max-w-screen-xl")}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
@@ -290,11 +292,11 @@ export function FilesView() {
               onValueChange={(value) => value && setMode(value as "grid" | "explorer")}
               aria-label="Layout"
             >
-              <ToggleGroupItem value="grid" aria-label="Grid">
-                Grid
-              </ToggleGroupItem>
               <ToggleGroupItem value="explorer" aria-label="Explorer">
                 Explorer
+              </ToggleGroupItem>
+              <ToggleGroupItem value="grid" aria-label="Grid">
+                Grid
               </ToggleGroupItem>
             </ToggleGroup>
             <Button variant="outline" onClick={() => go(showTrash ? { folder: ROOT } : { view: "trash" })}>
