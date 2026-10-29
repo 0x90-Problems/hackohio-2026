@@ -1,6 +1,6 @@
 {
   "_note": "Same names as names.ts, for code that is not TypeScript (Python scripts, config files). Change both files together.",
-  "scopes": ["tickets:read", "tickets:write", "comments:write", "tickets:close", "events:read", "chat:read", "chat:write", "rules:read", "rules:write", "rules:run", "files:read", "files:write", "folders:read", "folders:write", "folders:delete", "folders:share"],
+  "scopes": ["tickets:read", "tickets:write", "comments:write", "tickets:close", "events:read", "chat:read", "chat:write", "chat:manage", "chat:dm", "rules:read", "rules:write", "rules:run", "files:read", "files:write", "folders:read", "folders:write", "folders:delete", "folders:share"],
   "claims": { "actor_type": "actor_type", "on_behalf_of": "on_behalf_of", "scopes": "scopes" },
   "actor_types": ["human", "agent"],
   "actor_fields": ["type", "id", "acting_for"],
@@ -15,5 +15,5 @@
   "collections": ["users", "projects", "agents", "agent_tokens", "tickets", "comments", "events"],
   "token_prefix": "clw_",
   "default_token_expiry_hours": 24,
-  "mcp_tools": ["get_board", "create_ticket", "move_ticket", "delete_ticket", "add_comment", "link_commit", "watch_changes", "read_comments", "list_project_templates", "get_project_template", "get_project_table", "create_project", "post_message", "list_messages", "wait_for_mentions", "ack_mention", "list_channels", "pause_agents", "resume_agents", "list_folder", "create_folder", "rename_folder", "move_folder", "delete_folder", "restore_folder", "read_note", "create_note", "update_note", "list_versions", "get_file_link", "request_upload", "upload_status"]
+  "mcp_tools": ["get_board", "create_ticket", "move_ticket", "delete_ticket", "add_comment", "link_commit", "watch_changes", "read_comments", "list_project_templates", "get_project_template", "get_project_table", "create_project", "post_message", "list_messages", "wait_for_mentions", "ack_mention", "list_channels", "pause_agents", "resume_agents", "chat_list_channels", "chat_read", "chat_thread", "chat_post", "chat_join", "chat_leave", "chat_edit", "chat_delete", "chat_mark_read", "list_folder", "create_folder", "rename_folder", "move_folder", "delete_folder", "restore_folder", "read_note", "create_note", "update_note", "list_versions", "get_file_link", "request_upload", "upload_status"]
 }

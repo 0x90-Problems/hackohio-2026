@@ -21,6 +21,7 @@ import {
 } from "@/components/icons"
 
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { chatApi } from "@/lib/chat-api"
 import { foldersApi } from "@/lib/folders-api"
 import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
@@ -55,15 +56,20 @@ const NAV_LINKS = [
 const SERVICES = [
   { label: "Boards", description: "Projects, tickets and roadmaps", href: "/projects", icon: FolderKanbanIcon },
   { label: "Folders", description: "Shared files and notes", icon: FolderIcon },
-  { label: "Workspace", description: "Team chat with channels", icon: MessagesSquareIcon },
+  { label: "Chat", description: "Team chat with channels", icon: MessagesSquareIcon },
   { label: "Whiteboard", description: "Draw live with people and agents", icon: PenToolIcon },
 ] as const
 
-// Folders ship behind files.folders.enabled; ask once per page load.
+// Folders ship behind files.folders.enabled and Chat behind chat.enabled; ask once per page load.
 let foldersCheck: Promise<boolean> | null = null
 function foldersEnabled() {
   foldersCheck ??= foldersApi.enabled()
   return foldersCheck
+}
+let chatCheck: Promise<boolean> | null = null
+function chatEnabled() {
+  chatCheck ??= chatApi.enabled()
+  return chatCheck
 }
 
 // Pages that show without the header.
@@ -74,11 +80,15 @@ export function AppHeader() {
   const { resolvedTheme, setTheme } = useTheme()
   const sessionUser = useSyncExternalStore(subscribeAuth, readSessionUser, () => null)
   const [foldersOn, setFoldersOn] = useState(false)
+  const [chatOn, setChatOn] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     void foldersEnabled().then((on) => {
       if (!cancelled) setFoldersOn(on)
+    })
+    void chatEnabled().then((on) => {
+      if (!cancelled) setChatOn(on)
     })
     return () => {
       cancelled = true
@@ -103,7 +113,13 @@ export function AppHeader() {
           <DropdownMenuContent align="start" className="w-80 p-2">
             <DropdownMenuLabel className="text-xs text-muted-foreground">NutShell apps</DropdownMenuLabel>
             <div className="grid grid-cols-2 gap-1">
-              {SERVICES.map((base) => (base.label === "Folders" && foldersOn ? { ...base, href: "/files" } : base)).map((service) => {
+              {SERVICES.map((base) =>
+                base.label === "Folders" && foldersOn
+                  ? { ...base, href: "/files" }
+                  : base.label === "Chat" && chatOn
+                    ? { ...base, href: "/chat" }
+                    : base
+              ).map((service) => {
                 const tile = (
                   <>
                     <span className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">
