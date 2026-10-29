@@ -58,7 +58,9 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; re
   const headers: Record<string, string> = { accept: "application/json" }
   if (session?.secret) headers.authorization = `Bearer ${session.secret}`
   if (init.body !== undefined) headers["content-type"] = "application/json"
-  if (init.rev !== undefined) headers["if-match"] = `"rev-${init.rev}"`
+  // Not If-Match: Vercel's edge evaluates If-Match against its own response and
+  // answers 412 before the request reaches the files API. The proxy converts it.
+  if (init.rev !== undefined) headers["x-fs-rev"] = String(init.rev)
   let response: Response
   try {
     response = await fetch(`/api/fs/${path}`, {
