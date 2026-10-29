@@ -172,4 +172,11 @@ export const MCP_TOOLS = {
   MOVE_FOLDER: "move_folder",
   DELETE_FOLDER: "delete_folder",
   RESTORE_FOLDER: "restore_folder",
+  READ_NOTE: "read_note",
+  CREATE_NOTE: "create_note",
+  UPDATE_NOTE: "update_note",
+  LIST_VERSIONS: "list_versions",
+  GET_FILE_LINK: "get_file_link",
+  REQUEST_UPLOAD: "request_upload",
+  UPLOAD_STATUS: "upload_status",
 } as const;
