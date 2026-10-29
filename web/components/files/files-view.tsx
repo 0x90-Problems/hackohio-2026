@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
+import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type Dialogs =
@@ -285,6 +286,11 @@ export function FilesView() {
         </div>
         {phase === "ready" && (
           <div className="flex flex-wrap gap-2">
+            {!showTrash && (
+              <FilesSearch
+                onPick={(hit) => (hit.type === "folder" ? go({ folder: hit.id }) : (go({ folder: hit.parent_id ?? ROOT }), openNode(hit)))}
+              />
+            )}
             <ToggleGroup
               type="single"
               variant="outline"

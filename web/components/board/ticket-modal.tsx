@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { TicketFiles } from "@/components/files/ticket-files"
 import { usePathname, useRouter } from "next/navigation"
 
 import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS } from "@/shared/names"
@@ -382,6 +383,8 @@ function TicketDetail({
             />
           </dd>
         </dl>
+
+        <TicketFiles ticketKey={ticket.key} />
 
         <Separator />
 

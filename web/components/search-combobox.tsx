@@ -43,6 +43,8 @@ export function SearchCombobox({
   trigger,
   className,
   align = "start",
+  onQueryChange,
+  filter = true,
 }: {
   label: string
   searchPlaceholder?: string
@@ -51,6 +53,9 @@ export function SearchCombobox({
   trigger?: React.ReactNode
   className?: string
   align?: "start" | "center" | "end"
+  // For results that come from a server: called as the user types; turn off local filtering.
+  onQueryChange?: (query: string) => void
+  filter?: boolean
 }) {
   const [open, setOpen] = useState(false)
 
@@ -73,8 +78,8 @@ export function SearchCombobox({
         )}
       </PopoverTrigger>
       <PopoverContent align={align} className="w-80 p-0">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={filter}>
+          <CommandInput placeholder={searchPlaceholder} onValueChange={onQueryChange} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groups.map((group, i) =>
