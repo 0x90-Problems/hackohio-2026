@@ -16,8 +16,10 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   const contentType = request.headers.get("content-type")
   if (contentType) headers.set("content-type", contentType)
   // Folder writes carry the folder's rev for optimistic concurrency.
-  const ifMatch = request.headers.get("if-match")
-  if (ifMatch) headers.set("if-match", ifMatch)
+  // Browsers send the rev as x-fs-rev (Vercel's edge answers If-Match itself with
+  // 412); the server-to-server hop to the files API uses the real If-Match.
+  const rev = request.headers.get("x-fs-rev")
+  if (rev && /^\d+$/.test(rev)) headers.set("if-match", `"rev-${rev}"`)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
   const shadow = request.headers.get("x-nutshell-mcp-path")
