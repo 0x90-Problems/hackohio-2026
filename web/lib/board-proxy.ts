@@ -85,13 +85,15 @@ export function filesOrigin(): URL {
   return new URL(FILES_API_FALLBACK)
 }
 
-/** Whiteboard service HTTP API (/wb/v1/*). Set WHITEBOARD_API_URL once the stack exists. */
+/** Whiteboard service HTTP API (/wb/v1/*). */
+const WHITEBOARD_API_FALLBACK = "https://td6059qsl2.execute-api.us-east-1.amazonaws.com"
+
 export function whiteboardOrigin(): URL | null {
   const configured = process.env.WHITEBOARD_API_URL?.trim()
   try {
-    return configured ? new URL(configured) : null
+    return new URL(configured || WHITEBOARD_API_FALLBACK)
   } catch {
-    return null
+    return new URL(WHITEBOARD_API_FALLBACK)
   }
 }
 
