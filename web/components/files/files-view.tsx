@@ -335,7 +335,7 @@ export function FilesView() {
                 </Button>
                 <Button variant="outline" onClick={() => setDialog({ kind: "note" })}>
                   <FileTextIcon data-icon="inline-start" aria-hidden="true" />
-                  New note
+                  New document
                 </Button>
                 {whiteboardOn ? (
                   <Button variant="outline" onClick={() => setDialog({ kind: "board" })}>

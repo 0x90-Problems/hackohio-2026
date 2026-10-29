@@ -259,7 +259,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
     }
   }
 
-  const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Note" : node.type === "whiteboard" ? "Whiteboard" : node.content_type || "File"
+  const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Document" : node.type === "whiteboard" ? "Whiteboard" : node.content_type || "File"
   const who = showTrash ? node.deleted_by : node.created_by
 
   return (
@@ -306,7 +306,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         ) : (
           // Plain text: note bodies are user content, never rendered as HTML.
           <div className="max-h-[50dvh] overflow-y-auto rounded-lg border bg-muted/30 p-3 text-xs break-words whitespace-pre-wrap">
-            {note.slice(0, 4000) || <span className="text-muted-foreground">This note is empty.</span>}
+            {note.slice(0, 4000) || <span className="text-muted-foreground">This document is empty.</span>}
           </div>
         ))}
 
@@ -349,7 +349,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
 
       {!showTrash && (
         <Button variant="outline" onClick={onOpen}>
-          {node.type === "folder" ? "Open folder" : node.type === "note" ? "Open note" : node.type === "whiteboard" ? "Open board" : "Open file"}
+          {node.type === "folder" ? "Open folder" : node.type === "note" ? "Open document" : node.type === "whiteboard" ? "Open board" : "Open file"}
         </Button>
       )}
     </div>
