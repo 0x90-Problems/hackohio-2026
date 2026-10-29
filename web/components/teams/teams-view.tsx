@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   ArrowRightIcon,
   MailIcon,
+  PencilIcon,
   PlusIcon,
   UserPlusIcon,
   UsersIcon,
@@ -16,7 +17,8 @@ import type { Agent, User } from "@/lib/types"
 import { TEAM, agents, users } from "@/lib/mock-data"
 import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { useProjects } from "@/components/projects/projects-store"
-import { loadSite, saveTeam, type SiteState } from "@/lib/site-db"
+import { loadSite, renameTeam, saveTeam, type SiteState } from "@/lib/site-db"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Button } from "@/components/ui/button"
@@ -67,6 +69,8 @@ function directoryUser(user: SiteState["users"][number]): User {
 export function TeamsView() {
   const [newTeams, setNewTeams] = useState<string[]>([])
   const [directoryUsers, setDirectoryUsers] = useState<User[]>([])
+  const [reload, setReload] = useState(0)
+  const refresh = () => setReload((n) => n + 1)
 
   useEffect(() => {
     let cancelled = false
@@ -83,7 +87,7 @@ export function TeamsView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reload])
 
   const people = [
     ...users,
@@ -136,6 +140,7 @@ export function TeamsView() {
             <CardTitle className="flex items-center gap-2 text-lg">
               <UsersIcon className="size-4" aria-hidden="true" />
               {TEAM}
+              <RenameTeamButton name={TEAM} onRenamed={refresh} />
             </CardTitle>
             <CardAction className="text-sm text-muted-foreground">
               {members.length} people · {activeAgents.length} agents
@@ -170,6 +175,7 @@ export function TeamsView() {
               name={name}
               members={teamMembers}
               agents={agents}
+              onRenamed={refresh}
             />
           ) : (
             <EmptyTeamCard key={name} team={name} />
@@ -185,10 +191,12 @@ function TeamCard({
   name,
   members,
   agents: teamAgents,
+  onRenamed,
 }: {
   name: string
   members: User[]
   agents: Agent[]
+  onRenamed: () => void
 }) {
   const active = teamAgents.filter(
     (agent) =>
@@ -200,6 +208,7 @@ function TeamCard({
         <CardTitle className="flex items-center gap-2 text-lg">
           <UsersIcon className="size-4" aria-hidden="true" />
           {name}
+          <RenameTeamButton name={name} onRenamed={onRenamed} />
         </CardTitle>
         <CardAction className="text-sm text-muted-foreground">
           {members.length} people · {active.length} agents
@@ -414,6 +423,72 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
             </DialogClose>
             <Button type="submit" disabled={!name.trim()}>
               Create team
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Admins only (the board enforces it too). Members move to the new name, and the
+// team's folders follow it.
+function RenameTeamButton({ name, onRenamed }: { name: string; onRenamed: () => void }) {
+  const account = useAuthUser()
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(name)
+  const [busy, setBusy] = useState(false)
+  if (!account?.admin) return null
+  const next = value.trim()
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (isOpen) setValue(name)
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-7" aria-label={`Rename ${name}`}>
+          <PencilIcon className="size-3.5" aria-hidden="true" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={async (event) => {
+            event.preventDefault()
+            if (!next || next === name) return
+            setBusy(true)
+            try {
+              await renameTeam(name, next)
+              toast.success(`Renamed ${name} to ${next}`, { description: "Members and the team's folders moved with it." })
+              setOpen(false)
+              onRenamed()
+            } catch (error) {
+              toast.error("Couldn't rename the team", { description: error instanceof Error ? error.message : undefined })
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Rename team</DialogTitle>
+            <DialogDescription>Everyone on {name} moves to the new name. Their folders follow.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="rename-team">Team name</Label>
+            <Input id="rename-team" value={value} onChange={(event) => setValue(event.target.value)} maxLength={80} autoFocus required />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" disabled={!next || next === name || busy}>
+              Rename
             </Button>
           </DialogFooter>
         </form>

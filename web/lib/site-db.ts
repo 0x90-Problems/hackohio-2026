@@ -74,6 +74,11 @@ export function saveOrganization(organization: SiteOrganization) {
   void save({ kind: "organization", organization }).catch(report)
 }
 
+// Throws with the board's message (e.g. "A team named X already exists").
+export function renameTeam(from: string, to: string) {
+  return save({ kind: "team", team: { name: to, rename_from: from } })
+}
+
 export function saveTeam(name: string) {
   void save({ kind: "team", team: { name } }).catch(report)
 }
