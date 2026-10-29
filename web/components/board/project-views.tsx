@@ -62,6 +62,8 @@ export function ProjectViews({
   onFiltersChange,
   onOpenTicket,
   onDueDateChange,
+  onDatesChange,
+  onMoveCategory,
   onDelete,
 }: {
   tickets: Ticket[]
@@ -75,6 +77,8 @@ export function ProjectViews({
   onFiltersChange: (filters: ProjectFilters) => void
   onOpenTicket: (ticket: Ticket) => void
   onDueDateChange: (ticketKey: string, date: string) => void
+  onDatesChange: (ticketKey: string, start: string, due: string) => void
+  onMoveCategory: (slug: string, toIndex: number) => void
   onDelete: (ticketKey: string) => void
 }) {
   const filteredTickets = filterProjectTickets(tickets, filters)
@@ -149,6 +153,7 @@ export function ProjectViews({
           categories={categories}
           fields={fields}
           onOpenTicket={onOpenTicket}
+          onMoveCategory={onMoveCategory}
           onDelete={onDelete}
         />
       )}
@@ -157,6 +162,7 @@ export function ProjectViews({
           tickets={filteredTickets}
           categories={categories}
           onOpenTicket={onOpenTicket}
+          onDatesChange={onDatesChange}
         />
       )}
       {view === "calendar" && (

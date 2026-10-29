@@ -270,8 +270,9 @@ function useProjectsState() {
   }, [ready])
 
   // Each project keeps its own columns (projects.categories in the schema)
+  // In display order (a drag reorders by rewriting `order`).
   const categoriesOf = (projectKey: string) =>
-    projects.find((p) => p.key === projectKey)?.categories ?? DEFAULT_CATEGORIES
+    [...(projects.find((p) => p.key === projectKey)?.categories ?? DEFAULT_CATEGORIES)].sort((a, b) => a.order - b.order)
   const categoriesOfTicket = (ticketKey: string) =>
     categoriesOf(projectKeyOf(ticketKey))
 
@@ -641,6 +642,32 @@ function useProjectsState() {
     })
   }
 
+  // Both dates in one change (dragging a timeline bar moves both), so the
+  // "start on or before due" check never sees a half-moved ticket.
+  function setTicketDates(ticketKey: string, start_date: string, due_date: string) {
+    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+    if (!ticket) return
+    if ((ticket.start_date ?? "") === start_date && (ticket.due_date ?? "") === due_date) return
+    if (start_date && due_date && start_date > due_date) {
+      toast.error("Start date must be on or before the due date")
+      return
+    }
+    const next = { ...ticket }
+    if (start_date) next.start_date = start_date
+    else delete next.start_date
+    if (due_date) next.due_date = due_date
+    else delete next.due_date
+    setTickets((current) => current.map((item) => (item.key === ticketKey ? next : item)))
+    saveTicket({ ...next, start_date, due_date })
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_UPDATED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { body: `Dates: ${start_date || "no start"} to ${due_date || "no due date"}` },
+      created_at: now(),
+    })
+  }
+
   function setDueDate(ticketKey: string, due_date: string) {
     setTicketDate(ticketKey, "due_date", due_date)
   }
@@ -672,6 +699,19 @@ function useProjectsState() {
     setProjectCategories(projectKey, (current) =>
       current.map((c) => (c.slug === slug ? { ...c, ...changes } : c))
     )
+  }
+
+  // Move a category (board column / table group) to a new position.
+  function moveCategory(projectKey: string, slug: string, toIndex: number) {
+    setProjectCategories(projectKey, (current) => {
+      const ordered = [...current].sort((a, b) => a.order - b.order)
+      const from = ordered.findIndex((c) => c.slug === slug)
+      const to = Math.max(0, Math.min(toIndex, ordered.length - 1))
+      if (from === -1 || from === to) return current
+      const [moved] = ordered.splice(from, 1)
+      ordered.splice(to, 0, moved)
+      return ordered.map((c, order) => ({ ...c, order }))
+    })
   }
 
   function deleteCategory(projectKey: string, slug: string, moveTo: string) {
@@ -773,10 +813,12 @@ function useProjectsState() {
     setTicketColor,
     setDueDate,
     setStartDate,
+    setTicketDates,
     setReviewer,
     deleteTicket: removeTicket,
     createCategory,
     updateCategory,
+    moveCategory,
     deleteCategory,
     comment,
   }

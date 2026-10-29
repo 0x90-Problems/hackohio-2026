@@ -19,6 +19,7 @@ export {
   FileText as FileTextIcon,
   Folder as FolderIcon,
   FolderKanban as FolderKanbanIcon,
+  GripVertical as GripVerticalIcon,
   History as HistoryIcon,
   Info as InfoIcon,
   KeyRound as KeyRoundIcon,
