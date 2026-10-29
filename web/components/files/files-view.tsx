@@ -48,6 +48,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { timeAgo } from "@/lib/format"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
+import { ExplorerView } from "@/components/files/explorer"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 
 type Dialogs =
   | { kind: "create" }
@@ -64,6 +66,17 @@ function explain(error: unknown) {
 }
 
 const canEdit = (role?: Folder["role"]) => role === "editor" || role === "manager"
+
+const MODE_KEY = "nutshell.files.mode"
+
+// The last layout this browser used (a per-viewer convenience; the URL wins).
+function storedMode(): string | null {
+  try {
+    return typeof window === "undefined" ? null : localStorage.getItem(MODE_KEY)
+  } catch {
+    return null
+  }
+}
 
 type View =
   | { kind: "off" }
@@ -103,6 +116,8 @@ export function FilesView() {
   const params = useSearchParams()
   const folderId = params.get("folder") || ROOT
   const showTrash = params.get("view") === "trash"
+  // Two layouts over the same data: cards (grid) or tree + list + preview (explorer).
+  const mode: "grid" | "explorer" = (params.get("mode") ?? storedMode()) === "explorer" ? "explorer" : "grid"
 
   const [state, setState] = useState<"off" | "ready" | "error">("ready")
   // Which view the data on screen belongs to; anything else is still loading.
@@ -120,15 +135,71 @@ export function FilesView() {
 
 
   const go = useCallback(
-    (next: { folder?: string; view?: "trash" }) => {
+    (next: { folder?: string; view?: "trash"; mode?: "grid" | "explorer" }) => {
       const search = new URLSearchParams()
       if (next.folder && next.folder !== ROOT) search.set("folder", next.folder)
       if (next.view) search.set("view", next.view)
+      const nextMode = next.mode ?? mode
+      if (nextMode === "explorer") search.set("mode", "explorer")
       const query = search.toString()
       router.push(query ? `/files?${query}` : "/files")
     },
-    [router]
+    [router, mode]
   )
+
+  function setMode(next: "grid" | "explorer") {
+    try {
+      localStorage.setItem(MODE_KEY, next)
+    } catch {
+      // private window or blocked storage: the URL still carries the mode
+    }
+    go({ folder: folderId, ...(showTrash ? { view: "trash" as const } : {}), mode: next })
+  }
+
+  // The same actions in both layouts.
+  function actionsFor(folder: Folder) {
+    if (showTrash) {
+      return canEdit(folder.role) ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="relative z-10"
+          onClick={() => void run(() => foldersApi.restore(folder), `Restored ${folder.name}`)}
+        >
+          <HistoryIcon data-icon="inline-start" aria-hidden="true" />
+          Restore
+        </Button>
+      ) : null
+    }
+    if (!canEdit(folder.role)) return null
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative z-10 size-8" aria-label={`Actions for ${folder.name}`}>
+            <MoreHorizontalIcon aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => setDialog({ kind: "rename", folder })}>
+            <PencilIcon aria-hidden="true" />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setDialog({ kind: "move", folder })}>
+            <ArrowRightIcon aria-hidden="true" />
+            Move
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: "trash", folder })}>
+            <ArchiveIcon aria-hidden="true" />
+            Move to trash
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  const openNode = (node: Folder) =>
+    setDialog(node.type === "note" ? { kind: "note", node } : node.type === "file" ? { kind: "file", node } : null)
 
   // Apply a fetched view, unless the user has already moved on to another one.
   const apply = useCallback((key: string, view: View) => {
@@ -212,6 +283,20 @@ export function FilesView() {
         </div>
         {phase === "ready" && (
           <div className="flex flex-wrap gap-2">
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              value={mode}
+              onValueChange={(value) => value && setMode(value as "grid" | "explorer")}
+              aria-label="Layout"
+            >
+              <ToggleGroupItem value="grid" aria-label="Grid">
+                Grid
+              </ToggleGroupItem>
+              <ToggleGroupItem value="explorer" aria-label="Explorer">
+                Explorer
+              </ToggleGroupItem>
+            </ToggleGroup>
             <Button variant="outline" onClick={() => go(showTrash ? { folder: ROOT } : { view: "trash" })}>
               {showTrash ? <FolderIcon data-icon="inline-start" aria-hidden="true" /> : <Trash2Icon data-icon="inline-start" aria-hidden="true" />}
               {showTrash ? "Back to folders" : "Trash"}
@@ -318,7 +403,20 @@ export function FilesView() {
         </div>
       )}
 
-      {phase === "ready" && items.length > 0 && (
+      {phase === "ready" && items.length > 0 && mode === "explorer" && (
+        <ExplorerView
+          items={items}
+          folderId={folderId}
+          crumbs={crumbs}
+          rootLabel={workspace?.team_name ?? "All folders"}
+          showTrash={showTrash}
+          onOpenFolder={(id) => go({ folder: id })}
+          onOpen={openNode}
+          actions={actionsFor}
+        />
+      )}
+
+      {phase === "ready" && items.length > 0 && mode === "grid" && (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((folder) => (
             <li
@@ -367,42 +465,7 @@ export function FilesView() {
                   {folder.acl_mode === "restricted" && <span className="rounded border px-1">Restricted</span>}
                 </div>
               </div>
-              {showTrash
-                ? canEdit(folder.role) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="relative z-10"
-                      onClick={() => void run(() => foldersApi.restore(folder), `Restored ${folder.name}`)}
-                    >
-                      <HistoryIcon data-icon="inline-start" aria-hidden="true" />
-                      Restore
-                    </Button>
-                  )
-                : canEdit(folder.role) && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative z-10 size-8" aria-label={`Actions for ${folder.name}`}>
-                          <MoreHorizontalIcon aria-hidden="true" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onSelect={() => setDialog({ kind: "rename", folder })}>
-                          <PencilIcon aria-hidden="true" />
-                          Rename
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setDialog({ kind: "move", folder })}>
-                          <ArrowRightIcon aria-hidden="true" />
-                          Move
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: "trash", folder })}>
-                          <ArchiveIcon aria-hidden="true" />
-                          Move to trash
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+              {actionsFor(folder)}
             </li>
           ))}
         </ul>
