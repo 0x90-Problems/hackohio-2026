@@ -85,6 +85,16 @@ export function filesOrigin(): URL {
   return new URL(FILES_API_FALLBACK)
 }
 
+/** Whiteboard service HTTP API (/wb/v1/*). Set WHITEBOARD_API_URL once the stack exists. */
+export function whiteboardOrigin(): URL | null {
+  const configured = process.env.WHITEBOARD_API_URL?.trim()
+  try {
+    return configured ? new URL(configured) : null
+  } catch {
+    return null
+  }
+}
+
 /** Chat service HTTP API (workspace chat lives under /chat/v1/*). */
 const CHAT_API_FALLBACK = "https://8xirsuul6a.execute-api.us-east-1.amazonaws.com"
 

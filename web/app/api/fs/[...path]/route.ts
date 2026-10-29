@@ -8,7 +8,7 @@ export const revalidate = 0
 // Folders (F1) live on the files service under /fs/*. Only those paths are
 // proxied, with the caller's own bearer; the files API authorizes every call.
 const ALLOWED =
-  /^(health|workspace|trash|uploads(\/[A-Za-z0-9_-]+)?|notes(\/[A-Za-z0-9_-]+)?|folders(\/[A-Za-z0-9_-]+(\/(children|path|restore|acl))?)?|files\/[A-Za-z0-9_-]+(\/(restore|restore-version|versions(\/\d+(\/link)?)?|link|diff|content|links))?|links|search)$/
+  /^(health|workspace|trash|boards|uploads(\/[A-Za-z0-9_-]+)?|notes(\/[A-Za-z0-9_-]+)?|folders(\/[A-Za-z0-9_-]+(\/(children|path|restore|acl))?)?|files\/[A-Za-z0-9_-]+(\/(restore|restore-version|versions(\/\d+(\/link)?)?|link|diff|content|links))?|links|search)$/
 
 async function forward(request: Request, ctx: RouteContext<"/api/fs/[...path]">) {
   const { path } = await ctx.params

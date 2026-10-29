@@ -10,7 +10,7 @@ export const ROOT = "root"
 
 export type Folder = {
   id: string
-  type: "folder" | "file" | "note"
+  type: "folder" | "file" | "note" | "whiteboard"
   current_version?: number
   size?: number
   content_type?: string
@@ -127,6 +127,7 @@ export const foldersApi = {
   ticketFiles: (key: string) => call<{ items: Folder[] }>(`links?target=${encodeURIComponent(`ticket:${key}`)}`),
   readNote: (id: string, version?: number) =>
     call<Version & { note: Folder }>(`files/${seg(id)}/versions/${version ?? 0}`),
+  createBoard: (parentId: string, name: string) => call<Folder>("boards", { method: "POST", body: { parent_id: parentId, name } }),
   createNote: (parentId: string, name: string, body: string) =>
     call<Folder>("notes", { method: "POST", body: { parent_id: parentId, name, body } }),
   updateNote: (note: Folder, body: string, reason?: string) =>

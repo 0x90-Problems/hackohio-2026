@@ -23,6 +23,7 @@ import {
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
 import { chatApi } from "@/lib/chat-api"
 import { foldersApi } from "@/lib/folders-api"
+import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
 import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
@@ -57,6 +58,7 @@ const SERVICES = [
   { label: "Boards", description: "Projects, tickets and roadmaps", href: "/projects", icon: FolderKanbanIcon },
   { label: "Folders", description: "Shared files and notes", icon: FolderIcon },
   { label: "Chat", description: "Team chat with channels", icon: MessagesSquareIcon },
+  // Boards live in folders, so the tile opens Folders (create one with "New board").
   { label: "Whiteboard", description: "Draw live with people and agents", icon: PenToolIcon },
 ] as const
 
@@ -81,6 +83,7 @@ export function AppHeader() {
   const sessionUser = useSyncExternalStore(subscribeAuth, readSessionUser, () => null)
   const [foldersOn, setFoldersOn] = useState(false)
   const [chatOn, setChatOn] = useState(false)
+  const whiteboardOn = useWhiteboardEnabled()
 
   useEffect(() => {
     let cancelled = false
@@ -118,7 +121,9 @@ export function AppHeader() {
                   ? { ...base, href: "/files" }
                   : base.label === "Chat" && chatOn
                     ? { ...base, href: "/chat" }
-                    : base
+                    : base.label === "Whiteboard" && whiteboardOn && foldersOn
+                      ? { ...base, href: "/files" }
+                      : base
               ).map((service) => {
                 const tile = (
                   <>
