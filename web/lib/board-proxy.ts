@@ -20,6 +20,9 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   // 412); the server-to-server hop to the files API uses the real If-Match.
   const rev = request.headers.get("x-fs-rev")
   if (rev && /^\d+$/.test(rev)) headers.set("if-match", `"rev-${rev}"`)
+  // Chat posts carry an Idempotency-Key so a retried send never posts twice.
+  const idempotency = request.headers.get("idempotency-key")
+  if (idempotency && idempotency.length <= 100) headers.set("idempotency-key", idempotency)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
   const shadow = request.headers.get("x-nutshell-mcp-path")
@@ -80,4 +83,17 @@ export function filesOrigin(): URL {
     // fall through to the default
   }
   return new URL(FILES_API_FALLBACK)
+}
+
+/** Chat service HTTP API (workspace chat lives under /chat/v1/*). */
+const CHAT_API_FALLBACK = "https://8xirsuul6a.execute-api.us-east-1.amazonaws.com"
+
+export function chatOrigin(): URL {
+  const configured = process.env.CHAT_API_URL?.trim()
+  try {
+    if (configured) return new URL(configured)
+  } catch {
+    // fall through to the default
+  }
+  return new URL(CHAT_API_FALLBACK)
 }

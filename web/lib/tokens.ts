@@ -9,7 +9,9 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
   { scope: SCOPES.FOLDERS_READ, label: "Browse folders" },
   { scope: SCOPES.FOLDERS_WRITE, label: "Create, rename and move folders" },
   { scope: SCOPES.FOLDERS_DELETE, label: "Move folders to the trash" },
-  // folders:share is never offered: changing folder access is people-only.
+  { scope: SCOPES.CHAT_READ, label: "Read chat" },
+  { scope: SCOPES.CHAT_WRITE, label: "Post in chat" },
+  // folders:share, chat:manage and chat:dm are never offered: they are people-only.
 ]
 
 // Mock token/key. The real one will come from the backend, which stores only its hash.
