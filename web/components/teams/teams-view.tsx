@@ -1,26 +1,32 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { toast } from "sonner"
+
 import {
-  ArrowRightIcon,
-  MailIcon,
+  MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
   UserPlusIcon,
   UsersIcon,
 } from "@/components/icons"
-import { toast } from "sonner"
-
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Agent, User } from "@/lib/types"
-import { TEAM, agents, users } from "@/lib/mock-data"
 import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { useProjects } from "@/components/projects/projects-store"
-import { loadSite, renameTeam, saveTeam, type SiteState } from "@/lib/site-db"
+import {
+  addTeamMember,
+  createTeam,
+  loadSite,
+  removeTeamMember,
+  renameTeam,
+  setTeamManager,
+  type SiteState,
+} from "@/lib/site-db"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
+import { SearchCombobox } from "@/components/search-combobox"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -41,8 +47,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // "Open" = not done, and made by this person or by their agent.
 // (Tickets have no assignee field yet, so this is the closest match.)
@@ -62,54 +76,54 @@ function openTicketCount(
   ).length
 }
 
-function directoryUser(user: SiteState["users"][number]): User {
-  return { ...user, type: ACTOR_TYPES.HUMAN }
+type SiteTeam = SiteState["teams"][number]
+type Person = User & { admin?: boolean }
+
+function explain(error: unknown) {
+  return error instanceof Error ? error.message : undefined
+}
+
+// Run a team change, report it, and reload. The board decides who may do what;
+// its message (e.g. "Only this team's managers…") is shown as is.
+async function change(action: () => Promise<unknown>, done: string, onDone: () => void) {
+  try {
+    await action()
+    toast.success(done)
+    onDone()
+  } catch (error) {
+    toast.error("Couldn't change the team", { description: explain(error) })
+  }
 }
 
 export function TeamsView() {
-  const [newTeams, setNewTeams] = useState<string[]>([])
-  const [directoryUsers, setDirectoryUsers] = useState<User[]>([])
+  const account = useAuthUser()
+  const store = useProjects()
+  const [site, setSite] = useState<{ teams: SiteTeam[]; people: Person[] } | null>(null)
   const [reload, setReload] = useState(0)
   const refresh = () => setReload((n) => n + 1)
 
   useEffect(() => {
     let cancelled = false
     loadSite()
-      .then((site) => {
+      .then((loaded) => {
         if (cancelled) return
-        if (site.teams.length > 0)
-          setNewTeams(site.teams.map((team) => team.name))
-        setDirectoryUsers(site.users.map(directoryUser))
+        setSite({ teams: loaded.teams, people: loaded.users.map((user) => ({ ...user, type: ACTOR_TYPES.HUMAN })) })
       })
       .catch(() => {
-        toast.error("Couldn't load teams from the database")
+        if (!cancelled) toast.error("Couldn't load teams")
       })
     return () => {
       cancelled = true
     }
   }, [reload])
 
-  const people = [
-    ...users,
-    ...directoryUsers.filter(
-      (user) =>
-        !users.some(
-          (sample) =>
-            sample._id === user._id ||
-            sample.auth_username === user.auth_username
-        )
-    ),
-  ]
-  const members = people.filter((u) => u.team === TEAM)
-  const extraTeamNames = [
-    ...new Set([
-      ...newTeams,
-      ...people.filter((user) => user.team !== TEAM).map((user) => user.team),
-    ]),
-  ]
-  const activeAgents = agents.filter(
-    (a) => !a.revoked && members.some((m) => m._id === a.owner_id)
+  const isAdmin = account?.admin === true
+  const agents = store.boardAgents.filter((agent) => !agent.revoked)
+  // Your own team first, then alphabetical.
+  const teams = [...(site?.teams ?? [])].sort(
+    (a, b) => Number(b.name === account?.team) - Number(a.name === account?.team) || a.name.localeCompare(b.name)
   )
+  const unassigned = (site?.people ?? []).filter((person) => !person.team)
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -120,116 +134,174 @@ export function TeamsView() {
             Teams
           </h1>
           <p className="text-muted-foreground">
-            People, and the agents working for each of them.
+            People, and the agents working for each of them. Managers add and remove people; each person is on one team.
           </p>
         </div>
-        <NewTeamDialog
-          onCreate={(name) => {
-            setNewTeams((t) => [...t, name])
-            saveTeam(name)
-            toast.success(`Created ${name}`, {
-              description: "Now invite some people.",
-            })
-          }}
-        />
+        <NewTeamDialog onCreated={refresh} />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <UsersIcon className="size-4" aria-hidden="true" />
-              {TEAM}
-              <RenameTeamButton name={TEAM} onRenamed={refresh} />
-            </CardTitle>
-            <CardAction className="text-sm text-muted-foreground">
-              {members.length} people · {activeAgents.length} agents
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            <ul className="flex flex-col divide-y">
-              {members.map((user) => (
-                <MemberRow
-                  key={user._id}
-                  user={user}
-                  agent={activeAgents.find((a) => a.owner_id === user._id)}
-                />
-              ))}
-            </ul>
-          </CardContent>
-          <CardFooter>
-            <Button asChild variant="link" className="px-0 text-foreground">
-              <Link href="/board">
-                Open board{" "}
-                <ArrowRightIcon data-icon="inline-end" aria-hidden="true" />
-              </Link>
-            </Button>
-          </CardFooter>
-        </Card>
-
-        {extraTeamNames.map((name) => {
-          const teamMembers = people.filter((user) => user.team === name)
-          return teamMembers.length > 0 ? (
+      {site === null ? (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {teams.map((team) => (
             <TeamCard
-              key={name}
-              name={name}
-              members={teamMembers}
+              key={team.name}
+              team={team}
+              people={site.people}
               agents={agents}
-              onRenamed={refresh}
+              canManage={isAdmin || team.managers.includes(account?._id ?? "")}
+              onChanged={refresh}
             />
-          ) : (
-            <EmptyTeamCard key={name} team={name} />
-          )
-        })}
-        <EmptyTeamCard team={TEAM} />
-      </div>
+          ))}
+          {teams.length === 0 && (
+            <p className="text-muted-foreground">No teams yet. Create one to get started.</p>
+          )}
+          {unassigned.length > 0 && (
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle className="text-lg">Not on a team</CardTitle>
+                <CardDescription>A team&apos;s manager can add these people from the team card.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-col divide-y">
+                  {unassigned.map((person) => (
+                    <MemberRow key={person._id} user={person} agent={agents.find((agent) => agent.owner_id === person._id)} />
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
     </main>
   )
 }
 
 function TeamCard({
-  name,
-  members,
-  agents: teamAgents,
-  onRenamed,
+  team,
+  people,
+  agents,
+  canManage,
+  onChanged,
 }: {
-  name: string
-  members: User[]
+  team: SiteTeam
+  people: Person[]
   agents: Agent[]
-  onRenamed: () => void
+  canManage: boolean
+  onChanged: () => void
 }) {
-  const active = teamAgents.filter(
-    (agent) =>
-      !agent.revoked && members.some((member) => member._id === agent.owner_id)
-  )
+  const members = people.filter((person) => person.team === team.name)
+  const others = people.filter((person) => person.team !== team.name)
+  const activeAgents = agents.filter((agent) => members.some((member) => member._id === agent.owner_id))
+
   return (
-    <Card>
+    <Card className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2 text-lg">
           <UsersIcon className="size-4" aria-hidden="true" />
-          {name}
-          <RenameTeamButton name={name} onRenamed={onRenamed} />
+          {team.name}
+          {canManage && <RenameTeamButton name={team.name} onRenamed={onChanged} />}
         </CardTitle>
         <CardAction className="text-sm text-muted-foreground">
-          {members.length} people · {active.length} agents
+          {members.length} {members.length === 1 ? "person" : "people"} · {activeAgents.length} agents
         </CardAction>
       </CardHeader>
       <CardContent>
-        <ul className="flex flex-col divide-y">
-          {members.map((user) => (
-            <MemberRow
-              key={user._id}
-              user={user}
-              agent={active.find((agent) => agent.owner_id === user._id)}
-            />
-          ))}
-        </ul>
+        {members.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">No one on this team yet.</p>
+        ) : (
+          <ul className="flex flex-col divide-y">
+            {members.map((member) => {
+              const isManager = team.managers.includes(member._id)
+              return (
+                <MemberRow
+                  key={member._id}
+                  user={member}
+                  agent={activeAgents.find((agent) => agent.owner_id === member._id)}
+                  extra={
+                    <>
+                      {isManager && <span className="rounded border px-1.5 text-xs text-muted-foreground">Manager</span>}
+                      {canManage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="size-7" aria-label={`Manage ${member.name}`}>
+                              <MoreHorizontalIcon aria-hidden="true" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                void change(
+                                  () => setTeamManager(team.name, member._id, !isManager),
+                                  isManager ? `${member.name} is no longer a manager` : `${member.name} now manages ${team.name}`,
+                                  onChanged
+                                )
+                              }
+                            >
+                              {isManager ? "Remove as manager" : "Make manager"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onSelect={() =>
+                                void change(() => removeTeamMember(team.name, member._id), `Removed ${member.name} from ${team.name}`, onChanged)
+                              }
+                            >
+                              Remove from team
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </>
+                  }
+                />
+              )
+            })}
+          </ul>
+        )}
       </CardContent>
+      {canManage && (
+        <CardFooter>
+          <SearchCombobox
+            label="Add people"
+            searchPlaceholder="Search people…"
+            emptyText="No one else to add."
+            trigger={
+              <Button variant="outline">
+                <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
+                Add people
+              </Button>
+            }
+            groups={[
+              {
+                items: others.map((person) => ({
+                  value: person._id,
+                  keywords: [person.name, person.auth_username, person.team],
+                  label: (
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate">{person.name}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {person.team ? `Moves from ${person.team}` : "Not on a team"}
+                      </span>
+                    </span>
+                  ),
+                  onSelect: () =>
+                    void change(() => addTeamMember(team.name, person._id), `Added ${person.name} to ${team.name}`, onChanged),
+                })),
+              },
+            ]}
+          />
+        </CardFooter>
+      )}
     </Card>
   )
 }
 
-function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
+function MemberRow({ user, agent, extra }: { user: User; agent?: Agent; extra?: React.ReactNode }) {
   const store = useProjects()
   const openProfile = useOpenProfile()
   const open = openTicketCount(user._id, store.tickets)
@@ -245,25 +317,18 @@ function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => openProfile?.(user._id)}
-            className="text-left font-semibold hover:underline"
-          >
+          <button type="button" onClick={() => openProfile?.(user._id)} className="text-left font-semibold hover:underline">
             {user.name}
           </button>
-          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
+          <span className="flex shrink-0 items-center gap-2 text-sm text-muted-foreground tabular-nums">
             {open} open
+            {extra}
           </span>
         </div>
-        {user.role && (
-          <p className="text-sm text-muted-foreground">{user.role}</p>
-        )}
+        {user.role && <p className="text-sm text-muted-foreground">{user.role}</p>}
         {agent ? (
           <div className="flex flex-wrap items-center gap-1.5">
-            <ActorBadge
-              actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: user._id }}
-            />
+            <ActorBadge actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: user._id }} />
             {agent.scopes.map((scope) => (
               <ScopeBadge key={scope} scope={scope} />
             ))}
@@ -276,116 +341,27 @@ function MemberRow({ user, agent }: { user: User; agent?: Agent }) {
   )
 }
 
-// Dashed card for a team with room for more people.
-function EmptyTeamCard({ team }: { team: string }) {
-  return (
-    <Card className="animate-in justify-center border-2 border-dashed bg-transparent shadow-none ring-0 duration-300 fade-in">
-      <CardHeader className="justify-items-center text-center">
-        <UsersIcon
-          className="size-8 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <CardTitle className="text-lg">{team}</CardTitle>
-        <CardDescription className="max-w-xs">
-          Invite people. Each person connects their own agent from the Agents
-          page.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex justify-center">
-        <InviteDialog team={team} />
-      </CardContent>
-    </Card>
-  )
-}
-
-function InviteDialog({ team }: { team: string }) {
-  const [open, setOpen] = useState(false)
-  const [username, setUsername] = useState("")
-  const [role, setRole] = useState("")
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!username.trim()) return
-    toast.success(`Invite sent to ${username.trim()}`, {
-      description: `They'll join ${team}.`,
-    })
-    setUsername("")
-    setRole("")
-    setOpen(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
-          <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
-          Invite people
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>Invite to {team}</DialogTitle>
-            <DialogDescription>
-              They create an account, then connect their own agent.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-2">
-            <Label
-              htmlFor="invite-username"
-              className="flex items-center gap-1.5"
-            >
-              <MailIcon className="size-4" aria-hidden="true" />
-              Username or email
-            </Label>
-            <Input
-              id="invite-username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. jordan"
-              autoFocus
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="invite-role">Role (optional)</Label>
-            <Input
-              id="invite-role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              placeholder="e.g. Frontend"
-            />
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button
-              type="submit"
-              variant="secondary"
-              disabled={!username.trim()}
-            >
-              Send invite
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
+function NewTeamDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
+  const [busy, setBusy] = useState(false)
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) return
-    onCreate(name.trim())
-    setName("")
-    setOpen(false)
+    const team = name.trim()
+    if (!team) return
+    setBusy(true)
+    try {
+      await createTeam(team)
+      toast.success(`Created ${team}`, { description: "You manage it. Add people from the team card." })
+      setName("")
+      setOpen(false)
+      onCreated()
+    } catch (error) {
+      toast.error("Couldn't create the team", { description: explain(error) })
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -400,9 +376,7 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>New team</DialogTitle>
-            <DialogDescription>
-              You can invite people after it&apos;s made.
-            </DialogDescription>
+            <DialogDescription>You&apos;ll manage it: add people, make other managers, and rename it.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Label htmlFor="team-name">Team name</Label>
@@ -411,6 +385,7 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Design crew"
+              maxLength={80}
               autoFocus
               required
             />
@@ -421,7 +396,7 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={!name.trim()}>
+            <Button type="submit" disabled={!name.trim() || busy}>
               Create team
             </Button>
           </DialogFooter>
@@ -431,14 +406,12 @@ function NewTeamDialog({ onCreate }: { onCreate: (name: string) => void }) {
   )
 }
 
-// Admins only (the board enforces it too). Members move to the new name, and the
-// team's folders follow it.
+// Team managers and org admins (the board enforces it too). Members move to the
+// new name, and the team's folders follow it.
 function RenameTeamButton({ name, onRenamed }: { name: string; onRenamed: () => void }) {
-  const account = useAuthUser()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState(name)
   const [busy, setBusy] = useState(false)
-  if (!account?.admin) return null
   const next = value.trim()
 
   return (
@@ -467,7 +440,7 @@ function RenameTeamButton({ name, onRenamed }: { name: string; onRenamed: () => 
               setOpen(false)
               onRenamed()
             } catch (error) {
-              toast.error("Couldn't rename the team", { description: error instanceof Error ? error.message : undefined })
+              toast.error("Couldn't rename the team", { description: explain(error) })
             } finally {
               setBusy(false)
             }

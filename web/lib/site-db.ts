@@ -23,9 +23,9 @@ export type SiteApiKey = {
 
 export type SiteState = {
   organization: SiteOrganization | null
-  teams: { name: string }[]
+  teams: { name: string; managers: string[]; created_by?: string }[]
   apiKeys: SiteApiKey[]
-  users: { _id: string; auth_username: string; name: string; role?: string; team: string }[]
+  users: { _id: string; auth_username: string; name: string; role?: string; admin?: boolean; team: string }[]
 }
 
 const EMPTY: SiteState = { organization: null, teams: [], apiKeys: [], users: [] }
@@ -79,8 +79,21 @@ export function renameTeam(from: string, to: string) {
   return save({ kind: "team", team: { name: to, rename_from: from } })
 }
 
-export function saveTeam(name: string) {
-  void save({ kind: "team", team: { name } }).catch(report)
+// These throw with the board's message so the Teams page can show it.
+export function createTeam(name: string) {
+  return save({ kind: "team", team: { name } })
+}
+
+export function addTeamMember(team: string, userId: string) {
+  return save({ kind: "member", member: { team, user_id: userId } })
+}
+
+export function removeTeamMember(team: string, userId: string) {
+  return save({ kind: "member", member: { team, user_id: userId, remove: true } })
+}
+
+export function setTeamManager(team: string, userId: string, manager: boolean) {
+  return save({ kind: "manager", manager: { team, user_id: userId, manager } })
 }
 
 export function saveApiKey(apiKey: SiteApiKey) {
