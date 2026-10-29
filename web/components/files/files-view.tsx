@@ -13,6 +13,7 @@ import {
   FileTextIcon,
   FolderIcon,
   HistoryIcon,
+  PenToolIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -52,10 +53,12 @@ import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
 import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
 
 type Dialogs =
   | { kind: "create" }
   | { kind: "note"; node?: Folder }
+  | { kind: "board" }
   | { kind: "file"; node: Folder }
   | { kind: "rename"; folder: Folder }
   | { kind: "move"; folder: Folder }
@@ -115,6 +118,7 @@ function ago(iso?: string) {
 // Team folders: one tree per team. The URL's ?folder= keeps the place on reload.
 export function FilesView() {
   const router = useRouter()
+  const whiteboardOn = useWhiteboardEnabled()
   const params = useSearchParams()
   const folderId = params.get("folder") || ROOT
   const showTrash = params.get("view") === "trash"
@@ -201,8 +205,10 @@ export function FilesView() {
     )
   }
 
-  const openNode = (node: Folder) =>
+  const openNode = (node: Folder) => {
+    if (node.type === "whiteboard") return router.push(`/boards/${encodeURIComponent(node.id)}`)
     setDialog(node.type === "note" ? { kind: "note", node } : node.type === "file" ? { kind: "file", node } : null)
+  }
 
   // Apply a fetched view, unless the user has already moved on to another one.
   const apply = useCallback((key: string, view: View) => {
@@ -331,6 +337,12 @@ export function FilesView() {
                   <FileTextIcon data-icon="inline-start" aria-hidden="true" />
                   New note
                 </Button>
+                {whiteboardOn ? (
+                  <Button variant="outline" onClick={() => setDialog({ kind: "board" })}>
+                    <PenToolIcon data-icon="inline-start" aria-hidden="true" />
+                    New board
+                  </Button>
+                ) : null}
                 <Button onClick={() => setDialog({ kind: "create" })}>
                   <PlusIcon data-icon="inline-start" aria-hidden="true" />
                   New folder
@@ -433,6 +445,8 @@ export function FilesView() {
             >
               {folder.type === "note" ? (
                 <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+              ) : folder.type === "whiteboard" ? (
+                <PenToolIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               ) : folder.type === "file" ? (
                 <FileIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               ) : (
@@ -444,7 +458,7 @@ export function FilesView() {
                 ) : folder.type !== "folder" ? (
                   <button
                     type="button"
-                    onClick={() => setDialog(folder.type === "note" ? { kind: "note", node: folder } : { kind: "file", node: folder })}
+                    onClick={() => openNode(folder)}
                     className="truncate text-left font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
                   >
                     {folder.name}
@@ -496,6 +510,23 @@ export function FilesView() {
             ? run(() => foldersApi.rename(dialog.folder, name), `Renamed to ${name}`)
             : run(() => foldersApi.create(folderId, name), `Created ${name}`)
         }
+      />
+
+      <NameDialog
+        open={dialog?.kind === "board"}
+        title="New board"
+        initial=""
+        submitLabel="Create board"
+        onClose={() => setDialog(null)}
+        onSubmit={async (name) => {
+          try {
+            const board = await foldersApi.createBoard(folderId, name)
+            setDialog(null)
+            router.push(`/boards/${encodeURIComponent(board.id)}`)
+          } catch (error) {
+            toast.error(explain(error))
+          }
+        }}
       />
 
       {dialog?.kind === "file" && (

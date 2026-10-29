@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 import { ActorBadge } from "@/components/actor-badge"
 import { nodeSize } from "@/components/files/file-panels"
-import { ChevronDownIcon, ChevronRightIcon, FileIcon, FileTextIcon, FolderIcon } from "@/components/icons"
+import { ChevronDownIcon, ChevronRightIcon, FileIcon, FileTextIcon, FolderIcon, PenToolIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { absoluteTime } from "@/lib/format"
@@ -12,7 +12,7 @@ import { type Crumb, type Folder, foldersApi, ROOT } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
 
 function NodeIcon({ node, className }: { node: Pick<Folder, "type">; className?: string }) {
-  const Icon = node.type === "note" ? FileTextIcon : node.type === "file" ? FileIcon : FolderIcon
+  const Icon = node.type === "note" ? FileTextIcon : node.type === "whiteboard" ? PenToolIcon : node.type === "file" ? FileIcon : FolderIcon
   return <Icon className={cn("size-4 shrink-0 text-muted-foreground", className)} aria-hidden="true" />
 }
 
@@ -259,7 +259,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
     }
   }
 
-  const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Note" : node.content_type || "File"
+  const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Note" : node.type === "whiteboard" ? "Whiteboard" : node.content_type || "File"
   const who = showTrash ? node.deleted_by : node.created_by
 
   return (
@@ -349,7 +349,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
 
       {!showTrash && (
         <Button variant="outline" onClick={onOpen}>
-          {node.type === "folder" ? "Open folder" : node.type === "note" ? "Open note" : "Open file"}
+          {node.type === "folder" ? "Open folder" : node.type === "note" ? "Open note" : node.type === "whiteboard" ? "Open board" : "Open file"}
         </Button>
       )}
     </div>
