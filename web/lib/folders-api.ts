@@ -107,8 +107,24 @@ export const foldersApi = {
 
   // Files and notes
   versions: (id: string) => call<{ items: Version[] }>(`files/${seg(id)}/versions`),
-  link: (id: string, version?: number) =>
-    call<{ url: string; version: number }>(`files/${seg(id)}${version ? `/versions/${version}` : ""}/link`),
+  link: (id: string, version?: number, inline = false) =>
+    call<{ url: string; version: number; inline?: boolean }>(
+      `files/${seg(id)}${version ? `/versions/${version}` : ""}/link${inline ? "?inline=1" : ""}`
+    ),
+  content: (id: string, version?: number) =>
+    call<{ text: string; truncated: boolean; content_type?: string; version: number }>(
+      `files/${seg(id)}/content${version ? `?version=${version}` : ""}`
+    ),
+  diff: (id: string, from: number, to?: number) =>
+    call<{ diff: string; changed: boolean; truncated: boolean; from: number; to: number }>(
+      `files/${seg(id)}/diff?from=${from}${to ? `&to=${to}` : ""}`
+    ),
+  search: (query: string) => call<{ items: (Folder & { path?: string[] })[] }>(`search?q=${encodeURIComponent(query)}`),
+  fileLinks: (id: string) => call<{ items: { target: string }[] }>(`files/${seg(id)}/links`),
+  linkTicket: (id: string, key: string) => call<unknown>(`files/${seg(id)}/links`, { method: "POST", body: { target: `ticket:${key}` } }),
+  unlinkTicket: (id: string, key: string) =>
+    call<unknown>(`files/${seg(id)}/links?target=${encodeURIComponent(`ticket:${key}`)}`, { method: "DELETE" }),
+  ticketFiles: (key: string) => call<{ items: Folder[] }>(`links?target=${encodeURIComponent(`ticket:${key}`)}`),
   readNote: (id: string, version?: number) =>
     call<Version & { note: Folder }>(`files/${seg(id)}/versions/${version ?? 0}`),
   createNote: (parentId: string, name: string, body: string) =>

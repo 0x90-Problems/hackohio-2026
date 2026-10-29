@@ -211,11 +211,15 @@ function TreeNode({
 }
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
+const TEXT_TYPES = ["text/plain", "text/markdown", "text/csv", "application/json"]
 
 function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean; onOpen: () => void }) {
   const [image, setImage] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
+  const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
   const isImage = node.type === "file" && IMAGE_TYPES.includes(node.content_type ?? "")
+  const isText = node.type === "file" && TEXT_TYPES.includes(node.content_type ?? "")
+  const isPdf = node.type === "file" && node.content_type === "application/pdf"
 
   useEffect(() => {
     if (showTrash) return
@@ -230,11 +234,30 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         .readNote(node.id)
         .then((result) => !cancelled && setNote(result.body ?? ""))
         .catch(() => !cancelled && setNote(""))
+    } else if (isText) {
+      foldersApi
+        .content(node.id)
+        .then((result) => !cancelled && setText({ body: result.text, truncated: result.truncated }))
+        .catch(() => !cancelled && setText({ body: "", truncated: false }))
     }
     return () => {
       cancelled = true
     }
-  }, [node.id, node.type, isImage, showTrash])
+  }, [node.id, node.type, isImage, isText, showTrash])
+
+  async function openPdf() {
+    // Opens in the browser's own PDF viewer, on the storage domain (never ours).
+    const viewer = window.open("about:blank", "_blank")
+    try {
+      const link = await foldersApi.link(node.id, undefined, true)
+      if (viewer) {
+        viewer.opener = null
+        viewer.location.href = link.url
+      }
+    } catch {
+      viewer?.close()
+    }
+  }
 
   const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Note" : node.content_type || "File"
   const who = showTrash ? node.deleted_by : node.created_by
@@ -256,6 +279,25 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         ) : (
           <p className="text-sm text-muted-foreground">No preview available.</p>
         ))}
+
+      {isText &&
+        !showTrash &&
+        (text === null ? (
+          <Skeleton className="h-40 w-full" />
+        ) : (
+          <div className="flex flex-col gap-1">
+            <pre className="max-h-[50dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
+              {text.body || <span className="text-muted-foreground">This file is empty.</span>}
+            </pre>
+            {text.truncated && <p className="text-xs text-muted-foreground">Showing the first 256 KB.</p>}
+          </div>
+        ))}
+
+      {isPdf && !showTrash && (
+        <Button variant="outline" onClick={() => void openPdf()}>
+          Open preview
+        </Button>
+      )}
 
       {node.type === "note" &&
         !showTrash &&

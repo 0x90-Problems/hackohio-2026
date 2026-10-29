@@ -50,6 +50,142 @@ function useVersions(id: string | undefined, refresh: number) {
   return versions
 }
 
+const DIFFABLE = ["text/plain", "text/markdown", "text/csv", "application/json"]
+
+// What changed between an older version and the current one (unified diff).
+function DiffView({ id, from, to, onClose }: { id: string; from: number; to: number; onClose: () => void }) {
+  const [result, setResult] = useState<{ diff: string; changed: boolean; truncated: boolean } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    foldersApi
+      .diff(id, from, to)
+      .then((value) => !cancelled && setResult(value))
+      .catch((reason) => !cancelled && setError(explain(reason)))
+    return () => {
+      cancelled = true
+    }
+  }, [id, from, to])
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border p-3">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="font-medium">
+          Changes from v{from} to v{to}
+        </span>
+        <Button variant="ghost" size="sm" onClick={onClose}>
+          Close
+        </Button>
+      </div>
+      {error ? (
+        <p className="text-sm text-destructive">{error}</p>
+      ) : result === null ? (
+        <Skeleton className="h-24" />
+      ) : !result.changed ? (
+        <p className="text-sm text-muted-foreground">No changes.</p>
+      ) : (
+        <pre className="max-h-72 overflow-auto rounded bg-muted/30 p-2 font-mono text-xs leading-relaxed" aria-label="Diff">
+          {result.diff.split("\n").map((line, index) => (
+            <div
+              key={index}
+              className={
+                line.startsWith("+") && !line.startsWith("+++")
+                  ? "bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+                  : line.startsWith("-") && !line.startsWith("---")
+                    ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300"
+                    : line.startsWith("@@")
+                      ? "text-muted-foreground"
+                      : undefined
+              }
+            >
+              {line || " "}
+            </div>
+          ))}
+          {result.truncated && <div className="text-muted-foreground">… (longer diffs are cut off)</div>}
+        </pre>
+      )}
+    </div>
+  )
+}
+
+// Tickets this file is linked to; editors can link more by key or unlink.
+function TicketLinks({ id, canEdit }: { id: string; canEdit: boolean }) {
+  const [links, setLinks] = useState<string[] | null>(null)
+  const [key, setKey] = useState("")
+  const [refresh, setRefresh] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    foldersApi
+      .fileLinks(id)
+      .then((result) => !cancelled && setLinks(result.items.map((item) => item.target.replace(/^ticket:/, ""))))
+      .catch(() => !cancelled && setLinks([]))
+    return () => {
+      cancelled = true
+    }
+  }, [id, refresh])
+  const valid = /^[A-Z][A-Z0-9]{1,5}-\d+$/.test(key.trim().toUpperCase())
+
+  async function change(action: () => Promise<unknown>, done: string) {
+    try {
+      await action()
+      toast.success(done)
+      setKey("")
+      setRefresh((n) => n + 1)
+    } catch (error) {
+      toast.error("Couldn't update the ticket link", { description: explain(error) })
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-2" aria-label="Linked tickets">
+      <h3 className="text-sm font-medium">Linked tickets</h3>
+      {links === null ? (
+        <Skeleton className="h-6" />
+      ) : links.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Not linked to any ticket.</p>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {links.map((ticket) => (
+            <li key={ticket} className="flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs">
+              {ticket}
+              {canEdit && (
+                <button
+                  type="button"
+                  aria-label={`Unlink ${ticket}`}
+                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => void change(() => foldersApi.unlinkTicket(id, ticket), `Unlinked ${ticket}`)}
+                >
+                  ×
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && (
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const ticket = key.trim().toUpperCase()
+            if (valid) void change(() => foldersApi.linkTicket(id, ticket), `Linked to ${ticket}`)
+          }}
+        >
+          <Input
+            aria-label="Ticket key"
+            placeholder="e.g. CLW-21"
+            value={key}
+            onChange={(event) => setKey(event.target.value)}
+            className="h-8 w-36 font-mono text-xs"
+          />
+          <Button type="submit" variant="outline" size="sm" disabled={!valid}>
+            Link
+          </Button>
+        </form>
+      )}
+    </section>
+  )
+}
+
 function VersionList({
   versions,
   current,
@@ -98,6 +234,8 @@ export function FilePanel({
   const [refresh, setRefresh] = useState(0)
   const versions = useVersions(node.id, refresh)
   const picker = useRef<HTMLInputElement>(null)
+  const [comparing, setComparing] = useState<number | null>(null)
+  const diffable = DIFFABLE.includes(node.content_type ?? "")
 
   async function download(version?: number) {
     try {
@@ -155,6 +293,11 @@ export function FilePanel({
               <Button variant="ghost" size="sm" onClick={() => void download(version.version)}>
                 Download
               </Button>
+              {diffable && version.version !== node.current_version && (
+                <Button variant="ghost" size="sm" onClick={() => setComparing(version.version)}>
+                  Compare
+                </Button>
+              )}
               {canEdit && version.version !== node.current_version && (
                 <Button variant="ghost" size="sm" onClick={() => void restore(version.version)}>
                   Restore
@@ -163,6 +306,10 @@ export function FilePanel({
             </>
           )}
         />
+        {comparing !== null && node.current_version && (
+          <DiffView id={node.id} from={comparing} to={node.current_version} onClose={() => setComparing(null)} />
+        )}
+        <TicketLinks id={node.id} canEdit={canEdit} />
         <DialogFooter>
           {canEdit && (
             <>
@@ -212,6 +359,7 @@ export function NoteDialog({
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const versions = useVersions(node?.id, refresh)
+  const [comparing, setComparing] = useState<number | null>(null)
 
   useEffect(() => {
     if (!note) return
@@ -317,13 +465,23 @@ export function NoteDialog({
             versions={versions}
             current={node.current_version}
             actions={(version) =>
-              canEdit && version.version !== node.current_version ? (
-                <Button variant="ghost" size="sm" onClick={() => void restore(version.version)}>
-                  Restore
-                </Button>
+              version.version !== node.current_version ? (
+                <>
+                  <Button variant="ghost" size="sm" onClick={() => setComparing(version.version)}>
+                    Compare
+                  </Button>
+                  {canEdit && (
+                    <Button variant="ghost" size="sm" onClick={() => void restore(version.version)}>
+                      Restore
+                    </Button>
+                  )}
+                </>
               ) : null
             }
           />
+        )}
+        {node && !editing && comparing !== null && node.current_version && (
+          <DiffView id={node.id} from={comparing} to={node.current_version} onClose={() => setComparing(null)} />
         )}
         <DialogFooter>
           {editing ? (
