@@ -15,6 +15,8 @@ type SitePostBody = {
   kind?: string
   organization?: { name: string; token_expiry_hours: number; rules: Record<string, boolean> }
   team?: { name: string; rename_from?: string }
+  member?: { team: string; user_id: string; remove?: boolean }
+  manager?: { team: string; user_id: string; manager: boolean }
   apiKey?: {
     id?: string
     name: string
@@ -120,7 +122,8 @@ export async function GET(request: Request) {
     teams: teamList.flatMap((item) => {
       const team = asRecord(item)
       const name = typeof team?.name === "string" ? team.name : ""
-      return name ? [{ name }] : []
+      const managers = Array.isArray(team?.managers) ? team.managers.filter((id): id is string => typeof id === "string") : []
+      return name ? [{ name, managers, ...(typeof team?.created_by === "string" ? { created_by: team.created_by } : {}) }] : []
     }),
     apiKeys,
     users: userList.flatMap((item) => {
@@ -129,19 +132,29 @@ export async function GET(request: Request) {
       const _id = typeof user._id === "string" ? user._id : ""
       const auth_username = typeof user.auth_username === "string" ? user.auth_username : ""
       const name = typeof user.name === "string" ? user.name : ""
+      // People without a team are kept (team "") so managers can add them somewhere.
       const team = typeof user.team === "string" ? user.team : ""
-      if (!_id || !auth_username || !name || !team) return []
+      if (!_id || !auth_username || !name) return []
       return [
         {
           _id,
           auth_username,
           name,
           ...(typeof user.role === "string" ? { role: user.role } : {}),
+          ...(user.admin === true ? { admin: true } : {}),
           team,
         },
       ]
     }),
   })
+}
+
+// Pass the board's error (e.g. 403 "Only this team's managers…") through to the UI.
+function relay(result: { status: number; json: unknown }, fallback: string) {
+  if (result.status >= 400) {
+    return NextResponse.json(result.json ?? { error: { code: "database", message: fallback } }, { status: result.status })
+  }
+  return NextResponse.json({ ok: true })
 }
 
 export async function POST(request: Request) {
@@ -191,9 +204,21 @@ export async function POST(request: Request) {
   }
 
   if (body.kind === "team" && body.team?.name) {
-    // Board teams are derived from each user's `team` field — there is no empty-team store.
-    // Acknowledge so the UI can keep the name locally until a member joins.
-    return NextResponse.json({ ok: true, derived: true })
+    // A real team record on the board; the creator manages it.
+    return relay(await boardJson(request, "/teams", { method: "POST", body: { name: body.team.name } }), "Could not create the team")
+  }
+
+  if (body.kind === "member" && body.member?.team && body.member.user_id) {
+    const team = encodeURIComponent(body.member.team)
+    const result = body.member.remove
+      ? await boardJson(request, `/teams/${team}/members/${encodeURIComponent(body.member.user_id)}`, { method: "DELETE" })
+      : await boardJson(request, `/teams/${team}/members`, { method: "POST", body: { user_id: body.member.user_id } })
+    return relay(result, "Could not change the team's members")
+  }
+
+  if (body.kind === "manager" && body.manager?.team && body.manager.user_id) {
+    const path = `/teams/${encodeURIComponent(body.manager.team)}/managers/${encodeURIComponent(body.manager.user_id)}`
+    return relay(await boardJson(request, path, { method: "PUT", body: { manager: body.manager.manager === true } }), "Could not change the team's managers")
   }
 
   if (body.kind === "apiKey" && body.apiKey?.name) {
