@@ -68,7 +68,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
       {/* Wide screens: the board illustration beside the form */}
       <section className="hidden flex-col justify-between border-r bg-background p-10 lg:flex">
         <Logo className="text-xl" markClassName="size-8" />
-        <div className="mx-auto w-full max-w-md animate-in duration-500 fade-in">
+        <div className="mx-auto my-auto w-full max-w-md animate-in duration-500 fade-in">
           <BoardScene />
           <h2 className="mt-8 text-3xl font-bold tracking-tight">
             Your whole project, in a NutShell.
