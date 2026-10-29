@@ -56,7 +56,7 @@ const NAV_LINKS = [
 // the header). Services that aren't built yet show as "Soon" and can't be opened.
 const SERVICES = [
   { label: "Boards", description: "Projects, tickets and roadmaps", href: "/projects", icon: FolderKanbanIcon },
-  { label: "Folders", description: "Shared files and notes", icon: FolderIcon },
+  { label: "Folders", description: "Shared files and documents", icon: FolderIcon },
   { label: "Chat", description: "Team chat with channels", icon: MessagesSquareIcon },
   // Boards live in folders, so the tile opens Folders (create one with "New board").
   { label: "Whiteboard", description: "Draw live with people and agents", icon: PenToolIcon },

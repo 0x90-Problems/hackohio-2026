@@ -373,7 +373,7 @@ export function NoteDialog({
         setLoaded(true)
       })
       .catch((error) => {
-        if (!cancelled) toast.error("Couldn't open the note", { description: explain(error) })
+        if (!cancelled) toast.error("Couldn't open the document", { description: explain(error) })
       })
     return () => {
       cancelled = true
@@ -398,8 +398,8 @@ export function NoteDialog({
       toast.success(`Saved version ${updated.current_version}`)
     } catch (error) {
       const stale = error instanceof FoldersError && error.code === "version_conflict"
-      toast.error(stale ? "Someone saved this note first" : "Couldn't save the note", {
-        description: stale ? "Your text is still here. Copy it, reopen the note, and apply your change again." : explain(error),
+      toast.error(stale ? "Someone saved this document first" : "Couldn't save the document", {
+        description: stale ? "Your text is still here. Copy it, reopen the document, and apply your change again." : explain(error),
       })
     } finally {
       setBusy(false)
@@ -428,9 +428,9 @@ export function NoteDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="break-all">{node ? node.name : "New note"}</DialogTitle>
+          <DialogTitle className="break-all">{node ? node.name : "New document"}</DialogTitle>
           <DialogDescription>
-            {node ? `Version ${node.current_version}. Every save keeps the old version.` : "A markdown note in this folder."}
+            {node ? `Version ${node.current_version}. Every save keeps the old version.` : "A document in this folder, saved as markdown."}
           </DialogDescription>
         </DialogHeader>
         {!node && (
@@ -443,7 +443,7 @@ export function NoteDialog({
           <Skeleton className="h-48" />
         ) : editing ? (
           <div className="flex flex-col gap-2">
-            <Label htmlFor="note-body">Note</Label>
+            <Label htmlFor="note-body">Document</Label>
             <Textarea
               id="note-body"
               value={body}
@@ -452,12 +452,12 @@ export function NoteDialog({
               aria-invalid={tooBig || undefined}
               autoFocus={Boolean(node)}
             />
-            {tooBig && <p className="text-sm text-destructive">A note can be at most 256 KB.</p>}
+            {tooBig && <p className="text-sm text-destructive">A document can be at most 256 KB.</p>}
           </div>
         ) : (
           // Shown as text: note bodies are user content, never rendered as HTML.
           <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/30 p-4 text-sm break-words whitespace-pre-wrap">
-            {body || <span className="text-muted-foreground">This note is empty.</span>}
+            {body || <span className="text-muted-foreground">This document is empty.</span>}
           </div>
         )}
         {node && !editing && (
@@ -490,7 +490,7 @@ export function NoteDialog({
                 Cancel
               </Button>
               <Button onClick={() => void save()} disabled={busy || tooBig || nameInvalid}>
-                {node ? "Save" : "Create note"}
+                {node ? "Save" : "Create document"}
               </Button>
             </>
           ) : (
