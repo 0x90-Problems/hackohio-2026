@@ -279,7 +279,7 @@ export function FilesView() {
   }
 
   return (
-    <main className={cn("mx-auto flex flex-col gap-6 px-4 py-6", mode === "explorer" ? "max-w-none" : "max-w-screen-xl")}>
+    <main className={cn("mx-auto flex flex-col gap-6 px-4 py-6", mode === "explorer" ? "max-w-screen-2xl" : "max-w-screen-xl")}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
