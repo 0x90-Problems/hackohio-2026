@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
 import {
   CheckIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   ChevronsUpDownIcon,
+  GripVerticalIcon,
   LayoutGridIcon,
   MoreHorizontalIcon,
   PencilIcon,
@@ -70,6 +72,7 @@ type Editing =
 
 // The drag payload type, so columns ignore anything else dropped on them
 const TICKET_DRAG_TYPE = "application/x-nutshell-ticket"
+const CATEGORY_DRAG_TYPE = "application/x-nutshell-category"
 
 const newestFirst = <T extends { created_at: Date }>(a: T, b: T) =>
   b.created_at.getTime() - a.created_at.getTime()
@@ -304,6 +307,8 @@ export function BoardView({ projectKey }: { projectKey: string }) {
             router.push(ticketHref(ticket.key), { scroll: false })
           }
           onDueDateChange={store.setDueDate}
+          onDatesChange={store.setTicketDates}
+          onMoveCategory={(slug, index) => store.moveCategory(projectKey, slug, index)}
           onDelete={store.deleteTicket}
         />
 
@@ -347,6 +352,12 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                       <section
                         aria-label={category.name}
                         onDragOver={(e) => {
+                          if (e.dataTransfer.types.includes(CATEGORY_DRAG_TYPE)) {
+                            e.preventDefault()
+                            e.dataTransfer.dropEffect = "move"
+                            setDropTarget(category.slug)
+                            return
+                          }
                           if (!e.dataTransfer.types.includes(TICKET_DRAG_TYPE))
                             return
                           e.preventDefault()
@@ -361,9 +372,11 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                             setDropTarget(null)
                         }}
                         onDrop={(e) => {
+                          const column = e.dataTransfer.getData(CATEGORY_DRAG_TYPE)
                           const key = e.dataTransfer.getData(TICKET_DRAG_TYPE)
                           setDropTarget(null)
-                          if (key) store.moveTicket(key, category.slug)
+                          if (column) store.moveCategory(projectKey, column, index)
+                          else if (key) store.moveTicket(key, category.slug)
                         }}
                         className={cn(
                           "flex min-h-96 flex-col gap-3 rounded-xl p-3 transition-shadow duration-150",
@@ -372,6 +385,26 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                         )}
                       >
                         <h2 className="flex items-center gap-2 px-1 text-sm font-semibold">
+                          {/* Drag the grip to reorder columns; arrow keys move it too. */}
+                          <button
+                            type="button"
+                            draggable
+                            aria-label={`Reorder ${category.name} (arrow keys move it)`}
+                            title="Drag to reorder"
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData(CATEGORY_DRAG_TYPE, category.slug)
+                              e.dataTransfer.effectAllowed = "move"
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                                e.preventDefault()
+                                store.moveCategory(projectKey, category.slug, index + (e.key === "ArrowLeft" ? -1 : 1))
+                              }
+                            }}
+                            className="-ml-1 cursor-grab rounded-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
+                          >
+                            <GripVerticalIcon className="size-4" aria-hidden="true" />
+                          </button>
                           <ColorDot color={category.color} />
                           <span className="min-w-0 flex-1 truncate">
                             {category.name}
@@ -406,6 +439,18 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                 }
                               >
                                 <PencilIcon aria-hidden="true" /> Rename or recolor
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={index === 0}
+                                onSelect={() => store.moveCategory(projectKey, category.slug, index - 1)}
+                              >
+                                <ChevronLeftIcon aria-hidden="true" /> Move left
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={index === categories.length - 1}
+                                onSelect={() => store.moveCategory(projectKey, category.slug, index + 1)}
+                              >
+                                <ChevronRightIcon aria-hidden="true" /> Move right
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem

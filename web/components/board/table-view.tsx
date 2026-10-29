@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 
-import { ChevronRightIcon } from "@/components/icons"
+import { ChevronRightIcon, GripVerticalIcon } from "@/components/icons"
 import { ColorDot } from "@/components/board/category-dialogs"
 import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import type { Category, Ticket } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+const GROUP_DRAG_TYPE = "application/x-nutshell-category"
 
 // GitHub Projects table: one section per status column, one row per ticket.
 // Titles wrap. A field with no value yet is an empty muted cell.
@@ -16,15 +18,18 @@ export function TableView({
   categories,
   fields,
   onOpenTicket,
+  onMoveCategory,
   onDelete,
 }: {
   tickets: Ticket[]
   categories: Category[]
   fields: string[]
   onOpenTicket: (ticket: Ticket) => void
+  onMoveCategory?: (slug: string, toIndex: number) => void
   onDelete: (ticketKey: string) => void
 }) {
   const [closed, setClosed] = useState<Record<string, boolean>>({})
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
   const known = new Set(categories.map((category) => category.slug))
   const extras = tickets
     .filter((ticket) => !known.has(ticket.status))
@@ -51,11 +56,55 @@ export function TableView({
 
   return (
     <div data-slot="project-table" data-layout="table" className="flex flex-col gap-4">
-      {groups.map((group) => {
+      {groups.map((group, index) => {
         const open = !closed[group.slug]
         const panelId = `table-group-${group.slug}`
+        // Only real categories reorder; groups for unknown statuses stay at the end.
+        const movable = Boolean(onMoveCategory) && index < categories.length
         return (
-          <section key={group.slug} className="overflow-hidden rounded-xl border bg-card">
+          <section
+            key={group.slug}
+            onDragOver={(event) => {
+              if (!movable || !event.dataTransfer.types.includes(GROUP_DRAG_TYPE)) return
+              event.preventDefault()
+              event.dataTransfer.dropEffect = "move"
+              setDropTarget(group.slug)
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropTarget(null)
+            }}
+            onDrop={(event) => {
+              const slug = event.dataTransfer.getData(GROUP_DRAG_TYPE)
+              setDropTarget(null)
+              if (slug && movable) onMoveCategory?.(slug, index)
+            }}
+            className={cn(
+              "overflow-hidden rounded-xl border bg-card transition-shadow duration-150",
+              dropTarget === group.slug && "shadow-lg ring-2 ring-foreground/40"
+            )}
+          >
+            <div className="flex items-center">
+            {movable ? (
+              <button
+                type="button"
+                draggable
+                aria-label={`Reorder ${group.name} (arrow keys move it)`}
+                title="Drag to reorder"
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(GROUP_DRAG_TYPE, group.slug)
+                  event.dataTransfer.effectAllowed = "move"
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                    event.preventDefault()
+                    onMoveCategory?.(group.slug, index + (event.key === "ArrowUp" ? -1 : 1))
+                  }
+                }}
+                className="ml-2 cursor-grab rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing"
+              >
+                <GripVerticalIcon className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
             <button
               type="button"
               aria-expanded={open}
@@ -75,6 +124,7 @@ export function TableView({
               </span>
               <span className="text-sm text-muted-foreground tabular-nums">{group.tickets.length}</span>
             </button>
+            </div>
             {open && (
               <div id={panelId} className="border-t">
                 <table className="w-full table-fixed border-collapse text-sm">

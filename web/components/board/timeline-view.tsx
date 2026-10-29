@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { TicketOwnerBadge } from "@/components/actor-badge"
 import { ColorDot } from "@/components/board/category-dialogs"
@@ -37,6 +37,28 @@ function addDays(date: Date, days: number) {
 
 const shortDate = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" })
 
+// YYYY-MM-DD in local time (the format tickets store).
+export function formatDay(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
+type DragMode = "move" | "start" | "end"
+
+// New start/due for a bar dragged by `days`. Ends never cross: a start can't pass the due date.
+export function draggedDates(span: { start: Date; end: Date; kind: "range" | "start" | "none" }, mode: DragMode, days: number) {
+  if (span.kind === "start") {
+    if (mode === "end") return { start: span.start, end: addDays(span.start, Math.max(0, days)) as Date | undefined }
+    return { start: addDays(span.start, days), end: undefined as Date | undefined }
+  }
+  if (mode === "move") return { start: addDays(span.start, days), end: addDays(span.end, days) as Date | undefined }
+  if (mode === "start") {
+    const start = addDays(span.start, days)
+    return { start: start > span.end ? span.end : start, end: span.end as Date | undefined }
+  }
+  const end = addDays(span.end, days)
+  return { start: span.start, end: (end < span.start ? span.start : end) as Date | undefined }
+}
+
 // "range": start and end known. "start": only a start date. "none": no dates.
 type Span = { ticket: Ticket; start: Date; end: Date; kind: "range" | "start" | "none" }
 
@@ -65,10 +87,12 @@ export function TimelineView({
   tickets,
   categories,
   onOpenTicket,
+  onDatesChange,
 }: {
   tickets: Ticket[]
   categories: Category[]
   onOpenTicket: (ticket: Ticket) => void
+  onDatesChange?: (ticketKey: string, start: string, due: string) => void
 }) {
   const [zoom, setZoom] = useState<Zoom>("weeks")
   const today = startOfDay(new Date())
@@ -98,6 +122,7 @@ export function TimelineView({
 
   const months: Date[] = []
   const weekStarts: Date[] = []
+  const days: Date[] = []
   // Label the partial first month only if it has room before the next month's label.
   const nextMonth = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + 1, 1)
   if (rangeStart.getDate() !== 1 && daysBetween(rangeStart, nextMonth) * dayWidth >= 120) months.push(rangeStart)
@@ -105,6 +130,7 @@ export function TimelineView({
     const day = addDays(rangeStart, index)
     if (day.getDate() === 1) months.push(day)
     if (day.getDay() === 1) weekStarts.push(day)
+    days.push(day)
   }
 
   const known = new Set(categories.map((category) => category.slug))
@@ -168,7 +194,30 @@ export function TimelineView({
           <div className="sticky left-0 z-20 border-r border-b bg-background p-2 text-xs font-medium text-muted-foreground">
             Ticket
           </div>
-          <div className="relative h-12 border-b bg-muted/30">
+          <div className="relative h-14 border-b bg-muted/30">
+            {/* Axis ticks: every day (with its number) in Weeks zoom, every week in Months zoom. */}
+            {zoom === "weeks"
+              ? days.map((day) => (
+                  <span
+                    key={`d-${day.getTime()}`}
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute bottom-0 border-l text-center text-[10px] leading-none text-muted-foreground",
+                      day.getDay() === 1 ? "h-3 border-foreground/30" : "h-1.5 border-foreground/15"
+                    )}
+                    style={{ left: offset(day), width: dayWidth }}
+                  >
+                    <span className="absolute -top-3.5 left-0 w-full">{day.getDate()}</span>
+                  </span>
+                ))
+              : weekStarts.map((week) => (
+                  <span
+                    key={`t-${week.getTime()}`}
+                    aria-hidden="true"
+                    className="absolute bottom-0 h-2 border-l border-foreground/25"
+                    style={{ left: offset(week) }}
+                  />
+                ))}
             {months.map((month) => (
               <span
                 key={`m-${month.getTime()}`}
@@ -178,16 +227,18 @@ export function TimelineView({
                 {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
               </span>
             ))}
-            {zoom === "weeks" &&
-              weekStarts.map((week) => (
-                <span
-                  key={`w-${week.getTime()}`}
-                  className="absolute bottom-1 pl-1 text-[11px] whitespace-nowrap text-muted-foreground"
-                  style={{ left: offset(week) }}
-                >
-                  {shortDate.format(week)}
-                </span>
-              ))}
+            {weekStarts.map((week) => (
+              <span
+                key={`w-${week.getTime()}`}
+                className={cn(
+                  "absolute pl-1 text-[11px] whitespace-nowrap text-muted-foreground",
+                  zoom === "weeks" ? "top-6" : "bottom-2.5"
+                )}
+                style={{ left: offset(week) }}
+              >
+                {shortDate.format(week)}
+              </span>
+            ))}
           </div>
 
           {lanes.map((lane) => (
@@ -230,29 +281,29 @@ export function TimelineView({
                       </span>
                     </button>
                     <div className="relative h-14 border-b">
+                      <WeekLines lefts={weekStarts.map(offset)} />
                       <TodayLine left={offset(today)} />
-                      <button
-                        type="button"
-                        aria-label={label}
-                        title={label}
-                        onClick={() => onOpenTicket(ticket)}
-                        className={cn(
-                          "absolute top-1/2 flex h-8 -translate-y-1/2 items-center gap-1.5 overflow-hidden rounded-full px-2.5 text-xs font-medium whitespace-nowrap shadow-xs transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300",
-                          dated
-                            ? CATEGORY_COLORS[lane.color].card
-                            : "border border-dashed bg-background text-muted-foreground"
-                        )}
-                        style={{
-                          left,
-                          width: dated ? width : undefined,
-                          minWidth: dated ? undefined : "7rem",
-                          animationDelay: `${Math.min(index, 12) * 30}ms`,
-                        }}
-                      >
-                        <span className="truncate">
-                          {dated ? milestone || ticket.title : span.kind === "start" ? "No due date" : "No dates"}
-                        </span>
-                      </button>
+                      <TimelineBar
+                        span={span}
+                        label={label}
+                        text={dated ? milestone || ticket.title : span.kind === "start" ? "No due date" : "No dates"}
+                        className={
+                          dated ? CATEGORY_COLORS[lane.color].card : "border border-dashed bg-background text-muted-foreground"
+                        }
+                        dated={dated}
+                        left={left}
+                        width={width}
+                        dayWidth={dayWidth}
+                        offset={offset}
+                        delay={Math.min(index, 12) * 30}
+                        onOpen={() => onOpenTicket(ticket)}
+                        onCommit={
+                          onDatesChange
+                            ? (next) =>
+                                onDatesChange(ticket.key, formatDay(next.start), next.end ? formatDay(next.end) : ticket.due_date ?? "")
+                            : undefined
+                        }
+                      />
                     </div>
                   </div>
                 )
@@ -262,9 +313,20 @@ export function TimelineView({
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Bars run from a ticket&apos;s start date (or the day it was created) to its due date. Set both in the ticket.
+        Bars run from a ticket&apos;s start date (or the day it was created) to its due date. Drag a bar to move it,
+        or drag either end to change that date.
       </p>
     </div>
+  )
+}
+
+function WeekLines({ lefts }: { lefts: number[] }) {
+  return (
+    <>
+      {lefts.map((left) => (
+        <span key={left} aria-hidden="true" className="pointer-events-none absolute inset-y-0 w-px bg-foreground/5" style={{ left }} />
+      ))}
+    </>
   )
 }
 
@@ -276,5 +338,133 @@ function TodayLine({ left, id }: { left: number; id?: string }) {
       className="pointer-events-none absolute inset-y-0 w-px bg-foreground/40"
       style={{ left }}
     />
+  )
+}
+
+type Drag = { mode: DragMode; days: number }
+
+// One ticket's bar. Drag the body to move both dates, an end to change that date;
+// a press without movement is a click (opens the ticket). Keyboard: Enter opens,
+// arrows move a day, Shift + arrows change the due date.
+function TimelineBar({
+  span,
+  label,
+  text,
+  className,
+  dated,
+  left,
+  width,
+  dayWidth,
+  offset,
+  delay,
+  onOpen,
+  onCommit,
+}: {
+  span: Span
+  label: string
+  text: string
+  className: string
+  dated: boolean
+  left: number
+  width: number
+  dayWidth: number
+  offset: (date: Date) => number
+  delay: number
+  onOpen: () => void
+  onCommit?: (next: { start: Date; end: Date | undefined }) => void
+}) {
+  // The drag in progress, by whole days (a preview until release).
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const dragOrigin = useRef<{ x: number; moved: boolean } | null>(null)
+  const editable = Boolean(onCommit) && span.kind !== "none"
+  const preview = drag ? draggedDates(span, drag.mode, drag.days) : null
+  const shownStart = preview?.start ?? span.start
+  const shownEnd = preview?.end ?? span.end
+  const commit = (mode: DragMode, days: number) => {
+    if (days && onCommit) onCommit(draggedDates(span, mode, days))
+  }
+  // The pressed part says what it drags (data-drag: move | start | end).
+  const begin = (event: React.PointerEvent<HTMLElement>) => {
+    if (!editable || event.button !== 0) return
+    event.stopPropagation()
+    const mode = (event.currentTarget.dataset.drag ?? "move") as DragMode
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragOrigin.current = { x: event.clientX, moved: false }
+    setDrag({ mode, days: 0 })
+  }
+  const move = (event: React.PointerEvent<HTMLElement>) => {
+    if (!dragOrigin.current || !drag) return
+    const dx = event.clientX - dragOrigin.current.x
+    if (Math.abs(dx) > 3) dragOrigin.current.moved = true
+    const days = Math.round(dx / dayWidth)
+    if (days !== drag.days) setDrag({ ...drag, days })
+  }
+  const end = (event: React.PointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    const moved = dragOrigin.current?.moved
+    const current = drag
+    dragOrigin.current = null
+    setDrag(null)
+    if (current && moved) commit(current.mode, current.days)
+    else if (current?.mode === "move") onOpen() // a click, not a drag
+  }
+  const cancel = () => {
+    dragOrigin.current = null
+    setDrag(null)
+  }
+  const previewText = preview
+    ? `${shortDate.format(shownStart)}${preview.end ? ` – ${shortDate.format(shownEnd)}` : ""}`
+    : null
+  const handle = "absolute inset-y-0 w-2 cursor-ew-resize opacity-0 group-hover:bg-foreground/15 group-hover:opacity-100"
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={
+        editable
+          ? `${label}. Drag to move, or drag an end to change a date. Arrow keys move it a day; Shift and arrows change the due date.`
+          : label
+      }
+      title={previewText ?? label}
+      data-drag="move"
+      onPointerDown={editable ? begin : undefined}
+      onPointerMove={move}
+      onPointerUp={editable ? end : undefined}
+      onPointerCancel={cancel}
+      onClick={editable ? undefined : onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onOpen()
+        } else if (editable && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          event.preventDefault()
+          commit(event.shiftKey ? "end" : "move", event.key === "ArrowLeft" ? -1 : 1)
+        }
+      }}
+      className={cn(
+        "group absolute top-1/2 flex h-8 -translate-y-1/2 touch-none items-center gap-1.5 overflow-hidden rounded-full px-2.5 text-xs font-medium whitespace-nowrap shadow-xs transition-shadow select-none hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300",
+        editable ? (drag ? "cursor-grabbing shadow-lg" : "cursor-grab") : "cursor-pointer",
+        className
+      )}
+      style={{
+        left: preview ? offset(shownStart) : left,
+        width: preview?.end
+          ? Math.max(dayWidth, (daysBetween(shownStart, shownEnd) + 1) * dayWidth)
+          : dated
+            ? width
+            : undefined,
+        minWidth: dated || preview?.end ? undefined : "7rem",
+        animationDelay: `${delay}ms`,
+      }}
+    >
+      {editable && span.kind === "range" ? (
+        <span aria-hidden="true" data-drag="start" onPointerDown={begin} onPointerMove={move} onPointerUp={end} className={cn(handle, "left-0 rounded-l-full")} />
+      ) : null}
+      <span className="truncate">{previewText ?? text}</span>
+      {editable ? (
+        <span aria-hidden="true" data-drag="end" onPointerDown={begin} onPointerMove={move} onPointerUp={end} className={cn(handle, "right-0 rounded-r-full")} />
+      ) : null}
+    </div>
   )
 }
