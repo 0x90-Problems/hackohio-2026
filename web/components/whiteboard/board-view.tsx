@@ -15,6 +15,12 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { type BoardInfo, type WireElement, WhiteboardError, whiteboardApi } from "@/lib/whiteboard-api"
 
+// Fonts come from this site (copied at build time), not Excalidraw's default CDN,
+// which the page's CSP blocks. Must be set before the editor loads.
+if (typeof window !== "undefined") {
+  ;(window as Window & { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = "/excalidraw-assets/"
+}
+
 // The editor only runs in the browser.
 const Excalidraw = dynamic(() => import("@excalidraw/excalidraw").then((m) => m.Excalidraw), {
   ssr: false,
