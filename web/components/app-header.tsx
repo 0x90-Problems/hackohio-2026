@@ -1,6 +1,6 @@
 "use client"
 
-import { useSyncExternalStore } from "react"
+import { useEffect, useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
@@ -21,6 +21,7 @@ import {
 } from "@/components/icons"
 
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { foldersApi } from "@/lib/folders-api"
 import { Logo } from "@/components/logo"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
@@ -58,6 +59,13 @@ const SERVICES = [
   { label: "Whiteboard", description: "Draw live with people and agents", icon: PenToolIcon },
 ] as const
 
+// Folders ship behind files.folders.enabled; ask once per page load.
+let foldersCheck: Promise<boolean> | null = null
+function foldersEnabled() {
+  foldersCheck ??= foldersApi.enabled()
+  return foldersCheck
+}
+
 // Pages that show without the header.
 const NO_HEADER = ["/login", "/signup"]
 
@@ -65,6 +73,17 @@ export function AppHeader() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const sessionUser = useSyncExternalStore(subscribeAuth, readSessionUser, () => null)
+  const [foldersOn, setFoldersOn] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void foldersEnabled().then((on) => {
+      if (!cancelled) setFoldersOn(on)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (NO_HEADER.includes(pathname) || !sessionUser) return null
 
@@ -84,7 +103,7 @@ export function AppHeader() {
           <DropdownMenuContent align="start" className="w-80 p-2">
             <DropdownMenuLabel className="text-xs text-muted-foreground">NutShell apps</DropdownMenuLabel>
             <div className="grid grid-cols-2 gap-1">
-              {SERVICES.map((service) => {
+              {SERVICES.map((base) => (base.label === "Folders" && foldersOn ? { ...base, href: "/files" } : base)).map((service) => {
                 const tile = (
                   <>
                     <span className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">

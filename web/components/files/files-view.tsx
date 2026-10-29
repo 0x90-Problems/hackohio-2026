@@ -60,6 +60,38 @@ function explain(error: unknown) {
 
 const canEdit = (role?: Folder["role"]) => role === "editor" || role === "manager"
 
+type View =
+  | { kind: "off" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; workspace: Workspace; items: Folder[]; role: Folder["role"]; cursor: string | null; crumbs: Crumb[] }
+
+// Fetch everything one view needs. No state here, so the effect can ignore
+// a response that arrives after the user has navigated elsewhere.
+async function fetchView(folderId: string, showTrash: boolean): Promise<View> {
+  try {
+    if (!(await foldersApi.enabled())) return { kind: "off" }
+    const workspace = await foldersApi.workspace()
+    if (showTrash) {
+      const trash = await foldersApi.listTrash()
+      return { kind: "ready", workspace, items: trash.items, role: undefined, cursor: null, crumbs: [] }
+    }
+    const [page, path] = await Promise.all([
+      foldersApi.children(folderId),
+      folderId === ROOT ? Promise.resolve({ items: [] as Crumb[] }) : foldersApi.path(folderId),
+    ])
+    return { kind: "ready", workspace, items: page.items, role: page.role, cursor: page.next_cursor, crumbs: path.items }
+  } catch (error) {
+    return { kind: "error", message: explain(error) }
+  }
+}
+
+// "just now", or "6 min ago" / "2 h ago".
+function ago(iso?: string) {
+  if (!iso) return ""
+  const text = timeAgo(new Date(iso))
+  return text === "just now" ? text : `${text} ago`
+}
+
 // Team folders: one tree per team. The URL's ?folder= keeps the place on reload.
 export function FilesView() {
   const router = useRouter()
@@ -67,7 +99,10 @@ export function FilesView() {
   const folderId = params.get("folder") || ROOT
   const showTrash = params.get("view") === "trash"
 
-  const [state, setState] = useState<"loading" | "off" | "ready" | "error">("loading")
+  const [state, setState] = useState<"off" | "ready" | "error">("ready")
+  // Which view the data on screen belongs to; anything else is still loading.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null)
+  const viewKey = `${folderId}|${showTrash ? "trash" : "folders"}`
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [items, setItems] = useState<Folder[]>([])
   const [role, setRole] = useState<Folder["role"]>()
@@ -87,40 +122,36 @@ export function FilesView() {
     [router]
   )
 
-  const load = useCallback(async () => {
-    setState("loading")
-    try {
-      if (!(await foldersApi.enabled())) {
-        setState("off")
-        return
-      }
-      const ws = await foldersApi.workspace()
-      setWorkspace(ws)
-      if (showTrash) {
-        const trash = await foldersApi.listTrash()
-        setItems(trash.items)
-        setCrumbs([])
-        setCursor(null)
-      } else {
-        const [page, path] = await Promise.all([
-          foldersApi.children(folderId),
-          folderId === ROOT ? Promise.resolve({ items: [] as Crumb[] }) : foldersApi.path(folderId),
-        ])
-        setItems(page.items)
-        setRole(page.role)
-        setCursor(page.next_cursor)
-        setCrumbs(path.items)
-      }
-      setState("ready")
-    } catch (error) {
-      setMessage(explain(error))
-      setState("error")
+  // Apply a fetched view, unless the user has already moved on to another one.
+  const apply = useCallback((key: string, view: View) => {
+    if (view.kind === "ready") {
+      setWorkspace(view.workspace)
+      setItems(view.items)
+      setRole(view.role)
+      setCursor(view.cursor)
+      setCrumbs(view.crumbs)
     }
-  }, [folderId, showTrash])
+    if (view.kind === "error") setMessage(view.message)
+    setState(view.kind)
+    setLoadedFor(key)
+  }, [])
+
+  const load = useCallback(
+    () => fetchView(folderId, showTrash).then((view) => apply(viewKey, view)),
+    [folderId, showTrash, viewKey, apply]
+  )
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    void fetchView(folderId, showTrash).then((view) => {
+      if (!cancelled) apply(viewKey, view)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [folderId, showTrash, viewKey, apply])
+
+  const phase = loadedFor === viewKey ? state : "loading"
 
   async function loadMore() {
     if (!cursor) return
@@ -161,7 +192,7 @@ export function FilesView() {
             {workspace ? `${workspace.team_name}'s shared folders.` : "Your team's shared folders."}
           </p>
         </div>
-        {state === "ready" && (
+        {phase === "ready" && (
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => go(showTrash ? { folder: ROOT } : { view: "trash" })}>
               {showTrash ? <FolderIcon data-icon="inline-start" aria-hidden="true" /> : <Trash2Icon data-icon="inline-start" aria-hidden="true" />}
@@ -177,7 +208,7 @@ export function FilesView() {
         )}
       </div>
 
-      {state === "ready" && !showTrash && (
+      {phase === "ready" && !showTrash && (
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -207,7 +238,7 @@ export function FilesView() {
         </Breadcrumb>
       )}
 
-      {state === "loading" && (
+      {phase === "loading" && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading folders">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
@@ -215,14 +246,14 @@ export function FilesView() {
         </div>
       )}
 
-      {state === "off" && (
+      {phase === "off" && (
         <div className="rounded-xl border border-dashed p-10 text-center">
           <p className="font-medium">Folders are coming soon</p>
           <p className="mt-1 text-sm text-muted-foreground">They&apos;re built but not switched on yet.</p>
         </div>
       )}
 
-      {state === "error" && (
+      {phase === "error" && (
         <div role="alert" className="flex flex-col items-center gap-3 rounded-xl border p-10 text-center">
           <p className="font-medium">Couldn&apos;t open this folder</p>
           <p className="text-sm text-muted-foreground">{message}</p>
@@ -237,7 +268,7 @@ export function FilesView() {
         </div>
       )}
 
-      {state === "ready" && items.length === 0 && (
+      {phase === "ready" && items.length === 0 && (
         <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
           {showTrash
             ? "The trash is empty."
@@ -247,7 +278,7 @@ export function FilesView() {
         </div>
       )}
 
-      {state === "ready" && items.length > 0 && (
+      {phase === "ready" && items.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((folder) => (
             <li
@@ -271,9 +302,7 @@ export function FilesView() {
                     <ActorBadge actor={(showTrash ? folder.deleted_by : folder.created_by)!} interactive={false} />
                   )}
                   <span>
-                    {showTrash ? "Trashed" : "Updated"}{" "}
-                    {timeAgo(new Date((showTrash ? folder.deleted_at : folder.updated_at) ?? Date.now()))}
-                    {timeAgo(new Date((showTrash ? folder.deleted_at : folder.updated_at) ?? Date.now())) === "just now" ? "" : " ago"}
+                    {showTrash ? "Trashed" : "Updated"} {ago(showTrash ? folder.deleted_at : folder.updated_at)}
                   </span>
                   {folder.acl_mode === "restricted" && <span className="rounded border px-1">Restricted</span>}
                 </div>
@@ -319,7 +348,7 @@ export function FilesView() {
         </ul>
       )}
 
-      {state === "ready" && cursor && !showTrash && (
+      {phase === "ready" && cursor && !showTrash && (
         <Button variant="outline" className="self-center" onClick={() => void loadMore()}>
           Load more
         </Button>
