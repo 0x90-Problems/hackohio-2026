@@ -6,6 +6,10 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
   { scope: SCOPES.TICKETS_WRITE, label: "Create and move tickets" },
   { scope: SCOPES.COMMENTS_WRITE, label: "Comment" },
   { scope: SCOPES.TICKETS_CLOSE, label: "Close tickets" },
+  { scope: SCOPES.FOLDERS_READ, label: "Browse folders" },
+  { scope: SCOPES.FOLDERS_WRITE, label: "Create, rename and move folders" },
+  { scope: SCOPES.FOLDERS_DELETE, label: "Move folders to the trash" },
+  // folders:share is never offered: changing folder access is people-only.
 ]
 
 // Mock token/key. The real one will come from the backend, which stores only its hash.
