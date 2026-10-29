@@ -31,7 +31,8 @@ const SECURITY_HEADERS = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      // Folder previews show images from the files bucket (presigned, 5-minute links).
+      "img-src 'self' data: blob: https://nutshell-prod-files-883501587155.s3.amazonaws.com https://nutshell-prod-files-883501587155.s3.us-east-1.amazonaws.com",
       "font-src 'self' data:",
       "connect-src 'self' https:",
       "frame-ancestors 'none'",
