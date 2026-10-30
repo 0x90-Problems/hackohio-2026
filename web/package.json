@@ -21,6 +21,7 @@
     "@tiptap/core": "3.32.0",
     "@tiptap/extension-collaboration": "3.32.0",
     "@tiptap/extension-collaboration-caret": "3.32.0",
+    "@tiptap/extension-list": "3.32.0",
     "@tiptap/markdown": "3.32.0",
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",

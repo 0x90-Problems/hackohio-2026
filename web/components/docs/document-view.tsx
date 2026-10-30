@@ -9,8 +9,10 @@ import StarterKit from "@tiptap/starter-kit"
 import { Markdown } from "@tiptap/markdown"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
+import { TaskItem, TaskList } from "@tiptap/extension-list"
 
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { EditorToolbar } from "@/components/docs/editor-toolbar"
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, LockIcon, PlusIcon, WifiIcon, WifiOffIcon } from "@/components/icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -215,6 +217,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
       extensions: [
         // Collaboration brings its own undo history (per person), so StarterKit's is off.
         StarterKit.configure({ undoRedo: false, link: { openOnClick: false, autolink: true, protocols: ["https"] } }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
         Markdown,
         Collaboration.configure({ document: provider.doc }),
         CollaborationCaret.configure({
@@ -342,8 +346,9 @@ function Editor({ loaded }: { loaded: Loaded }) {
       <p className="text-xs text-muted-foreground">
         Version {note.current_version}
         {live && !readOnly ? " · saves a version automatically every few minutes" : ""}
-        {" · "}type # for a heading, - for a list, [ ] for a checkbox
+        {" · "}hover a button to see its shortcut
       </p>
+      {editor && !readOnly ? <EditorToolbar editor={editor} /> : null}
       <div className="rounded-lg border bg-background px-6 py-5">
         {editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}
       </div>
