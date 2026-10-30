@@ -1,5 +1,5 @@
 // Chooses where /mcp is forwarded during the AWS strangler rollout.
-// Default: existing board API (Vercel). Shadow: AWS HTTP API when enabled.
+// Default: the AWS MCP gateway. "test" sends only opted-in requests there; "off" never does.
 
 export type McpRouteMode = "off" | "test" | "all"
 
@@ -7,9 +7,10 @@ const AWS_MCP_GATEWAY_FALLBACK = "https://gisecl2xck.execute-api.us-east-1.amazo
 
 export function mcpRouteMode(): McpRouteMode {
   const raw = process.env.MCP_ROUTE_TO_AWS?.trim().toLowerCase()
-  if (raw === "test" || raw === "all") return raw
-  // Default to shadow test mode so header opt-in works without a Vercel env change.
-  return "test"
+  if (raw === "test" || raw === "off") return raw
+  // Default: everything through the AWS gateway. The board Lambda can't reach the files
+  // and chat APIs from its VPC, so the gateway answers those tools (MCP_ROUTE_TO_AWS overrides).
+  return "all"
 }
 
 export function awsMcpGatewayOrigin(): URL | null {
