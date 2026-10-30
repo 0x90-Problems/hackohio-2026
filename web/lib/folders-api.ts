@@ -125,6 +125,8 @@ export const foldersApi = {
   unlinkTicket: (id: string, key: string) =>
     call<unknown>(`files/${seg(id)}/links?target=${encodeURIComponent(`ticket:${key}`)}`, { method: "DELETE" }),
   ticketFiles: (key: string) => call<{ items: Folder[] }>(`links?target=${encodeURIComponent(`ticket:${key}`)}`),
+  // A file, note or board with the caller's role on it (readNote's copy has no role).
+  node: (id: string) => call<Folder>(`files/${seg(id)}`),
   readNote: (id: string, version?: number) =>
     call<Version & { note: Folder }>(`files/${seg(id)}/versions/${version ?? 0}`),
   createBoard: (parentId: string, name: string) => call<Folder>("boards", { method: "POST", body: { parent_id: parentId, name } }),
