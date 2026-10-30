@@ -184,3 +184,23 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Documents editor (components/docs/document-view.tsx) */
+.nutshell-doc { outline: none; min-height: 50vh; line-height: 1.65; font-size: 1rem; }
+.nutshell-doc > * + * { margin-top: 0.75em; }
+.nutshell-doc h1 { font-size: 1.75rem; font-weight: 600; line-height: 1.25; margin-top: 1.2em; }
+.nutshell-doc h2 { font-size: 1.375rem; font-weight: 600; line-height: 1.3; margin-top: 1.1em; }
+.nutshell-doc h3 { font-size: 1.125rem; font-weight: 600; margin-top: 1em; }
+.nutshell-doc ul { list-style: disc; padding-left: 1.4em; }
+.nutshell-doc ol { list-style: decimal; padding-left: 1.4em; }
+.nutshell-doc blockquote { border-left: 3px solid var(--border); padding-left: 1em; color: var(--muted-foreground); }
+.nutshell-doc code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.9em; background: var(--muted); padding: 0.1em 0.3em; border-radius: 4px; }
+.nutshell-doc pre { background: var(--muted); padding: 0.75em 1em; border-radius: 8px; overflow-x: auto; }
+.nutshell-doc pre code { background: none; padding: 0; }
+.nutshell-doc a { text-decoration: underline; text-underline-offset: 2px; }
+.nutshell-doc hr { border-color: var(--border); }
+.nutshell-doc p.is-editor-empty:first-child::before { content: "Start writing…"; color: var(--muted-foreground); float: left; height: 0; pointer-events: none; }
+/* Live cursors: a thin caret in the person's colour with their name above it */
+.collaboration-carets__caret { position: relative; margin: 0 -1px; border-left: 1px solid; border-right: 1px solid; word-break: normal; pointer-events: none; }
+.collaboration-carets__label { position: absolute; top: -1.4em; left: -1px; padding: 0.05em 0.35em; border-radius: 3px 3px 3px 0; color: #fff; font-size: 0.7rem; font-weight: 600; line-height: normal; white-space: nowrap; user-select: none; }
+@media (prefers-reduced-motion: no-preference) { .collaboration-carets__label { transition: opacity 150ms ease; } }

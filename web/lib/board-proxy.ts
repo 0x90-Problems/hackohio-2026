@@ -97,6 +97,18 @@ export function whiteboardOrigin(): URL | null {
   }
 }
 
+/** Documents relay HTTP API (/docs/v1/*): live co-editing. */
+const DOCS_API_FALLBACK = "https://m9d6w8cdri.execute-api.us-east-1.amazonaws.com"
+
+export function docsOrigin(): URL {
+  const configured = process.env.DOCS_API_URL?.trim()
+  try {
+    return new URL(configured || DOCS_API_FALLBACK)
+  } catch {
+    return new URL(DOCS_API_FALLBACK)
+  }
+}
+
 /** Chat service HTTP API (workspace chat lives under /chat/v1/*). */
 const CHAT_API_FALLBACK = "https://8xirsuul6a.execute-api.us-east-1.amazonaws.com"
 
