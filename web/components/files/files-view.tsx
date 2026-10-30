@@ -59,6 +59,7 @@ type Dialogs =
   | { kind: "create" }
   | { kind: "note"; node?: Folder }
   | { kind: "board" }
+  | { kind: "document" }
   | { kind: "file"; node: Folder }
   | { kind: "rename"; folder: Folder }
   | { kind: "move"; folder: Folder }
@@ -207,7 +208,9 @@ export function FilesView() {
 
   const openNode = (node: Folder) => {
     if (node.type === "whiteboard") return router.push(`/boards/${encodeURIComponent(node.id)}`)
-    setDialog(node.type === "note" ? { kind: "note", node } : node.type === "file" ? { kind: "file", node } : null)
+    // Documents open in the full-page editor.
+    if (node.type === "note") return router.push(`/docs/${encodeURIComponent(node.id)}`)
+    setDialog(node.type === "file" ? { kind: "file", node } : null)
   }
 
   // Apply a fetched view, unless the user has already moved on to another one.
@@ -333,7 +336,7 @@ export function FilesView() {
                   <FileIcon data-icon="inline-start" aria-hidden="true" />
                   Upload
                 </Button>
-                <Button variant="outline" onClick={() => setDialog({ kind: "note" })}>
+                <Button variant="outline" onClick={() => setDialog({ kind: "document" })}>
                   <FileTextIcon data-icon="inline-start" aria-hidden="true" />
                   New document
                 </Button>
@@ -510,6 +513,23 @@ export function FilesView() {
             ? run(() => foldersApi.rename(dialog.folder, name), `Renamed to ${name}`)
             : run(() => foldersApi.create(folderId, name), `Created ${name}`)
         }
+      />
+
+      <NameDialog
+        open={dialog?.kind === "document"}
+        title="New document"
+        initial=""
+        submitLabel="Create document"
+        onClose={() => setDialog(null)}
+        onSubmit={async (name) => {
+          try {
+            const created = await foldersApi.createNote(folderId, name, "")
+            setDialog(null)
+            router.push(`/docs/${encodeURIComponent(created.id)}`)
+          } catch (error) {
+            toast.error(explain(error))
+          }
+        }}
       />
 
       <NameDialog

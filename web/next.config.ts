@@ -35,7 +35,7 @@ const SECURITY_HEADERS = [
       "img-src 'self' data: blob: https://nutshell-prod-files-883501587155.s3.amazonaws.com https://nutshell-prod-files-883501587155.s3.us-east-1.amazonaws.com",
       "font-src 'self' data:",
       // Live whiteboards: the whiteboard relay's WebSocket (wss isn't covered by https:).
-      "connect-src 'self' https: wss://435ypxfxo5.execute-api.us-east-1.amazonaws.com",
+      "connect-src 'self' https: wss://435ypxfxo5.execute-api.us-east-1.amazonaws.com wss://zdui77m02l.execute-api.us-east-1.amazonaws.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
