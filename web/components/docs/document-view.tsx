@@ -36,7 +36,8 @@ export function DocumentView({ documentId }: { documentId: string }) {
     let cancelled = false
     void (async () => {
       try {
-        const [read, path] = await Promise.all([foldersApi.readNote(documentId), foldersApi.path(documentId)])
+        // readNote has the text; node has your role on it (readNote's copy doesn't).
+        const [read, path, node] = await Promise.all([foldersApi.readNote(documentId), foldersApi.path(documentId), foldersApi.node(documentId)])
         const crumbs = path.items
         // The document that owns the tree: the outermost document above this page (or this page).
         let rootId = documentId
@@ -49,7 +50,8 @@ export function DocumentView({ documentId }: { documentId: string }) {
           }
         }
         if (!cancelled) {
-          setLoaded({ note: read.note, body: read.body ?? "", crumbs, rootId, canEdit: read.note.role === "editor" || read.note.role === "manager" })
+          const note = { ...read.note, role: node.role }
+          setLoaded({ note, body: read.body ?? "", crumbs, rootId, canEdit: node.role === "editor" || node.role === "manager" })
         }
       } catch (error) {
         if (!cancelled) setFailure(explain(error))
@@ -230,7 +232,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
     if (!editor) return
     const offs = [
       provider.on("status", setStatus),
-      provider.on("readOnly", (value) => setReadOnly(value || !loaded.canEdit)),
+      // Once connected, the relay's answer (from your folder role) decides.
+      provider.on("readOnly", setReadOnly),
       // Exactly one browser loads the saved markdown into an empty live page.
       provider.on("seed", () => {
         if (loaded.body.trim()) editor.commands.setContent(loaded.body, { contentType: "markdown" })
