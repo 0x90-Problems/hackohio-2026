@@ -122,7 +122,7 @@ export function AppHeader() {
                   : base.label === "Chat" && chatOn
                     ? { ...base, href: "/chat" }
                     : base.label === "Whiteboard" && whiteboardOn && foldersOn
-                      ? { ...base, href: "/files" }
+                      ? { ...base, href: "/boards" }
                       : base
               ).map((service) => {
                 const tile = (

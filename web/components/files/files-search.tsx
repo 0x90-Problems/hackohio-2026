@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react"
 
-import { FileIcon, FileTextIcon, FolderIcon } from "@/components/icons"
+import { NodeIcon } from "@/components/files/thumbnail"
 import { SearchCombobox } from "@/components/search-combobox"
 import { type Folder, foldersApi } from "@/lib/folders-api"
 
 type Hit = Folder & { path?: string[] }
 
-// Search the team's folders, files and notes by name (results come from the server,
-// already filtered to what you can see).
-export function FilesSearch({ onPick }: { onPick: (hit: Hit) => void }) {
+// Search the team's folders, files and notes by name, or just one type of them (results
+// come from the server, already filtered to what you can see).
+export function FilesSearch({ onPick, type, label = "Search files" }: { onPick: (hit: Hit) => void; type?: Folder["type"]; label?: string }) {
   const [query, setQuery] = useState("")
   const [hits, setHits] = useState<Hit[]>([])
 
@@ -21,7 +21,7 @@ export function FilesSearch({ onPick }: { onPick: (hit: Hit) => void }) {
     // Wait for a pause in typing before asking the server.
     const timer = setTimeout(() => {
       foldersApi
-        .search(text)
+        .search(text, type)
         .then((result) => !cancelled && setHits(result.items))
         .catch(() => !cancelled && setHits([]))
     }, 250)
@@ -29,13 +29,13 @@ export function FilesSearch({ onPick }: { onPick: (hit: Hit) => void }) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [query])
+  }, [query, type])
 
   const shown = query.trim().length < 2 ? [] : hits
 
   return (
     <SearchCombobox
-      label="Search files"
+      label={label}
       searchPlaceholder="Search by name…"
       emptyText={query.trim().length < 2 ? "Type at least 2 characters." : "Nothing found."}
       filter={false}
@@ -43,12 +43,11 @@ export function FilesSearch({ onPick }: { onPick: (hit: Hit) => void }) {
       groups={[
         {
           items: shown.map((hit) => {
-            const Icon = hit.type === "note" ? FileTextIcon : hit.type === "file" ? FileIcon : FolderIcon
             return {
               value: hit.id,
               label: (
                 <span className="flex min-w-0 items-center gap-2">
-                  <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <NodeIcon node={hit} />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate">{hit.name}</span>
                     {hit.path && hit.path.length > 0 && (

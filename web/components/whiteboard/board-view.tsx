@@ -239,18 +239,17 @@ export function BoardView({ boardId }: { boardId: string }) {
         <h1 className="text-lg font-semibold">Couldn&apos;t open this board</h1>
         <p className="max-w-sm text-sm text-muted-foreground">{failure}</p>
         <Button asChild variant="outline">
-          <Link href="/files">Back to Folders</Link>
+          <Link href="/boards">Back to whiteboards</Link>
         </Button>
       </div>
     )
   }
 
-  const parent = info?.board.parent_id && info.board.parent_id !== "root" ? `/files?folder=${encodeURIComponent(info.board.parent_id)}` : "/files"
   return (
     <div className="flex h-[calc(100svh-3.5rem)] flex-col">
       <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <Button asChild variant="ghost" size="icon-sm" aria-label="Back to the folder">
-          <Link href={parent}>
+        <Button asChild variant="ghost" size="icon-sm" aria-label="Back to whiteboards">
+          <Link href="/boards">
             <ChevronLeftIcon aria-hidden="true" />
           </Link>
         </Button>
