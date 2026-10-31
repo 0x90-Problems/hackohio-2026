@@ -1,20 +1,44 @@
 # Database Schema — 0x90 Problems
 
-Oct 24, 2026 (updated: login and passwords handled by Authelia; projects, per-project columns and tags added)
+Oct 24, 2026. Updated Oct 31, 2026: storage and login sections corrected to match the running code.
 
 ## Overview
 
-One MongoDB database named `hackathon` holds seven collections: `users`, `projects`, `agents`, `agent_tokens`, `tickets`, `comments` and `events`. The team's shared copy runs on MongoDB Atlas (`cluster0.3pub20.mongodb.net`); a local MongoDB works the same way for testing. MongoDB does not enforce this schema, so every person and agent writing to the database should follow this doc exactly.
+### Where the data lives
 
-**No passwords are stored in this database, hashed or plain.** Authelia handles all human passwords and login.
+**Board data** is in Amazon DocumentDB, database `nutshell` (set by `MONGODB_DB_NAME`; the code falls back to `hackathon` when it's unset, for local MongoDB).
+
+- **The source of truth is one document:** `rest_state`, `_id: "board"`, shaped `{ state, revision }`. `state` holds `organization`, `users`, `agents`, `tokens`, `tickets`, `comments`, `events`, `projects`, `nextNumber` and `teams`. The board loads it, works on it in memory, and saves it back only if `revision` hasn't changed.
+- **The collections described below are mirrors,** written after a save: `organization`, `users`, `agents`, `projects`, `tickets`, `comments`, `events` and `agent_tokens`. When the board loads, it also adds anything found in them that's missing from `rest_state`. The field tables in this doc describe these mirrors, and the same names are used inside `state`.
+- **Teams exist only in `rest_state`** (`{ name, created_by, created_at, managers }`). There's no `teams` mirror.
+
+**Everything else is in DynamoDB**, in tables named `nutshell-prod-<name>` and defined under `infra/services/` in `Buc2AgentTerraform`:
+
+| Service | Tables | Holds |
+|---|---|---|
+| `auth` | `auth-tokens`, `auth-agents`, `auth-limits`, `local-users` | Token hashes for the API authorizer, agents, rate limits, sign-up accounts |
+| `files` | `fs`, `files` | Folders, files, documents, boards' tree entries, versions, ticket links; upload and scan records. File contents are in S3. |
+| `chat` | `messages`, `channels`, `mention-inbox`, `chat` | Ticket chat and workspace chat |
+| `whiteboard` | `wb` | Live drawing elements |
+| `documents` | `docs` | Live editing log and snapshots |
+| `event-log` | `events`, `event-counters`, `event-dedupe` | The event log |
+| `outbox` | `outbox` | Board events waiting to be published |
+| `notifications` | `deliveries` | Notification delivery records |
+| `workflows` | `rules`, `rule-runs`, `rule-rate` | Automation rules |
+
+Neither database enforces this schema from the app's side, so every person and agent writing data should follow this doc exactly.
+
+### Passwords and login
+
+**No passwords are stored in DocumentDB, hashed or plain.** People sign in through an LDAP directory (LLDAP), with local sign-in kept as a fallback. Accounts made through sign-up keep a scrypt password hash in the `local-users` DynamoDB table, never in `users`.
 
 ### How we tell humans from agents
 
 Every action stores an **actor** object. The board reads `type` to show a solid circle (human) or the dashed AGENT tag.
 
 ```json
-{ "type": "human", "id": "user_raddy" }
-{ "type": "agent", "id": "agent_raddy_claude", "acting_for": "user_raddy" }
+{ "type": "human", "id": "user_raddy", "name": "Raddy" }
+{ "type": "agent", "id": "agent_raddy_claude", "name": "Claude", "acting_for": "user_raddy" }
 ```
 
 `acting_for` is required when `type` is `agent` and left out when it is `human`. The field is named `created_by` on tickets, `author` on comments and `actor` on events.
@@ -30,8 +54,8 @@ Use these exact spellings everywhere. They should also go in the team's shared c
 | Project template | `blank`, `team-planning`, `kanban`, `feature-release`, `bug-tracker`, `iterative-development`, `product-launch`, `roadmap`, `team-retrospective` |
 | Actor type | `human`, `agent` |
 | Agent connection | `mcp`, `api_key` |
-| Token scopes | `tickets:read`, `tickets:write`, `comments:write`, `tickets:close` |
-| Event action | `ticket_created`, `ticket_moved`, `comment_added`, `commit_linked`, `ticket_closed` |
+| Token scopes | `tickets:read`, `tickets:write`, `comments:write`, `tickets:close`, `events:read`, `chat:read`, `chat:write`, `chat:manage`, `chat:dm`, `rules:read`, `rules:write`, `rules:run`, `files:read`, `files:write`, `folders:read`, `folders:write`, `folders:delete`, `folders:share` (`chat:manage`, `chat:dm` and `folders:share` are for people only) |
+| Event action | `ticket_created`, `ticket_moved`, `comment_added`, `commit_linked`, `ticket_closed`, `ticket_deleted`, `ticket_updated` |
 
 ### Naming rules
 
@@ -47,13 +71,13 @@ One document per human on the team.
 | Field | Type | Required | Example | Notes |
 |---|---|---|---|---|
 | `_id` | text | yes | `user_raddy` | Unique id |
-| `auth_username` | text | yes | `raddy` | The username this person logs in with through Authelia. Links a login to this user. Unique. |
+| `auth_username` | text | yes | `raddy` | The username this person signs in with. Links a login to this user. Unique. |
 | `name` | text | yes | `Raddy` | Shown on cards and comments |
 | `role` | text | no | `UI design / database design` | Shown on the Teams page |
 | `team` | text | yes | `0x90 Problems` | Team the person belongs to |
 | `type` | text | yes | `human` | Always `human` here |
 
-How login works: the person signs in through Authelia, Authelia checks the password, and the app looks up the user whose `auth_username` matches. Never add a password field to this collection.
+How login works: the board checks the password against the directory (see "Passwords and login"), then looks up the user whose `auth_username` matches. Never add a password field to this collection.
 
 ## projects
 
@@ -165,9 +189,11 @@ The activity log behind the Live activity feed and the audit trail. Every move, 
 
 ## Indexes
 
+This is the designed list for the mirror collections. It hasn't been checked against the live DocumentDB.
+
 | Collection | Field(s) | Why |
 |---|---|---|
-| `users` | `auth_username` (unique) | Find the user fast after Authelia login; no duplicates |
+| `users` | `auth_username` (unique) | Find the user fast after sign-in; no duplicates |
 | `projects` | `key` (unique) | No two projects share a key |
 | `projects` | `team` | Projects page lists a team's projects fast |
 | `tickets` | `project_key` + `status` | Board loads each column of one project fast (replaces the old `status` index) |
@@ -183,8 +209,6 @@ The activity log behind the Live activity feed and the audit trail. Every move, 
 - Do these collection and field names match the API endpoints?
 - Projects: categories are stored inside each project document (one read loads a whole board). OK for the API, or a separate `categories` collection?
 - Are the status words and scope names final? Add them to the shared claims file.
-- Can the backend on Vercel reach DocumentDB, or do we move it to ECS or use Atlas?
-- Confirm: passwords live only in Authelia, and nothing password-related goes in MongoDB?
 - Agent tokens are still stored as `token_hash`. Keep that? (Recommended: yes.)
 - Live app: readable ids like `user_raddy`, or MongoDB's generated ids?
 
