@@ -238,6 +238,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
       provider.on("status", setStatus),
       // Once connected, the relay's answer (from your folder role) decides.
       provider.on("readOnly", setReadOnly),
+      provider.on("rejected", () => toast.error("That change is too large to sync. Others won't see it; try splitting it up.")),
       // Exactly one browser loads the saved markdown into an empty live page.
       provider.on("seed", () => {
         if (loaded.body.trim()) editor.commands.setContent(loaded.body, { contentType: "markdown" })
