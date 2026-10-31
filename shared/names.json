@@ -1,6 +1,6 @@
 {
   "_note": "Same names as names.ts, for code that is not TypeScript (Python scripts, config files). Change both files together.",
-  "scopes": ["tickets:read", "tickets:write", "comments:write", "tickets:close", "events:read", "chat:read", "chat:write", "chat:manage", "chat:dm", "rules:read", "rules:write", "rules:run", "files:read", "files:write", "folders:read", "folders:write", "folders:delete", "folders:share"],
+  "scopes": ["tickets:read", "tickets:write", "comments:write", "tickets:close", "events:read", "chat:read", "chat:write", "chat:manage", "chat:dm", "rules:read", "rules:write", "rules:run", "files:read", "files:write", "folders:read", "folders:write", "folders:delete", "folders:share", "whiteboard:read", "whiteboard:write"],
   "claims": { "actor_type": "actor_type", "on_behalf_of": "on_behalf_of", "scopes": "scopes" },
   "actor_types": ["human", "agent"],
   "actor_fields": ["type", "id", "acting_for"],
