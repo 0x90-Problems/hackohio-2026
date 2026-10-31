@@ -12,16 +12,38 @@ import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { TaskItem, TaskList } from "@tiptap/extension-list"
 
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { PageBreak, PageLink, PaperPages, setPaperLayout } from "@/components/docs/doc-extensions"
 import { EditorToolbar } from "@/components/docs/editor-toolbar"
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, LockIcon, PlusIcon, WifiIcon, WifiOffIcon } from "@/components/icons"
+import { Backlinks, PagePicker } from "@/components/docs/page-picker"
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, LockIcon, PlusIcon, PrinterIcon, WifiIcon, WifiOffIcon } from "@/components/icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { colorFor, LiveProvider, type LiveStatus } from "@/lib/docs-live"
 import { type Crumb, type Folder, FoldersError, foldersApi } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
 
 const AUTOSAVE_MS = 2 * 60_000
+const VIEW_KEY = "nutshell.docs.view"
+const INCH = 96
+const MARGIN = INCH
+const SHEET_GAP = 24
+// Sheets at the browser's 96 pixels to an inch, so the screen matches what prints.
+const SHEETS = {
+  letter: { label: "Letter", css: "letter", width: 8.5 * INCH, height: 11 * INCH },
+  a4: { label: "A4", css: "A4", width: 794, height: 1123 },
+}
+type SheetSize = keyof typeof SHEETS
+
+function storedView(): "flow" | "pages" {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "pages" ? "pages" : "flow"
+  } catch {
+    return "flow" // private window or blocked storage
+  }
+}
 
 function explain(error: unknown) {
   return error instanceof FoldersError ? error.message : "Something went wrong. Try again."
@@ -207,8 +229,40 @@ function Editor({ loaded }: { loaded: Loaded }) {
   const dirty = useRef(false)
   const provider = useMemo(() => new LiveProvider(loaded.note.id), [loaded.note.id])
   const live = status !== "off"
+  const router = useRouter()
+  const pickerKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null)
+  const followLink = useRef<(id: string | null, name: string, pos: number) => void>(() => undefined)
+  // How you look at it is your own choice; the paper size belongs to the document.
+  const [view, setView] = useState<"flow" | "pages">(storedView)
+  const [size, setSize] = useState<SheetSize>("letter")
+  const [pages, setPages] = useState(1)
+  const sheet = SHEETS[size]
 
   useEffect(() => () => provider.destroy(), [provider])
+
+  useEffect(() => {
+    const settings = provider.doc.getMap<string>("document")
+    const read = () => {
+      const saved = settings.get("paper")
+      if (saved === "letter" || saved === "a4") setSize(saved)
+    }
+    settings.observe(read)
+    return () => settings.unobserve(read)
+  }, [provider])
+
+  function chooseSize(next: SheetSize) {
+    setSize(next)
+    if (!readOnly) provider.doc.getMap<string>("document").set("paper", next)
+  }
+
+  function chooseView(next: "flow" | "pages") {
+    setView(next)
+    try {
+      localStorage.setItem(VIEW_KEY, next)
+    } catch {
+      // private window or blocked storage: it just won't be remembered
+    }
+  }
 
   const editor = useEditor(
     {
@@ -219,6 +273,9 @@ function Editor({ loaded }: { loaded: Loaded }) {
         StarterKit.configure({ undoRedo: false, link: { openOnClick: false, autolink: true, protocols: ["https"] } }),
         TaskList,
         TaskItem.configure({ nested: true }),
+        PageLink,
+        PageBreak,
+        PaperPages,
         Markdown,
         Collaboration.configure({ document: provider.doc }),
         CollaborationCaret.configure({
@@ -226,7 +283,24 @@ function Editor({ loaded }: { loaded: Loaded }) {
           user: { name: me?.name ?? "You", color: colorFor(me?._id ?? "me") },
         }),
       ],
-      editorProps: { attributes: { class: "nutshell-doc", "aria-label": `Document: ${loaded.note.name}` } },
+      editorProps: {
+        attributes: { class: "nutshell-doc", "aria-label": `Document: ${loaded.note.name}` },
+        handleKeyDown: (_view, event) => pickerKeys.current?.(event) ?? false,
+        handleClickOn: (_view, _pos, node, nodePos, event) => {
+          if (node.type.name !== "pageLink") return false
+          event.preventDefault()
+          followLink.current(node.attrs.id, node.attrs.name, nodePos)
+          return true
+        },
+        // The link is a real <a> so it can be opened in a new tab; a plain click stays in the app.
+        handleDOMEvents: {
+          click: (_view, event) => {
+            const link = (event.target as HTMLElement).closest?.("a[data-page-link]")
+            if (link && !event.ctrlKey && !event.metaKey) event.preventDefault()
+            return false
+          },
+        },
+      },
     },
     [provider]
   )
@@ -261,6 +335,37 @@ function Editor({ loaded }: { loaded: Loaded }) {
   useEffect(() => {
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
+
+  // Go to a linked page; a link with no page yet makes one here (or finds it by name) first.
+  useEffect(() => {
+    followLink.current = (id, name, pos) => {
+      void (async () => {
+        let target = id
+        try {
+          if (!target && name.length >= 2) {
+            const { items } = await foldersApi.search(name, "note")
+            target = items.find((item) => item.name.toLowerCase() === name.toLowerCase())?.id ?? null
+          }
+          if (!target) {
+            if (readOnly) return void toast.error(`There's no page called “${name}” yet`)
+            target = (await foldersApi.createNote(loaded.note.id, name, "")).id
+          }
+          // Remember which page it is, so a later rename doesn't break the link.
+          if (!readOnly && !id && editor && editor.state.doc.nodeAt(pos)?.type.name === "pageLink") {
+            editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { id: target, name }))
+          }
+          router.push(`/docs/${encodeURIComponent(target)}`)
+        } catch (error) {
+          toast.error(explain(error))
+        }
+      })()
+    }
+  }, [editor, readOnly, loaded.note.id, router])
+
+  useEffect(() => {
+    if (!editor) return
+    setPaperLayout(editor, view === "pages" ? { contentHeight: sheet.height - MARGIN * 2, gap: MARGIN * 2 + SHEET_GAP, onPages: setPages } : null)
+  }, [editor, view, sheet.height])
 
   const save = useCallback(
     async (reason?: string) => {
@@ -298,7 +403,9 @@ function Editor({ loaded }: { loaded: Loaded }) {
   }, [live, readOnly, provider, save])
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-6">
+    <div className={cn("mx-auto flex w-full flex-col gap-4 px-6 py-6", view === "pages" ? "max-w-[60rem]" : "max-w-3xl")}>
+      {/* The size the browser's print dialog and Save as PDF use. */}
+      <style>{`@page { size: ${sheet.css}; margin: 1in; }`}</style>
       <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
         <Link href="/files" className="hover:underline">
           Folders
@@ -344,15 +451,61 @@ function Editor({ loaded }: { loaded: Loaded }) {
           ) : null}
         </div>
       </header>
-      <p className="text-xs text-muted-foreground">
-        Version {note.current_version}
-        {live && !readOnly ? " · saves a version automatically every few minutes" : ""}
-        {" · "}hover a button to see its shortcut
-      </p>
-      {editor && !readOnly ? <EditorToolbar editor={editor} /> : null}
-      <div className="rounded-lg border bg-background px-6 py-5">
-        {editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <p className="text-xs text-muted-foreground">
+          Version {note.current_version}
+          {live && !readOnly ? " · saves a version automatically every few minutes" : ""}
+          {" · "}hover a button to see its shortcut
+        </p>
+        <div className="flex items-center gap-2">
+          <ToggleGroup type="single" variant="outline" size="sm" value={view} onValueChange={(value) => value && chooseView(value as "flow" | "pages")} aria-label="Page layout">
+            <ToggleGroupItem value="flow">Continuous</ToggleGroupItem>
+            <ToggleGroupItem value="pages">Pages</ToggleGroupItem>
+          </ToggleGroup>
+          {view === "pages" && (
+            <Select value={size} onValueChange={(value) => chooseSize(value as SheetSize)}>
+              <SelectTrigger size="sm" aria-label="Paper size" className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SHEETS) as SheetSize[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {SHEETS[key].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button size="sm" variant="outline" onClick={() => window.print()}>
+            <PrinterIcon data-icon="inline-start" aria-hidden="true" />
+            Print / PDF
+          </Button>
+        </div>
       </div>
+      {editor && !readOnly ? <EditorToolbar editor={editor} /> : null}
+      {view === "pages" ? (
+        // Gray desk, white sheets: the sheets are painted behind one continuous editor.
+        <div className="overflow-x-auto rounded-lg bg-muted p-4">
+          <div
+            className="nutshell-print-root nutshell-paper mx-auto shadow-sm"
+            style={
+              {
+                width: sheet.width,
+                minHeight: pages * sheet.height + (pages - 1) * SHEET_GAP,
+                padding: MARGIN,
+                "--nutshell-sheet": `${sheet.height}px`,
+                "--nutshell-sheet-gap": `${SHEET_GAP}px`,
+              } as React.CSSProperties
+            }
+          >
+            {editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}
+          </div>
+        </div>
+      ) : (
+        <div className="nutshell-print-root rounded-lg border bg-background px-6 py-5">{editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}</div>
+      )}
+      {editor && !readOnly ? <PagePicker editor={editor} currentId={note.id} keysRef={pickerKeys} /> : null}
+      <Backlinks documentId={note.id} />
     </div>
   )
 }

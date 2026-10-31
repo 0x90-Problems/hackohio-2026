@@ -9,12 +9,14 @@ import {
   Heading2Icon,
   Heading3Icon,
   ItalicIcon,
+  Link2Icon,
   LinkIcon,
   ListChecksIcon,
   ListIcon,
   ListOrderedIcon,
   MinusIcon,
   QuoteIcon,
+  ScissorsLineDashedIcon,
   Redo2Icon,
   SquareCodeIcon,
   StrikethroughIcon,
@@ -58,6 +60,7 @@ const GROUPS: Tool[][] = [
         e.chain().focus().extendMarkRange("link").setLink({ href: url }).run()
       },
     },
+    { label: "Link to a page", keys: "[[", icon: Link2Icon, run: (e) => e.chain().focus().insertContent("[[").run() },
   ],
   [
     { label: "Bulleted list", keys: "-", icon: ListIcon, active: (e) => e.isActive("bulletList"), run: (e) => e.chain().focus().toggleBulletList().run() },
@@ -68,6 +71,7 @@ const GROUPS: Tool[][] = [
     { label: "Quote", keys: ">", icon: QuoteIcon, active: (e) => e.isActive("blockquote"), run: (e) => e.chain().focus().toggleBlockquote().run() },
     { label: "Code block", keys: "```", icon: SquareCodeIcon, active: (e) => e.isActive("codeBlock"), run: (e) => e.chain().focus().toggleCodeBlock().run() },
     { label: "Divider", keys: "---", icon: MinusIcon, run: (e) => e.chain().focus().setHorizontalRule().run() },
+    { label: "Page break", icon: ScissorsLineDashedIcon, run: (e) => e.chain().focus().insertContent([{ type: "pageBreak" }, { type: "paragraph" }]).run() },
   ],
 ]
 
