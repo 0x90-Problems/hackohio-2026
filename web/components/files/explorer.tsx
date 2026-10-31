@@ -4,22 +4,21 @@ import { useEffect, useState } from "react"
 
 import { ActorBadge } from "@/components/actor-badge"
 import { nodeSize } from "@/components/files/file-panels"
-import { ChevronDownIcon, ChevronRightIcon, FileIcon, FileTextIcon, FolderIcon, PenToolIcon } from "@/components/icons"
+import { IMAGE_TYPES, NodeIcon, Thumbnail } from "@/components/files/thumbnail"
+import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { absoluteTime } from "@/lib/format"
 import { type Crumb, type Folder, foldersApi, ROOT } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
 
-function NodeIcon({ node, className }: { node: Pick<Folder, "type">; className?: string }) {
-  const Icon = node.type === "note" ? FileTextIcon : node.type === "whiteboard" ? PenToolIcon : node.type === "file" ? FileIcon : FolderIcon
-  return <Icon className={cn("size-4 shrink-0 text-muted-foreground", className)} aria-hidden="true" />
-}
-
-// Explorer mode: folder tree, a list of the current folder, and a preview of the
-// selected item. Same data and actions as the grid; only the layout differs.
+// Explorer mode: a tree of everything, a list of the current folder, and a preview of the
+// selected item. Same data and actions as the grid; only the layout differs. It stays
+// mounted while moving between folders, so the tree keeps what you've opened.
 export function ExplorerView({
   items,
+  loading,
+  emptyText,
   folderId,
   crumbs,
   rootLabel,
@@ -29,6 +28,8 @@ export function ExplorerView({
   actions,
 }: {
   items: Folder[]
+  loading: boolean
+  emptyText: string
   folderId: string
   crumbs: Crumb[]
   rootLabel: string
@@ -38,16 +39,31 @@ export function ExplorerView({
   actions: (node: Folder) => React.ReactNode
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const selected = items.find((item) => item.id === selectedId) ?? null
+  const selected = loading ? null : (items.find((item) => item.id === selectedId) ?? null)
 
   const open = (node: Folder) => (node.type === "folder" && !showTrash ? onOpenFolder(node.id) : onOpen(node))
+  // A folder takes you into it, in the tree and the list. Anything else is previewed.
+  const pick = (node: Folder) => (node.type === "folder" && !showTrash ? onOpenFolder(node.id) : setSelectedId(node.id))
+  // Picking a file elsewhere in the tree moves to its folder too, so it can be previewed there.
+  const pickInTree = (node: Folder, parentId: string) => {
+    setSelectedId(node.id)
+    if (parentId !== folderId) onOpenFolder(parentId)
+  }
 
   return (
     // Fills the window below the page header; each pane scrolls on its own.
     <div className="grid min-h-[28rem] overflow-hidden rounded-xl border md:h-[calc(100dvh-16rem)] md:grid-cols-[15rem_minmax(0,1fr)] lg:grid-cols-[16rem_minmax(0,1fr)_22rem] 2xl:grid-cols-[18rem_minmax(0,1fr)_26rem]">
       {!showTrash ? (
         <nav aria-label="Folder tree" className="hidden overflow-y-auto border-r bg-muted/20 p-2 md:block">
-          <FolderTree folderId={folderId} openIds={crumbs.map((crumb) => crumb.id)} rootLabel={rootLabel} onOpen={onOpenFolder} />
+          <ul role="tree" aria-label="Folders" className="flex flex-col text-sm">
+            <TreeNode
+              id={ROOT}
+              name={rootLabel}
+              depth={0}
+              tree={{ folderId, items, loading, openIds: crumbs.map((crumb) => crumb.id), selectedId, onOpenFolder, onPick: pickInTree, onOpen }}
+              initiallyOpen
+            />
+          </ul>
         </nav>
       ) : (
         <div className="hidden border-r bg-muted/20 p-4 text-sm text-muted-foreground md:block">Trash</div>
@@ -57,22 +73,38 @@ export function ExplorerView({
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background text-left text-xs text-muted-foreground">
             <tr className="border-b">
-              <th className="px-3 py-2 font-medium">Name</th>
-              <th className="hidden px-3 py-2 font-medium sm:table-cell">Version</th>
-              <th className="hidden px-3 py-2 font-medium sm:table-cell">Size</th>
-              <th className="hidden px-3 py-2 font-medium xl:table-cell">{showTrash ? "Trashed" : "Modified"}</th>
+              {/* The name takes all the room the other columns don't need. */}
+              <th className="w-full px-3 py-2 font-medium">Name</th>
+              <th className="hidden px-3 py-2 font-medium whitespace-nowrap sm:table-cell">Version</th>
+              <th className="hidden px-3 py-2 font-medium whitespace-nowrap sm:table-cell">Size</th>
+              <th className="hidden px-3 py-2 font-medium whitespace-nowrap xl:table-cell">{showTrash ? "Trashed" : "Modified"}</th>
               <th className="w-10 px-3 py-2">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
-          <tbody>
-            {items.map((node) => (
+          <tbody aria-busy={loading}>
+            {loading &&
+              Array.from({ length: 4 }, (_, i) => (
+                <tr key={i} className="border-b">
+                  <td colSpan={5} className="px-3 py-2">
+                    <Skeleton className="h-8 w-full" />
+                  </td>
+                </tr>
+              ))}
+            {!loading && items.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-10 text-center text-muted-foreground">
+                  {emptyText}
+                </td>
+              </tr>
+            )}
+            {!loading && items.map((node) => (
               <tr
                 key={node.id}
                 aria-selected={node.id === selectedId}
                 tabIndex={0}
-                onClick={() => setSelectedId(node.id)}
+                onClick={() => pick(node)}
                 onDoubleClick={() => open(node)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") open(node)
@@ -88,14 +120,14 @@ export function ExplorerView({
               >
                 <td className="max-w-0 px-3 py-2">
                   <span className="flex items-center gap-2">
-                    <NodeIcon node={node} />
+                    {showTrash ? <NodeIcon node={node} /> : <Thumbnail node={node} variant="row" />}
                     <span className="truncate font-medium" title={node.name}>
                       {node.name}
                     </span>
                   </span>
                 </td>
                 <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{node.current_version ? `v${node.current_version}` : ""}</td>
-                <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{node.size !== undefined && node.type !== "folder" ? nodeSize(node.size) : ""}</td>
+                <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground sm:table-cell">{node.size !== undefined && node.type !== "folder" ? nodeSize(node.size) : ""}</td>
                 <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
                   {(showTrash ? node.deleted_at : node.updated_at) ? absoluteTime(new Date((showTrash ? node.deleted_at : node.updated_at)!)) : ""}
                 </td>
@@ -107,7 +139,7 @@ export function ExplorerView({
           </tbody>
         </table>
         <p className="mt-auto border-t px-3 py-2 text-xs text-muted-foreground">
-          Click to preview · double-click or Enter to open
+          Click a folder to go into it · click anything else to preview, double-click to open
         </p>
       </div>
 
@@ -122,62 +154,53 @@ export function ExplorerView({
   )
 }
 
-function FolderTree({
-  folderId,
-  openIds,
-  rootLabel,
-  onOpen,
-}: {
+type Tree = {
   folderId: string
+  items: Folder[]
+  loading: boolean
   openIds: string[]
-  rootLabel: string
-  onOpen: (id: string) => void
-}) {
-  return (
-    <ul role="tree" aria-label="Folders" className="flex flex-col text-sm">
-      <TreeNode id={ROOT} name={rootLabel} depth={0} currentId={folderId} openIds={openIds} onOpen={onOpen} initiallyOpen />
-    </ul>
-  )
+  selectedId: string | null
+  onOpenFolder: (id: string) => void
+  onPick: (node: Folder, parentId: string) => void
+  onOpen: (node: Folder) => void
 }
 
-// A folder in the tree; its subfolders load the first time it's expanded.
-function TreeNode({
-  id,
-  name,
-  depth,
-  currentId,
-  openIds,
-  onOpen,
-  initiallyOpen = false,
-}: {
-  id: string
-  name: string
-  depth: number
-  currentId: string
-  openIds: string[]
-  onOpen: (id: string) => void
-  initiallyOpen?: boolean
-}) {
-  const [expanded, setExpanded] = useState(initiallyOpen || openIds.includes(id))
-  const [children, setChildren] = useState<Folder[] | null>(null)
+// A folder in the tree; what's inside loads the first time it's expanded. The folder
+// being viewed uses the list's items, so the two always agree.
+function TreeNode({ id, name, depth, tree, initiallyOpen = false }: { id: string; name: string; depth: number; tree: Tree; initiallyOpen?: boolean }) {
+  const current = id === tree.folderId
+  const onPath = current || tree.openIds.includes(id)
+  const [expanded, setExpanded] = useState(initiallyOpen || onPath)
+  const [wasOnPath, setWasOnPath] = useState(onPath)
+  const [fetched, setFetched] = useState<Folder[] | null>(null)
+  const live = current && !tree.loading ? tree.items : null
+  const [kept, setKept] = useState<Folder[] | null>(null)
+  const children = live ?? kept ?? fetched
+
+  // Moving into a folder from anywhere opens the tree down to it.
+  if (onPath !== wasOnPath) {
+    setWasOnPath(onPath)
+    if (onPath) setExpanded(true)
+  }
+  // Remember the latest list for after we've moved on from this folder.
+  if (live && live !== kept) setKept(live)
 
   useEffect(() => {
-    if (!expanded || children !== null) return
+    if (!expanded || current || children !== null) return
     let cancelled = false
     foldersApi
       .children(id)
       .then((page) => {
-        if (!cancelled) setChildren(page.items.filter((item) => item.type === "folder"))
+        if (!cancelled) setFetched(page.items)
       })
       .catch(() => {
-        if (!cancelled) setChildren([])
+        if (!cancelled) setFetched([])
       })
     return () => {
       cancelled = true
     }
-  }, [expanded, children, id])
+  }, [expanded, current, children, id])
 
-  const current = id === currentId
   return (
     <li role="treeitem" aria-expanded={expanded} aria-selected={current}>
       <div className={cn("flex items-center gap-0.5 rounded-md", current && "bg-muted font-medium")} style={{ paddingLeft: depth * 12 }}>
@@ -191,7 +214,8 @@ function TreeNode({
         </button>
         <button
           type="button"
-          onClick={() => onOpen(id)}
+          onClick={() => tree.onOpenFolder(id)}
+          aria-current={current ? "location" : undefined}
           className="flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <FolderIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -201,16 +225,34 @@ function TreeNode({
       {expanded && (
         <ul role="group" className="flex flex-col">
           {children === null && <Skeleton className="my-1 ml-8 h-5" />}
-          {children?.map((child) => (
-            <TreeNode key={child.id} id={child.id} name={child.name} depth={depth + 1} currentId={currentId} openIds={openIds} onOpen={onOpen} />
-          ))}
+          {children?.map((child) =>
+            child.type === "folder" ? (
+              <TreeNode key={child.id} id={child.id} name={child.name} depth={depth + 1} tree={tree} />
+            ) : (
+              <li key={child.id} role="treeitem" aria-selected={child.id === tree.selectedId}>
+                <button
+                  type="button"
+                  title={child.name}
+                  onClick={() => tree.onPick(child, id)}
+                  onDoubleClick={() => tree.onOpen(child)}
+                  style={{ paddingLeft: (depth + 1) * 12 + 28 }}
+                  className={cn(
+                    "flex w-full min-w-0 items-center gap-1.5 rounded-md py-1 pr-1 text-left hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
+                    child.id === tree.selectedId && "bg-muted"
+                  )}
+                >
+                  <NodeIcon node={child} />
+                  <span className="truncate">{child.name}</span>
+                </button>
+              </li>
+            )
+          )}
         </ul>
       )}
     </li>
   )
 }
 
-const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 const TEXT_TYPES = ["text/plain", "text/markdown", "text/csv", "application/json"]
 
 function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean; onOpen: () => void }) {
@@ -298,6 +340,8 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
           Open preview
         </Button>
       )}
+
+      {node.type === "whiteboard" && !showTrash && <Thumbnail node={node} variant="card" />}
 
       {node.type === "note" &&
         !showTrash &&

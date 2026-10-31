@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
+import { Thumbnail } from "@/components/files/thumbnail"
 import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
@@ -253,6 +254,8 @@ export function FilesView() {
   }, [folderId, showTrash, viewKey, apply])
 
   const phase = loadedFor === viewKey ? state : "loading"
+  // Moving between folders keeps the page in place; only the list itself reloads.
+  const showPage = phase === "ready" || (phase === "loading" && workspace !== null)
 
   async function loadMore() {
     if (!cursor) return
@@ -281,6 +284,8 @@ export function FilesView() {
     }
   }
 
+  const emptyText = showTrash ? "The trash is empty." : canEdit(role) ? "Nothing here yet. Create or upload something to get started." : "Nothing here yet."
+
   return (
     <main className={cn("mx-auto flex flex-col gap-6 px-4 py-6", mode === "explorer" ? "max-w-screen-2xl" : "max-w-screen-xl")}>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -293,7 +298,7 @@ export function FilesView() {
             {workspace ? `${workspace.team_name}'s shared folders.` : "Your team's shared folders."}
           </p>
         </div>
-        {phase === "ready" && (
+        {showPage && (
           <div className="flex flex-wrap gap-2">
             {!showTrash && (
               <FilesSearch
@@ -356,7 +361,7 @@ export function FilesView() {
         )}
       </div>
 
-      {phase === "ready" && !showTrash && (
+      {showPage && !showTrash && (
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -386,7 +391,7 @@ export function FilesView() {
         </Breadcrumb>
       )}
 
-      {phase === "loading" && (
+      {phase === "loading" && mode === "grid" && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading folders">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
@@ -416,19 +421,15 @@ export function FilesView() {
         </div>
       )}
 
-      {phase === "ready" && items.length === 0 && (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {showTrash
-            ? "The trash is empty."
-            : canEdit(role)
-              ? "No folders here yet. Create one to get started."
-              : "No folders here yet."}
-        </div>
+      {phase === "ready" && items.length === 0 && mode === "grid" && (
+        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">{emptyText}</div>
       )}
 
-      {phase === "ready" && items.length > 0 && mode === "explorer" && (
+      {(phase === "ready" || phase === "loading") && mode === "explorer" && (
         <ExplorerView
           items={items}
+          loading={phase === "loading"}
+          emptyText={emptyText}
           folderId={folderId}
           crumbs={crumbs}
           rootLabel={workspace?.team_name ?? "All folders"}
@@ -444,8 +445,11 @@ export function FilesView() {
           {items.map((folder) => (
             <li
               key={folder.id}
-              className="group relative flex items-start gap-3 rounded-xl border bg-card p-4 transition-shadow hover:-translate-y-0.5 hover:shadow-md motion-safe:transition-transform motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
+              className="group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-shadow hover:-translate-y-0.5 hover:shadow-md motion-safe:transition-transform motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
             >
+              {/* Every card gets one, so a row of cards lines up. */}
+              {!showTrash && <Thumbnail node={folder} variant="card" />}
+              <div className="flex items-start gap-3">
               {folder.type === "note" ? (
                 <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
               ) : folder.type === "whiteboard" ? (
@@ -491,6 +495,7 @@ export function FilesView() {
                 </div>
               </div>
               {actionsFor(folder)}
+              </div>
             </li>
           ))}
         </ul>
