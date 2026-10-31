@@ -11,6 +11,8 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
   { scope: SCOPES.FOLDERS_DELETE, label: "Move folders to the trash" },
   { scope: SCOPES.FILES_READ, label: "Read files and documents" },
   { scope: SCOPES.FILES_WRITE, label: "Upload files and edit documents" },
+  { scope: SCOPES.WHITEBOARD_READ, label: "See whiteboards" },
+  { scope: SCOPES.WHITEBOARD_WRITE, label: "Draw on whiteboards" },
   { scope: SCOPES.CHAT_READ, label: "Read chat" },
   { scope: SCOPES.CHAT_WRITE, label: "Post in chat" },
   // folders:share, chat:manage and chat:dm are never offered: they are people-only.

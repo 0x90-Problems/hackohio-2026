@@ -14,7 +14,12 @@ export type BoardInfo = {
   seq: number
   locked: boolean
   agents_paused: boolean
+  agents_may_edit_all?: boolean
+  agents_enabled?: boolean // the service-wide switch; hides agent controls while off
 }
+
+export type BoardSettings = Pick<BoardInfo, "locked" | "agents_paused" | "agents_may_edit_all">
+export type AgentActivity = { agent_id: string; acting_for: string; changes: number; last_at: number }
 
 export type Session = { url: string; protocols: string[]; read_only: boolean; expires_in: number }
 
@@ -22,6 +27,7 @@ export type Session = { url: string; protocols: string[]; read_only: boolean; ex
 export type WireElement = Record<string, unknown> & { id: string; version: number; versionNonce: number }
 
 export type ElementsPage = { elements: WireElement[]; seq: number; next_since: number | null }
+export type SendResult = { accepted: WireElement[]; stale: WireElement[]; seq: number; first?: number }
 
 export class WhiteboardError extends Error {
   constructor(
@@ -34,7 +40,7 @@ export class WhiteboardError extends Error {
   }
 }
 
-async function call<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+async function call<T>(path: string, init: { method?: string; body?: unknown; keepalive?: boolean } = {}): Promise<T> {
   const session = readSession()
   const headers: Record<string, string> = { accept: "application/json" }
   if (session?.secret) headers.authorization = `Bearer ${session.secret}`
@@ -45,6 +51,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown } =
       method: init.method ?? "GET",
       headers,
       cache: "no-store",
+      keepalive: init.keepalive,
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     })
   } catch {
@@ -70,8 +77,12 @@ export const whiteboardApi = {
   board: (id: string) => call<BoardInfo>(`boards/${seg(id)}`),
   session: (id: string) => call<Session>(`boards/${seg(id)}/session`, { method: "POST", body: {} }),
   elements: (id: string, since = 0) => call<ElementsPage>(`boards/${seg(id)}/elements?since=${since}`),
-  send: (id: string, elements: WireElement[]) =>
-    call<{ accepted: WireElement[]; stale: WireElement[]; seq: number }>(`boards/${seg(id)}/elements`, { method: "POST", body: { elements } }),
+  send: (id: string, elements: WireElement[], keepalive = false) =>
+    call<SendResult>(`boards/${seg(id)}/elements`, { method: "POST", body: { elements }, keepalive }),
+  settings: (id: string, change: Partial<BoardSettings>) => call<BoardSettings>(`boards/${seg(id)}/settings`, { method: "POST", body: change }),
+  agents: (id: string) => call<{ agents: AgentActivity[] }>(`boards/${seg(id)}/agents`),
+  undoAgent: (id: string, agentId: string) =>
+    call<{ undone: number; skipped: number; seq: number }>(`boards/${seg(id)}/undo-agent`, { method: "POST", body: { agent_id: agentId } }),
 }
 
 // Whiteboards ship behind whiteboard.enabled; ask once per page load.

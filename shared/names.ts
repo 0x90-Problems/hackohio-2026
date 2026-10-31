@@ -24,6 +24,8 @@ export const SCOPES = {
   FOLDERS_WRITE: "folders:write",
   FOLDERS_DELETE: "folders:delete",
   FOLDERS_SHARE: "folders:share", // people only: agent tokens are refused even with it
+  WHITEBOARD_READ: "whiteboard:read",
+  WHITEBOARD_WRITE: "whiteboard:write",
 } as const;
 export type Scope = (typeof SCOPES)[keyof typeof SCOPES];
 export const ALL_SCOPES: Scope[] = Object.values(SCOPES);
