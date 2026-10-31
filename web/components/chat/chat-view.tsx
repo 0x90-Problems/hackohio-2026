@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
@@ -50,16 +50,21 @@ import {
   type ChatWorkspace,
   ChatError,
   chatApi,
+  attentionCount,
   isUnread,
   principalOf,
 } from "@/lib/chat-api"
+import { type Activity, ChatLive, coalesce } from "@/lib/chat-live"
 import { absoluteTime, timeAgo } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-// Until live updates (C2), the open channel and thread refresh by polling:
-// often while the tab is visible, rarely while it's hidden.
+// Pushes say what changed, and polling catches anything they missed: often while the tab
+// is visible and the socket is down, rarely while connected or hidden.
 const POLL_VISIBLE_MS = 5_000
+const POLL_CONNECTED_MS = 20_000
 const POLL_HIDDEN_MS = 60_000
+const KICK_GAP_MS = 500
+const KICK_WORKSPACE_GAP_MS = 2_000
 const PAGE = 50
 
 function explain(error: unknown) {
@@ -71,14 +76,15 @@ function newKey() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
 }
 
-function usePoll(run: () => void, deps: unknown[]) {
+// Runs right away, again whenever `connected` changes (to catch up after a reconnect), and then on a timer.
+function usePoll(run: () => void, deps: unknown[], connected: boolean) {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     let stopped = false
     const tick = () => {
       if (stopped) return
       run()
-      timer = setTimeout(tick, document.visibilityState === "visible" ? POLL_VISIBLE_MS : POLL_HIDDEN_MS)
+      timer = setTimeout(tick, document.visibilityState !== "visible" ? POLL_HIDDEN_MS : connected ? POLL_CONNECTED_MS : POLL_VISIBLE_MS)
     }
     timer = setTimeout(tick, 0) // the first load, then every few seconds
     const onVisible = () => {
@@ -94,7 +100,48 @@ function usePoll(run: () => void, deps: unknown[]) {
       document.removeEventListener("visibilitychange", onVisible)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
+  }, [...deps, connected])
+}
+
+function useChatLive() {
+  const [live] = useState(() => new ChatLive())
+  const [connected, setConnected] = useState(false)
+  useEffect(() => {
+    const off = live.onStatus(setConnected)
+    live.start()
+    return () => {
+      off()
+      live.stop()
+    }
+  }, [live])
+  return { live, connected }
+}
+
+// Re-runs a load when a push says something changed (for one channel, or any if null).
+function usePushes(live: ChatLive, channelId: string | null, run: () => void | Promise<unknown>, gapMs: number) {
+  useEffect(() => {
+    const kick = coalesce(run, gapMs)
+    const off = live.onActivity((event: Activity) => {
+      if (channelId === null || event.channel_id === channelId) kick()
+    })
+    return () => {
+      off()
+      kick.stop()
+    }
+  }, [live, channelId, run, gapMs])
+}
+
+const subscribeVisibility = (fn: () => void) => {
+  document.addEventListener("visibilitychange", fn)
+  return () => document.removeEventListener("visibilitychange", fn)
+}
+
+function usePageVisible() {
+  return useSyncExternalStore(
+    subscribeVisibility,
+    () => document.visibilityState === "visible",
+    () => true
+  )
 }
 
 function channelLabel(channel: Channel) {
@@ -118,6 +165,7 @@ export function ChatView() {
   const [state, setState] = useState<"loading" | "ready" | "off" | "error">("loading")
   const [error, setError] = useState("")
   const [dialog, setDialog] = useState<null | "channel" | "dm" | "browse" | "section">(null)
+  const { live, connected } = useChatLive()
 
   const go = useCallback(
     (channel: string | null, thread: string | null = null) => {
@@ -142,7 +190,13 @@ export function ChatView() {
     }
   }, [])
 
-  usePoll(() => void refresh(), [refresh])
+  usePoll(() => void refresh(), [refresh], connected)
+  usePushes(live, null, refresh, KICK_WORKSPACE_GAP_MS)
+  // Leaving a channel: its badge should clear now, not at the next poll.
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 0)
+    return () => clearTimeout(timer)
+  }, [selectedId, refresh])
 
   const selected = useMemo(
     () => ws?.channels.find((c) => c.id === selectedId) ?? ws?.joinable.find((c) => c.id === selectedId) ?? null,
@@ -179,6 +233,8 @@ export function ChatView() {
             channel={selected}
             directory={directory}
             threadId={threadId}
+            live={live}
+            connected={connected}
             onBack={() => go(null)}
             onThread={(root) => go(selected.id, root)}
             onChanged={refresh}
@@ -206,12 +262,14 @@ export function ChatView() {
           canModerate={ws.is_owner || selected.role === "manager"}
           rootId={threadId}
           directory={directory}
+          live={live}
+          connected={connected}
           onClose={() => go(selected.id)}
         />
       ) : null}
 
       <NewChannelDialog
-        key={dialog === "channel" ? "open" : "closed"}
+        key={dialog === "channel" ? "channel-open" : "channel-closed"}
         open={dialog === "channel"}
         ws={ws}
         onClose={() => setDialog(null)}
@@ -221,7 +279,7 @@ export function ChatView() {
         }}
       />
       <NewDmDialog
-        key={dialog === "dm" ? "open" : "closed"}
+        key={dialog === "dm" ? "dm-open" : "dm-closed"}
         open={dialog === "dm"}
         ws={ws}
         onClose={() => setDialog(null)}
@@ -231,7 +289,7 @@ export function ChatView() {
         }}
       />
       <BrowseDialog
-        key={dialog === "browse" ? "open" : "closed"}
+        key={dialog === "browse" ? "browse-open" : "browse-closed"}
         open={dialog === "browse"}
         channels={ws.joinable}
         onClose={() => setDialog(null)}
@@ -240,7 +298,7 @@ export function ChatView() {
           go(id)
         }}
       />
-      <SectionDialog key={dialog === "section" ? "open" : "closed"} open={dialog === "section"} onClose={() => setDialog(null)} onSaved={() => void refresh()} />
+      <SectionDialog key={dialog === "section" ? "section-open" : "section-closed"} open={dialog === "section"} onClose={() => setDialog(null)} onSaved={() => void refresh()} />
     </div>
   )
 }
@@ -332,7 +390,9 @@ function ChannelGroup({
       {channels.length ? (
         <ul>
           {channels.map((channel) => {
-            const unread = isUnread(channel) && channel.id !== selectedId
+            const selected = channel.id === selectedId
+            // The server's count wins; only past its per-request limit do we fall back to a dot.
+            const unread = !selected && (channel.unread_count !== undefined ? channel.unread_count > 0 : isUnread(channel))
             return (
               <li key={channel.id}>
                 <button
@@ -347,7 +407,7 @@ function ChannelGroup({
                 >
                   <ChannelGlyph channel={channel} />
                   <span className="truncate">{channelLabel(channel)}</span>
-                  {unread ? <span className="ml-auto size-2 shrink-0 rounded-full bg-foreground" aria-label="unread" /> : null}
+                  {unread ? <UnreadBadge channel={channel} /> : null}
                 </button>
               </li>
             )
@@ -357,6 +417,23 @@ function ChannelGroup({
         <p className="px-2 text-xs text-muted-foreground">{empty}</p>
       )}
     </section>
+  )
+}
+
+function UnreadBadge({ channel }: { channel: Channel }) {
+  const count = channel.unread_count
+  if (count === undefined) return <span className="ml-auto size-2 shrink-0 rounded-full bg-foreground" aria-label="unread" />
+  const attention = attentionCount(channel)
+  const label = [`${count}${channel.unread_capped ? "+" : ""} unread`, channel.mention_count ? `${channel.mention_count} mentioning you` : ""].filter(Boolean).join(", ")
+  const shown = (n: number) => (n > 99 || (channel.unread_capped && n === count) ? "99+" : String(n))
+  return attention > 0 ? (
+    <span className="ml-auto shrink-0 rounded-full bg-foreground px-1.5 text-xs font-medium text-background motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150" aria-label={label}>
+      {channel.kind !== "text" || !channel.mention_count ? shown(attention) : `@${shown(attention)}`}
+    </span>
+  ) : (
+    <span className="ml-auto shrink-0 text-xs font-medium text-muted-foreground" aria-label={label}>
+      {shown(count)}
+    </span>
   )
 }
 
@@ -373,6 +450,8 @@ function ChannelPane({
   channel,
   directory,
   threadId,
+  live,
+  connected,
   onBack,
   onThread,
   onChanged,
@@ -382,6 +461,8 @@ function ChannelPane({
   channel: Channel
   directory: Map<string, ChatPerson>
   threadId: string | null
+  live: ChatLive
+  connected: boolean
   onBack: () => void
   onThread: (rootId: string) => void
   onChanged: () => Promise<void>
@@ -396,6 +477,9 @@ function ChannelPane({
   const member = Boolean(channel.role)
   const canManage = ws.is_owner || channel.role === "manager"
   const lastRead = useRef(channel.last_read_msg_id ?? "")
+  const visible = usePageVisible()
+  // The channel's newest message, which may be a thread reply and so not in the list.
+  const [newestInChannel, setNewestInChannel] = useState("")
 
   const scrollToEnd = () => {
     const el = listRef.current
@@ -409,6 +493,7 @@ function ChannelPane({
     try {
       const page = await chatApi.messages(channel.id, { limit: PAGE })
       setMessages((now) => (now ? mergeMessages(now, page.messages) : page.messages))
+      setNewestInChannel(page.channel.last_msg_id ?? "")
       if (!loaded.current) setMore(page.more)
       loaded.current = true
       setError("")
@@ -417,17 +502,22 @@ function ChannelPane({
       if (!loaded.current) setError(explain(caught))
     }
   }, [channel.id])
-  usePoll(() => void load(), [load])
+  usePoll(() => void load(), [load], connected)
+  usePushes(live, channel.id, load, KICK_GAP_MS)
 
   useEffect(scrollToEnd, [messages])
 
-  // Mark read up to the newest message I can see.
+  // Mark read up to the newest message, but only while you can actually see the page:
+  // messages arriving in a background tab should stay unread.
   useEffect(() => {
-    const newest = messages?.at(-1)?.id
-    if (!member || !newest || newest <= lastRead.current) return
+    const shown = messages?.at(-1)?.id ?? ""
+    const newest = shown > newestInChannel ? shown : newestInChannel
+    if (!visible || !member || !newest || newest <= lastRead.current) return
     lastRead.current = newest
-    void chatApi.markRead(channel.id, newest).catch(() => undefined)
-  }, [messages, member, channel.id])
+    void chatApi.markRead(channel.id, newest).catch(() => {
+      lastRead.current = ""
+    })
+  }, [messages, newestInChannel, visible, member, channel.id])
 
   const loadOlder = async () => {
     const first = messages?.[0]?.id
@@ -578,9 +668,9 @@ function ChannelPane({
         </div>
       )}
 
-      <AddPeopleDialog key={manage === "people" ? "open" : "closed"} open={manage === "people"} ws={ws} channel={channel} onClose={() => setManage(null)} />
+      <AddPeopleDialog key={manage === "people" ? "people-open" : "people-closed"} open={manage === "people"} ws={ws} channel={channel} onClose={() => setManage(null)} />
       <EditChannelDialog
-        key={manage === "edit" ? "open" : "closed"}
+        key={manage === "edit" ? "edit-open" : "edit-closed"}
         open={manage === "edit"}
         channel={channel}
         onClose={() => setManage(null)}
@@ -917,12 +1007,16 @@ function ThreadPane({
   canModerate,
   rootId,
   directory,
+  live,
+  connected,
   onClose,
 }: {
   channel: Channel
   canModerate: boolean
   rootId: string
   directory: Map<string, ChatPerson>
+  live: ChatLive
+  connected: boolean
   onClose: () => void
 }) {
   const [data, setData] = useState<{ root: ChatMessage; replies: ChatMessage[] } | null>(null)
@@ -938,7 +1032,8 @@ function ThreadPane({
     }
   }, [channel.id, rootId])
 
-  usePoll(() => void load(), [load])
+  usePoll(() => void load(), [load], connected)
+  usePushes(live, channel.id, load, KICK_GAP_MS)
   useEffect(() => endRef.current?.scrollIntoView({ block: "end" }), [data?.replies.length])
 
   return (

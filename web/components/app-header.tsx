@@ -21,7 +21,7 @@ import {
 } from "@/components/icons"
 
 import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
-import { chatApi } from "@/lib/chat-api"
+import { attentionCount, chatApi } from "@/lib/chat-api"
 import { foldersApi } from "@/lib/folders-api"
 import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
 import { Logo } from "@/components/logo"
@@ -76,6 +76,35 @@ function chatEnabled() {
 
 // Pages that show without the header.
 const NO_HEADER = ["/login", "/signup"]
+const CHAT_BADGE_MS = 60_000
+
+// Mentions and unread DMs, for the launcher. Light, and only while you can see the page.
+function useChatAttention(on: boolean, pathname: string) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!on) return
+    let stopped = false
+    const check = () => {
+      if (document.visibilityState !== "visible") return
+      void chatApi
+        .unread()
+        .then((result) => {
+          if (!stopped) setCount(result.channels.reduce((sum, channel) => sum + attentionCount(channel), 0))
+        })
+        .catch(() => undefined) // keep what's showing; the next check retries
+    }
+    const first = setTimeout(check, 0)
+    const timer = setInterval(check, CHAT_BADGE_MS)
+    document.addEventListener("visibilitychange", check)
+    return () => {
+      stopped = true
+      clearTimeout(first)
+      clearInterval(timer)
+      document.removeEventListener("visibilitychange", check)
+    }
+  }, [on, pathname])
+  return count
+}
 
 export function AppHeader() {
   const pathname = usePathname()
@@ -84,6 +113,8 @@ export function AppHeader() {
   const [foldersOn, setFoldersOn] = useState(false)
   const [chatOn, setChatOn] = useState(false)
   const whiteboardOn = useWhiteboardEnabled()
+  const chatAttention = useChatAttention(chatOn && Boolean(sessionUser), pathname)
+  const chatBadge = chatAttention > 99 ? "99+" : String(chatAttention)
 
   useEffect(() => {
     let cancelled = false
@@ -109,8 +140,18 @@ export function AppHeader() {
         {/* Left: app launcher + logo */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Open NutShell apps">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              aria-label={chatAttention ? `Open NutShell apps, ${chatBadge} waiting for you in Chat` : "Open NutShell apps"}
+            >
               <LayoutGridIcon aria-hidden="true" />
+              {chatAttention ? (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-foreground px-1 text-center text-[10px] leading-4 font-medium text-background" aria-hidden="true">
+                  {chatBadge}
+                </span>
+              ) : null}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-80 p-2">
@@ -132,6 +173,9 @@ export function AppHeader() {
                     </span>
                     <span className="flex items-center gap-1.5 text-sm font-medium">
                       {service.label}
+                      {service.label === "Chat" && chatAttention ? (
+                        <span className="rounded-full bg-foreground px-1.5 text-[10px] leading-4 font-medium text-background">{chatBadge}</span>
+                      ) : null}
                       {!("href" in service) && (
                         <span className="rounded border border-dashed px-1 text-[10px] font-normal text-muted-foreground">
                           Soon

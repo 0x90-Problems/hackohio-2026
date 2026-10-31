@@ -34,8 +34,8 @@ const SECURITY_HEADERS = [
       // Folder previews show images from the files bucket (presigned, 5-minute links).
       "img-src 'self' data: blob: https://nutshell-prod-files-883501587155.s3.amazonaws.com https://nutshell-prod-files-883501587155.s3.us-east-1.amazonaws.com",
       "font-src 'self' data:",
-      // Live whiteboards: the whiteboard relay's WebSocket (wss isn't covered by https:).
-      "connect-src 'self' https: wss://435ypxfxo5.execute-api.us-east-1.amazonaws.com wss://zdui77m02l.execute-api.us-east-1.amazonaws.com",
+      // Live whiteboards, documents and chat use API Gateway WebSockets (wss isn't covered by https:).
+      "connect-src 'self' https: wss://*.execute-api.us-east-1.amazonaws.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
