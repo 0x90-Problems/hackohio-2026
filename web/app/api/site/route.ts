@@ -208,6 +208,13 @@ export async function POST(request: Request) {
     return relay(await boardJson(request, "/teams", { method: "POST", body: { name: body.team.name } }), "Could not create the team")
   }
 
+  // URLs drop a path segment of only dots, encoded or not, so this team's routes can't be
+  // reached. Renaming goes in the body, so that still works.
+  const teamInUrl = body.kind === "member" ? body.member?.team : body.kind === "manager" ? body.manager?.team : undefined
+  if (teamInUrl && /^\.+$/.test(teamInUrl.trim())) {
+    return NextResponse.json({ error: { code: "invalid_input", message: "This team's name can't be used. Rename it first, then try again." } }, { status: 400 })
+  }
+
   if (body.kind === "member" && body.member?.team && body.member.user_id) {
     const team = encodeURIComponent(body.member.team)
     const result = body.member.remove
