@@ -119,7 +119,9 @@ export const foldersApi = {
     call<{ diff: string; changed: boolean; truncated: boolean; from: number; to: number }>(
       `files/${seg(id)}/diff?from=${from}${to ? `&to=${to}` : ""}`
     ),
-  search: (query: string) => call<{ items: (Folder & { path?: string[] })[] }>(`search?q=${encodeURIComponent(query)}`),
+  // With a type and no query, lists everything of that type, most recently changed first.
+  search: (query: string, type?: Folder["type"]) =>
+    call<{ items: (Folder & { path?: string[] })[] }>(`search?q=${encodeURIComponent(query)}${type ? `&type=${type}` : ""}`),
   fileLinks: (id: string) => call<{ items: { target: string }[] }>(`files/${seg(id)}/links`),
   linkTicket: (id: string, key: string) => call<unknown>(`files/${seg(id)}/links`, { method: "POST", body: { target: `ticket:${key}` } }),
   unlinkTicket: (id: string, key: string) =>
