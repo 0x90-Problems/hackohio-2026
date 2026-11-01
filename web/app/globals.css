@@ -204,6 +204,29 @@
 .collaboration-carets__caret { position: relative; margin: 0 -1px; border-left: 1px solid; border-right: 1px solid; word-break: normal; pointer-events: none; }
 .collaboration-carets__label { position: absolute; top: -1.4em; left: -1px; padding: 0.05em 0.35em; border-radius: 3px 3px 3px 0; color: #fff; font-size: 0.7rem; font-weight: 600; line-height: normal; white-space: nowrap; user-select: none; }
 @media (prefers-reduced-motion: no-preference) { .collaboration-carets__label { transition: opacity 150ms ease; } }
+/* [[links]]: dashed until the page exists */
+.nutshell-doc .nutshell-page-link { text-decoration: none; border-bottom: 1px solid currentColor; font-weight: 500; cursor: pointer; }
+.nutshell-doc .nutshell-page-link-missing { border-bottom-style: dashed; color: var(--muted-foreground); }
+.nutshell-doc .nutshell-page-link.ProseMirror-selectednode { background: var(--muted); border-radius: 2px; }
+.nutshell-doc .nutshell-page-break { display: flex; align-items: center; gap: 0.75em; color: var(--muted-foreground); font-size: 0.75rem; user-select: none; }
+.nutshell-doc .nutshell-page-break::before, .nutshell-doc .nutshell-page-break::after { content: ""; flex: 1; border-top: 1px dashed var(--border); }
+.nutshell-doc .nutshell-page-break.ProseMirror-selectednode { color: var(--foreground); }
+/* Paper view: sheets repeat behind the text; blocks are pushed onto the next sheet */
+.nutshell-paper { background: repeating-linear-gradient(to bottom, var(--background) 0, var(--background) var(--nutshell-sheet), var(--muted) var(--nutshell-sheet), var(--muted) calc(var(--nutshell-sheet) + var(--nutshell-sheet-gap))); }
+.nutshell-paper .nutshell-doc { min-height: 0; }
+.nutshell-paper .nutshell-doc > .nutshell-page-start { margin-top: var(--nutshell-page-push); }
+.nutshell-paper .nutshell-doc > .nutshell-page-break { display: block; height: 0; margin: 0; overflow: hidden; }
+/* Print or Save as PDF: only the document, with the browser making the real pages */
+@media print {
+  body { background: #fff; }
+  body * { visibility: hidden; }
+  .nutshell-print-root, .nutshell-print-root * { visibility: visible; }
+  .nutshell-print-root { position: absolute; inset: 0 auto auto 0; width: 100% !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; box-shadow: none !important; }
+  .nutshell-doc > .nutshell-page-start { margin-top: 0 !important; }
+  .nutshell-doc .nutshell-page-break { display: block; height: 0; margin: 0; overflow: hidden; break-after: page; visibility: hidden; }
+  .collaboration-carets__caret { display: none; }
+  .nutshell-doc h1, .nutshell-doc h2, .nutshell-doc h3 { break-after: avoid; }
+}
 .nutshell-doc ul[data-type="taskList"] { list-style: none; padding-left: 0.2em; }
 .nutshell-doc ul[data-type="taskList"] li { display: flex; gap: 0.5em; align-items: flex-start; }
 .nutshell-doc ul[data-type="taskList"] li > label { margin-top: 0.3em; user-select: none; }
