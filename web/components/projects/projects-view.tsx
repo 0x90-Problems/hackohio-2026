@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "motion/react"
@@ -8,7 +8,10 @@ import { PlusIcon } from "@/components/icons"
 
 import { ACTOR_TYPES, TICKET_STATUS } from "@/shared/names"
 import type { Project } from "@/lib/types"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { TEAM } from "@/lib/mock-data"
+import { loadSite } from "@/lib/site-db"
+import { activeTeam, chooseTeam } from "@/lib/team-choice"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { timeAgo } from "@/lib/format"
 import {
@@ -52,14 +55,34 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 
-// Teams a project can belong to. Only one until teams come from the database.
-const TEAMS = [TEAM]
-
 // Like a GitHub org's repo list: one card per project, each opening its board.
 export function ProjectsView() {
   const { projects } = useProjects()
   const router = useRouter()
-  const [team, setTeam] = useState(TEAM)
+  const account = useAuthUser()
+  const [myTeams, setMyTeams] = useState<string[]>([])
+  const [chosen, setChosen] = useState(activeTeam)
+
+  useEffect(() => {
+    let cancelled = false
+    void loadSite()
+      .then((site) => {
+        const me = site.users.find((user) => user._id === account?._id)
+        if (!cancelled && me) setMyTeams(me.teams ?? (me.team ? [me.team] : []))
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [account?._id])
+
+  // Your teams, plus any others you can see projects on (an org admin sees all of them).
+  const teams = [...new Set([...myTeams, ...projects.map((p) => p.team)])].filter(Boolean)
+  const team = teams.includes(chosen) ? chosen : teams.includes(account?.team ?? "") ? (account?.team ?? TEAM) : (teams[0] ?? TEAM)
+  const setTeam = (next: string) => {
+    setChosen(next)
+    chooseTeam(next) // the same choice as the switcher in Folders, Whiteboards and Chat
+  }
   const shown = projects.filter((p) => p.team === team && !p.archived)
   const archived = projects.filter((p) => p.team === team && p.archived)
 
@@ -76,13 +99,13 @@ export function ProjectsView() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {TEAMS.length > 1 && (
+          {teams.length > 1 && (
             <Select value={team} onValueChange={setTeam}>
               <SelectTrigger aria-label="Team">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TEAMS.map((t) => (
+                {teams.map((t) => (
                   <SelectItem key={t} value={t}>
                     {t}
                   </SelectItem>
@@ -114,7 +137,7 @@ export function ProjectsView() {
               },
             ]}
           />
-          <NewProjectDialog defaultTeam={team} />
+          <NewProjectDialog key={team} defaultTeam={team} teams={myTeams.includes(team) ? myTeams : [team, ...myTeams]} />
         </div>
       </div>
 
@@ -237,7 +260,7 @@ function suggestKey(name: string) {
   return key.toUpperCase().slice(0, 4)
 }
 
-function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
+function NewProjectDialog({ defaultTeam, teams }: { defaultTeam: string; teams: string[] }) {
   const { projects, createProject } = useProjects()
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -409,7 +432,7 @@ function NewProjectDialog({ defaultTeam }: { defaultTeam: string }) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEAMS.map((t) => (
+                  {teams.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
                     </SelectItem>
