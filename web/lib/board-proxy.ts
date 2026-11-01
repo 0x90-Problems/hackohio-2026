@@ -23,6 +23,9 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   // Chat posts carry an Idempotency-Key so a retried send never posts twice.
   const idempotency = request.headers.get("idempotency-key")
   if (idempotency && idempotency.length <= 100) headers.set("idempotency-key", idempotency)
+  // Which of your teams you're working in; each service checks you're on it.
+  const team = request.headers.get("x-nutshell-team")
+  if (team && team.length <= 300) headers.set("x-nutshell-team", team)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
   const shadow = request.headers.get("x-nutshell-mcp-path")

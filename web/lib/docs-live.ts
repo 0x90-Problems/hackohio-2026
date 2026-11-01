@@ -4,6 +4,7 @@ import * as Y from "yjs"
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from "y-protocols/awareness"
 
 import { readSession } from "@/lib/board-auth"
+import { teamFetch } from "@/lib/team-choice"
 
 // Live documents: a Yjs document kept in sync through the documents relay
 // (/api/docs-live/* → /docs/v1/*, then a WebSocket). Design: docs/documents-plan.md.
@@ -29,7 +30,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; ke
   if (init.body !== undefined) headers["content-type"] = "application/json"
   let response: Response
   try {
-    response = await fetch(`/api/docs-live/${path}`, {
+    response = await teamFetch(`/api/docs-live/${path}`, {
       method: init.method ?? "GET",
       headers,
       cache: "no-store",

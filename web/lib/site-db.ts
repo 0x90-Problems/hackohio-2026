@@ -25,7 +25,7 @@ export type SiteState = {
   organization: SiteOrganization | null
   teams: { name: string; managers: string[]; created_by?: string }[]
   apiKeys: SiteApiKey[]
-  users: { _id: string; auth_username: string; name: string; role?: string; admin?: boolean; team: string }[]
+  users: { _id: string; auth_username: string; name: string; role?: string; admin?: boolean; team: string; teams?: string[] }[]
 }
 
 const EMPTY: SiteState = { organization: null, teams: [], apiKeys: [], users: [] }

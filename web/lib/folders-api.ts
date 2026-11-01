@@ -1,6 +1,7 @@
 "use client"
 
 import { readSession } from "@/lib/board-auth"
+import { teamFetch } from "@/lib/team-choice"
 import type { Actor } from "@/lib/types"
 
 // Client for the folders API (proxied at /api/fs/*). Field names match the
@@ -39,7 +40,7 @@ export type Version = {
 
 export type UploadState = { status: "waiting_for_upload" | "scanning" | "committed"; file?: Folder; version?: number }
 
-export type Workspace = { ws_id: string; team_name: string; role: "owner" | "member"; root_id: string }
+export type Workspace = { ws_id: string; team_name: string; teams?: string[]; role: "owner" | "member"; root_id: string }
 export type Crumb = { id: string; name: string }
 
 export class FoldersError extends Error {
@@ -63,7 +64,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; re
   if (init.rev !== undefined) headers["x-fs-rev"] = String(init.rev)
   let response: Response
   try {
-    response = await fetch(`/api/fs/${path}`, {
+    response = await teamFetch(`/api/fs/${path}`, {
       method: init.method ?? "GET",
       headers,
       cache: "no-store",

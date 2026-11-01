@@ -21,6 +21,7 @@ import {
   UserPlusIcon,
   XIcon,
 } from "@/components/icons"
+import { TeamSwitcher } from "@/components/team-switcher"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -268,7 +269,7 @@ function Sidebar({
   return (
     <aside aria-label="Channels" className={cn("w-full shrink-0 flex-col border-r bg-muted/30 md:w-64", className)}>
       <div className="flex h-12 items-center justify-between gap-2 border-b px-3">
-        <h1 className="truncate text-sm font-semibold">{ws.team}</h1>
+        <TeamSwitcher className="min-w-0 flex-1" fallback={<h1 className="truncate text-sm font-semibold">{ws.team}</h1>} />
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon-sm" aria-label="Browse channels" onClick={() => onDialog("browse")}>
             <SearchIcon aria-hidden="true" />
