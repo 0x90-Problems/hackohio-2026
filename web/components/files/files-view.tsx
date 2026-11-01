@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
+import { TeamSwitcher } from "@/components/team-switcher"
 import { Thumbnail } from "@/components/files/thumbnail"
 import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -300,6 +301,7 @@ export function FilesView() {
         </div>
         {showPage && (
           <div className="flex flex-wrap gap-2">
+            <TeamSwitcher />
             {!showTrash && (
               <FilesSearch
                 onPick={(hit) => (hit.type === "folder" ? go({ folder: hit.id }) : (go({ folder: hit.parent_id ?? ROOT }), openNode(hit)))}

@@ -95,6 +95,11 @@ async function change(action: () => Promise<unknown>, done: string, onDone: () =
   }
 }
 
+// Accounts from before multiple teams only have `team`.
+function teamsOf(person: { team: string; teams?: string[] }) {
+  return person.teams ?? (person.team ? [person.team] : [])
+}
+
 export function TeamsView() {
   const account = useAuthUser()
   const store = useProjects()
@@ -123,7 +128,7 @@ export function TeamsView() {
   const teams = [...(site?.teams ?? [])].sort(
     (a, b) => Number(b.name === account?.team) - Number(a.name === account?.team) || a.name.localeCompare(b.name)
   )
-  const unassigned = (site?.people ?? []).filter((person) => !person.team)
+  const unassigned = (site?.people ?? []).filter((person) => teamsOf(person).length === 0)
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -194,8 +199,8 @@ function TeamCard({
   canManage: boolean
   onChanged: () => void
 }) {
-  const members = people.filter((person) => person.team === team.name)
-  const others = people.filter((person) => person.team !== team.name)
+  const members = people.filter((person) => teamsOf(person).includes(team.name))
+  const others = people.filter((person) => !teamsOf(person).includes(team.name))
   const activeAgents = agents.filter((agent) => members.some((member) => member._id === agent.owner_id))
 
   return (
@@ -280,12 +285,12 @@ function TeamCard({
               {
                 items: others.map((person) => ({
                   value: person._id,
-                  keywords: [person.name, person.auth_username, person.team],
+                  keywords: [person.name, person.auth_username, ...teamsOf(person)],
                   label: (
                     <span className="flex min-w-0 flex-col">
                       <span className="truncate">{person.name}</span>
                       <span className="truncate text-xs text-muted-foreground">
-                        {person.team ? `Moves from ${person.team}` : "Not on a team"}
+                        {teamsOf(person).length ? `Also on ${teamsOf(person).join(", ")}` : "Not on a team"}
                       </span>
                     </span>
                   ),

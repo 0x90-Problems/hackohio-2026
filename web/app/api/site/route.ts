@@ -134,6 +134,7 @@ export async function GET(request: Request) {
       const name = typeof user.name === "string" ? user.name : ""
       // People without a team are kept (team "") so managers can add them somewhere.
       const team = typeof user.team === "string" ? user.team : ""
+      const teams = Array.isArray(user.teams) ? user.teams.filter((name): name is string => typeof name === "string") : team ? [team] : []
       if (!_id || !auth_username || !name) return []
       return [
         {
@@ -143,6 +144,7 @@ export async function GET(request: Request) {
           ...(typeof user.role === "string" ? { role: user.role } : {}),
           ...(user.admin === true ? { admin: true } : {}),
           team,
+          teams,
         },
       ]
     }),

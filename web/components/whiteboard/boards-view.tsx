@@ -9,6 +9,7 @@ import { ActorBadge } from "@/components/actor-badge"
 import { FilesSearch } from "@/components/files/files-search"
 import { Thumbnail } from "@/components/files/thumbnail"
 import { PenToolIcon, PlusIcon } from "@/components/icons"
+import { TeamSwitcher } from "@/components/team-switcher"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -67,6 +68,7 @@ export function BoardsView() {
         </div>
         {view.kind === "ready" && (
           <div className="flex flex-wrap gap-2">
+            <TeamSwitcher />
             <FilesSearch type="whiteboard" label="Search whiteboards" onPick={(hit) => openBoard(hit.id)} />
             <Button onClick={() => setCreating(true)}>
               <PlusIcon data-icon="inline-start" aria-hidden="true" />

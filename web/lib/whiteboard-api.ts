@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { readSession } from "@/lib/board-auth"
 import type { Folder } from "@/lib/folders-api"
+import { teamFetch } from "@/lib/team-choice"
 
 // Client for whiteboards (proxied at /api/wb/* to /wb/v1/*). Field names match the
 // whiteboard service: docs/whiteboard-plan.md in Buc2AgentTerraform.
@@ -47,7 +48,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; ke
   if (init.body !== undefined) headers["content-type"] = "application/json"
   let response: Response
   try {
-    response = await fetch(`/api/wb/${path}`, {
+    response = await teamFetch(`/api/wb/${path}`, {
       method: init.method ?? "GET",
       headers,
       cache: "no-store",

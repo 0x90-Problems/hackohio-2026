@@ -1,6 +1,7 @@
 "use client"
 
 import { readSession } from "@/lib/board-auth"
+import { teamFetch } from "@/lib/team-choice"
 import type { Actor } from "@/lib/types"
 
 // Client for workspace chat (proxied at /api/workspace-chat/* to /chat/v1/*).
@@ -77,7 +78,7 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; id
   if (init.idempotencyKey) headers["idempotency-key"] = init.idempotencyKey
   let response: Response
   try {
-    response = await fetch(`/api/workspace-chat/${path}`, {
+    response = await teamFetch(`/api/workspace-chat/${path}`, {
       method: init.method ?? "GET",
       headers,
       cache: "no-store",
