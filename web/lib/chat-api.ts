@@ -45,6 +45,9 @@ export type ChatWorkspace = {
   agents: ChatPerson[]
 }
 
+// A message says only which file and version. Files says what this viewer may see of it.
+export type ChatAttachment = { file_id: string; version: number }
+
 export type ChatMessage = {
   id: string
   channel_id: string
@@ -54,6 +57,7 @@ export type ChatMessage = {
   author: Actor & { token_id?: string }
   body: string
   mentions: { type: "human" | "agent"; id: string }[]
+  attachments?: ChatAttachment[]
   created_at: string
   reply_count?: number
   last_reply_at?: string
@@ -136,10 +140,17 @@ export const chatApi = {
     call<{ messages: ChatMessage[]; more: boolean; channel: Channel }>(`channels/${seg(id)}/messages${query(opts)}`),
   thread: (id: string, rootId: string, after?: string) =>
     call<{ root: ChatMessage; replies: ChatMessage[]; more: boolean }>(`channels/${seg(id)}/threads/${seg(rootId)}${query({ after })}`),
-  post: (id: string, body: string, opts: { threadRootId?: string; idempotencyKey: string; instruction?: boolean }) =>
+  search: (id: string, q: string, before?: string) =>
+    call<{ results: ChatMessage[]; next_before: string | null; searched_back_to: string | null }>(`channels/${seg(id)}/search${query({ q, before })}`),
+  channelFolder: (id: string) => call<{ folder_id: string }>(`channels/${seg(id)}/folder`, { method: "POST", body: {} }),
+  post: (id: string, body: string, opts: { threadRootId?: string; idempotencyKey: string; instruction?: boolean; attachments?: { file_id: string; version?: number }[] }) =>
     call<{ message: ChatMessage; duplicate?: boolean; woken?: string[] }>(
       `channels/${seg(id)}/${opts.instruction ? "instruction" : "messages"}`,
-      { method: "POST", body: { body, ...(opts.threadRootId ? { thread_root_id: opts.threadRootId } : {}) }, idempotencyKey: opts.idempotencyKey }
+      {
+        method: "POST",
+        body: { body, ...(opts.threadRootId ? { thread_root_id: opts.threadRootId } : {}), ...(opts.attachments?.length ? { attachments: opts.attachments } : {}) },
+        idempotencyKey: opts.idempotencyKey,
+      }
     ),
   edit: (id: string, msgId: string, body: string) =>
     call<{ message: ChatMessage }>(`channels/${seg(id)}/messages/${seg(msgId)}`, { method: "PATCH", body: { body } }),

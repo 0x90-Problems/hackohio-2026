@@ -51,6 +51,8 @@ export {
   MessagesSquare as MessagesSquareIcon,
   MoreHorizontal as MoreHorizontalIcon,
   Moon as MoonIcon,
+  Paperclip as PaperclipIcon,
+  RefreshCw as RefreshCwIcon,
   Pencil as PencilIcon,
   PenTool as PenToolIcon,
   Workflow as WorkflowIcon,

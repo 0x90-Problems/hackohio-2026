@@ -6,6 +6,8 @@ import { toast } from "sonner"
 
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { ChannelSearch } from "@/components/chat/channel-search"
+import { AttachButton, ComposerDrafts, MessageAttachments, useComposerFiles } from "@/components/chat/chat-files"
 import {
   ArchiveIcon,
   ChevronLeftIcon,
@@ -563,6 +565,7 @@ function ChannelPane({
           </Badge>
         ) : null}
         <div className="ml-auto flex items-center gap-1">
+          <ChannelSearch channelId={channel.id} channelName={channelLabel(channel)} onOpen={onThread} />
           {member ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -752,6 +755,7 @@ function MessageRow({
   const [draft, setDraft] = useState(message.body)
   const own = message.author.type !== "agent" && message.author.id === me?._id
   const created = new Date(message.created_at)
+  const files = message.attachments ?? []
 
   const save = async () => {
     try {
@@ -772,7 +776,7 @@ function MessageRow({
       <div className="flex flex-col gap-2">
         <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} aria-label="Edit message" className="min-h-16" />
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => void save()} disabled={!draft.trim()}>
+          <Button size="sm" onClick={() => void save()} disabled={!draft.trim() && !files.length}>
             Save
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
@@ -781,7 +785,7 @@ function MessageRow({
         </div>
       </div>
     )
-  else body = <MessageBody text={message.body} directory={directory} />
+  else body = message.body || !files.length ? <MessageBody text={message.body} directory={directory} /> : null
 
   return (
     <article
@@ -809,6 +813,7 @@ function MessageRow({
         ) : null}
       </div>
       {body}
+      {files.length && !message.deleted_at ? <MessageAttachments attachments={files} /> : null}
       {!inThread && message.reply_count ? (
         <button type="button" onClick={onThread} className="self-start text-xs font-medium hover:underline">
           {message.reply_count} {message.reply_count === 1 ? "reply" : "replies"}
@@ -884,6 +889,11 @@ function Composer({
   const [highlight, setHighlight] = useState(0)
   const key = useRef(newKey())
   const box = useRef<HTMLTextAreaElement>(null)
+  // Different files make a different message, so a retry key from before no longer applies.
+  const files = useComposerFiles(channel.id, useCallback(() => {
+    key.current = newKey()
+  }, []))
+  const canSend = (Boolean(text.trim()) || files.ready.length > 0) && !files.busy && !sending
 
   // @ autocomplete: people and agents on the team. Inserted as @<id>; shown as names.
   const matches = useMemo(() => {
@@ -914,12 +924,13 @@ function Composer({
 
   const send = async () => {
     const body = text.trim()
-    if (!body || sending) return
+    if (!canSend) return
     setSending(true)
     try {
-      const out = await chatApi.post(channel.id, body, { threadRootId, idempotencyKey: key.current, instruction })
+      const out = await chatApi.post(channel.id, body, { threadRootId, idempotencyKey: key.current, instruction, attachments: files.ready })
       onSent(out.message)
       setText("")
+      files.clear()
       setInstruction(false)
       key.current = newKey()
     } catch (caught) {
@@ -951,6 +962,7 @@ function Composer({
           ))}
         </ul>
       ) : null}
+      <ComposerDrafts drafts={files.drafts} onRemove={files.remove} />
       <Textarea
         ref={box}
         value={text}
@@ -986,13 +998,16 @@ function Composer({
         }}
       />
       <div className="mt-2 flex items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Checkbox checked={instruction} onCheckedChange={(value) => setInstruction(value === true)} />
-          Send as an instruction for agents
-        </label>
+        <div className="flex min-w-0 items-center gap-2">
+          <AttachButton onUpload={files.upload} onPick={files.pick} chosen={new Set(files.ready.map((file) => file.file_id))} />
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox checked={instruction} onCheckedChange={(value) => setInstruction(value === true)} />
+            Send as an instruction for agents
+          </label>
+        </div>
         <div className="flex items-center gap-2">
-          <span className="hidden text-xs text-muted-foreground sm:inline">Enter to send, Shift+Enter for a new line</span>
-          <Button size="sm" onClick={() => void send()} disabled={!text.trim() || sending}>
+          <span className={cn("hidden text-xs text-muted-foreground", !threadRootId && "sm:inline")}>Enter to send, Shift+Enter for a new line</span>
+          <Button size="sm" onClick={() => void send()} disabled={!canSend}>
             Send
           </Button>
         </div>
@@ -1035,7 +1050,10 @@ function ThreadPane({
 
   usePoll(() => void load(), [load], connected)
   usePushes(live, channel.id, load, KICK_GAP_MS)
-  useEffect(() => endRef.current?.scrollIntoView({ block: "end" }), [data?.replies.length])
+  // Braces matter: scrollIntoView now returns a Promise in Chrome, and an effect may only return a cleanup.
+  useEffect(() => {
+    void endRef.current?.scrollIntoView({ block: "end" })
+  }, [data?.replies.length])
 
   return (
     <aside
