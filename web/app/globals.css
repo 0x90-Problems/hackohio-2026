@@ -186,6 +186,12 @@
 }
 
 /* Documents editor (components/docs/document-view.tsx) */
+.nutshell-mermaid { display: flex; justify-content: center; overflow-x: auto; padding: 0.75rem; border: 1px solid var(--border); border-radius: 0.5rem; background: var(--background); }
+.nutshell-doc[contenteditable="true"] .nutshell-mermaid { cursor: pointer; }
+.nutshell-mermaid svg { max-width: 100%; height: auto; }
+.nutshell-mermaid-note { font-size: 0.875rem; color: var(--muted-foreground); }
+.nutshell-mermaid-error { font-size: 0.875rem; color: var(--destructive); }
+.nutshell-mermaid-source { display: none; }
 .nutshell-doc { outline: none; min-height: 50vh; line-height: 1.65; font-size: 1rem; }
 .nutshell-doc > * + * { margin-top: 0.75em; }
 .nutshell-doc h1 { font-size: 1.75rem; font-weight: 600; line-height: 1.25; margin-top: 1.2em; }
