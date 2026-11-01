@@ -38,6 +38,19 @@ export type Version = {
   body?: string
 }
 
+// What this viewer may know of a file attached in chat. Off limits, trashed and missing all
+// come back the same: only the id, the version asked for and available: false.
+export type ResolvedFile = {
+  file_id: string
+  version?: number | null
+  available: boolean
+  name?: string
+  type?: Folder["type"]
+  content_type?: string
+  size?: number
+  current_version?: number
+}
+
 export type UploadState = { status: "waiting_for_upload" | "scanning" | "committed"; file?: Folder; version?: number }
 
 export type Workspace = { ws_id: string; team_name: string; teams?: string[]; role: "owner" | "member"; root_id: string }
@@ -107,6 +120,7 @@ export const foldersApi = {
   listTrash: () => call<{ items: Folder[] }>("trash"),
 
   // Files and notes
+  resolveFiles: (items: { file_id: string; version: number }[]) => call<{ items: ResolvedFile[] }>("files/resolve", { method: "POST", body: { items } }),
   versions: (id: string) => call<{ items: Version[] }>(`files/${seg(id)}/versions`),
   link: (id: string, version?: number, inline = false) =>
     call<{ url: string; version: number; inline?: boolean }>(

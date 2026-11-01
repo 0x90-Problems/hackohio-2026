@@ -28,6 +28,8 @@ export type SearchItem = {
   // What the row shows
   label: React.ReactNode
   onSelect: () => void
+  // Stay open after choosing this, e.g. "Search older messages".
+  keepOpen?: boolean
 }
 
 export type SearchGroup = { heading?: string; items: SearchItem[] }
@@ -93,7 +95,7 @@ export function SearchCombobox({
                         value={item.value}
                         keywords={item.keywords}
                         onSelect={() => {
-                          setOpen(false)
+                          if (!item.keepOpen) setOpen(false)
                           item.onSelect()
                         }}
                       >

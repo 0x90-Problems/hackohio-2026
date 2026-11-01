@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import type { Metadata } from "next"
 
+import { AttachmentsProvider } from "@/components/chat/chat-files"
 import { ChatView } from "@/components/chat/chat-view"
 import { pageTitle } from "@/lib/brand"
 
@@ -12,7 +13,9 @@ export const metadata: Metadata = {
 export default function ChatPage() {
   return (
     <Suspense>
-      <ChatView />
+      <AttachmentsProvider>
+        <ChatView />
+      </AttachmentsProvider>
     </Suspense>
   )
 }
