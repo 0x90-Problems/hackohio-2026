@@ -238,8 +238,10 @@ export function mergeBoardRecords(
     if (!agent || !id) return []
     return [{ _id: id, name: text(agent.name) }]
   })
-  const team = users.find((user) => user.team)?.team
-    ?? list(collections.projects).map(record).find((project) => text(project?.team))?.team as string | undefined
+  // Projects don't store a team yet, so they all sit under the organization's one team. Never
+  // take this from a user: whoever is first in the list would decide which team every project
+  // appears on, and the Projects page would hide them all if that's not the team it shows.
+  const team = list(collections.projects).map(record).find((project) => text(project?.team))?.team as string | undefined
     ?? TEAM
 
   const projects = new Map<string, Project>()
