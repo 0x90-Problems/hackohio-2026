@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     kind?: string
     key?: string
     projectKey?: string
-    project?: { name: string; key: string; template?: string }
+    project?: { name: string; key: string; template?: string; team?: string }
     ticket?: {
       key?: string
       title: string
@@ -79,6 +79,7 @@ export async function POST(request: Request) {
       name: body.project.name,
       key: body.project.key,
       template: body.project.template ?? "blank",
+      ...(body.project.team ? { team: body.project.team } : {}),
     })
   }
   if (body.kind === "createTicket" && body.ticket) {
