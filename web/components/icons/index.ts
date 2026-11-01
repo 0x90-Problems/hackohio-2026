@@ -53,6 +53,7 @@ export {
   Moon as MoonIcon,
   Pencil as PencilIcon,
   PenTool as PenToolIcon,
+  Workflow as WorkflowIcon,
   Plus as PlusIcon,
   Search as SearchIcon,
   Settings as SettingsIcon,

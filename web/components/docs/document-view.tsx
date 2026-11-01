@@ -13,6 +13,7 @@ import { TaskItem, TaskList } from "@tiptap/extension-list"
 
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { PageBreak, PageLink, PaperPages, setPaperLayout } from "@/components/docs/doc-extensions"
+import { MermaidBlock } from "@/components/docs/mermaid-block"
 import { EditorToolbar } from "@/components/docs/editor-toolbar"
 import { Backlinks, PagePicker } from "@/components/docs/page-picker"
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, LockIcon, PlusIcon, PrinterIcon, WifiIcon, WifiOffIcon } from "@/components/icons"
@@ -276,6 +277,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
         PageLink,
         PageBreak,
         PaperPages,
+        MermaidBlock,
         Markdown,
         Collaboration.configure({ document: provider.doc }),
         CollaborationCaret.configure({
