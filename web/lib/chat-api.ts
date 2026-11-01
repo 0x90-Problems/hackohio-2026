@@ -22,6 +22,10 @@ export type Channel = {
   paused: boolean
   last_msg_id?: string | null
   last_read_msg_id?: string | null
+  // Present when there's something unread, except past the server's per-request limit.
+  unread_count?: number
+  mention_count?: number
+  unread_capped?: boolean
   role?: "member" | "manager"
   members?: (ChatPerson & { role?: string })[]
   created_at?: string
@@ -58,6 +62,8 @@ export type ChatMessage = {
   hidden?: boolean
   hidden_reason?: string
 }
+
+export type ChannelUnread = { id: string; kind: ChannelKind; unread_count: number; mention_count: number; unread_capped?: boolean }
 
 export class ChatError extends Error {
   constructor(
@@ -112,6 +118,8 @@ export const chatApi = {
     }
   },
   workspace: () => call<ChatWorkspace>("workspace"),
+  unread: () => call<{ channels: ChannelUnread[] }>("unread"),
+  liveSession: () => call<{ url: string; protocols: string[]; expires_in: number }>("live/session", { method: "POST", body: {} }),
   channel: (id: string) => call<Channel>(`channels/${seg(id)}`),
   createChannel: (input: { name: string; visibility: "public" | "private"; topic?: string; section_id?: string | null }) =>
     call<Channel>("channels", { method: "POST", body: input }),
@@ -149,6 +157,11 @@ export const chatApi = {
 /** A channel has something unread when its newest message is past my read pointer. */
 export function isUnread(channel: Channel): boolean {
   return Boolean(channel.last_msg_id && (!channel.last_read_msg_id || channel.last_msg_id > channel.last_read_msg_id))
+}
+
+/** What deserves a badge: mentions, and everything in a DM (it was sent to you). */
+export function attentionCount(channel: { kind: ChannelKind; unread_count?: number; mention_count?: number }): number {
+  return channel.kind === "text" ? (channel.mention_count ?? 0) : (channel.unread_count ?? 0)
 }
 
 export function principalOf(person: Pick<ChatPerson, "type" | "id">): string {

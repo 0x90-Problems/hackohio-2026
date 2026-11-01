@@ -10,7 +10,7 @@ export const revalidate = 0
 // (/api/chat is Nutty, the board assistant.)
 const ID = "[A-Za-z0-9_-]+"
 const ALLOWED = new RegExp(
-  `^(health|workspace(/(pause|resume)-agents)?|sections(/${ID})?|me/sections|dms|channels(/${ID}(/(archive|join|members|read|pause|resume|instruction|messages(/${ID}(/hide)?)?|threads/${ID}))?)?)$`
+  `^(health|unread|live/session|workspace(/(pause|resume)-agents)?|sections(/${ID})?|me/sections|dms|channels(/${ID}(/(archive|join|members|read|pause|resume|instruction|messages(/${ID}(/hide)?)?|threads/${ID}))?)?)$`
 )
 
 async function forward(request: Request, ctx: RouteContext<"/api/workspace-chat/[...path]">) {
