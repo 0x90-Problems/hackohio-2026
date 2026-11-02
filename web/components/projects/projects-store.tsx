@@ -19,7 +19,7 @@ import {
   CURRENT_USER_ID,
   projectKeyOf,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
+import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectArchived, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
 import { readStorage } from "@/lib/local-store"
 import {
@@ -361,13 +361,21 @@ function useProjectsState() {
     })
   }
 
-  function archiveProject(key: string, archived: boolean) {
+  async function archiveProject(key: string, archived: boolean) {
     const project = projects.find((item) => item.key === key)
     if (!project) return
-    const next = { ...project, archived }
-    setProjects((current) => current.map((item) => (item.key === key ? next : item)))
-    saveProject(next)
-    toast.success(archived ? `Archived ${project.name}` : `Restored ${project.name}`)
+    const setArchived = (value: boolean | undefined) =>
+      setProjects((current) => current.map((item) => (item.key === key ? { ...item, archived: value } : item)))
+    setArchived(archived)
+    try {
+      await saveProjectArchived(key, archived)
+      toast.success(archived ? `Archived ${project.name}` : `Restored ${project.name}`)
+    } catch (error) {
+      setArchived(project.archived)
+      toast.error(archived ? `Couldn't archive ${project.name}` : `Couldn't restore ${project.name}`, {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    }
   }
 
   function dropProject(key: string) {
