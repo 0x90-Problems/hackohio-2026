@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     key?: string
     team?: string
     archived?: boolean
+    columns?: { slug: string; name: string; color: string }[]
+    moveTicketsTo?: string
     projectKey?: string
     project?: { name: string; key: string; template?: string; team?: string }
     ticket?: {
@@ -81,6 +83,12 @@ export async function POST(request: Request) {
   }
   if (body.kind === "projectArchived" && body.key && typeof body.archived === "boolean") {
     return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { archived: body.archived })
+  }
+  if (body.kind === "projectColumns" && body.key && body.columns) {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", {
+      columns: body.columns,
+      ...(body.moveTicketsTo ? { move_tickets_to: body.moveTicketsTo } : {}),
+    })
   }
   if (body.kind === "project" && body.project) {
     return forward("/projects", "POST", {

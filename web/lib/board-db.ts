@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
 import { mergeBoardRecords } from "@/lib/board-merge"
-import type { Agent, Comment, Event, Project, Ticket } from "@/lib/types"
+import type { Agent, Category, Comment, Event, Project, Ticket } from "@/lib/types"
 
 export type BoardRecords = {
   projects: Project[]
@@ -108,6 +108,24 @@ export async function saveProjectArchived(key: string, archived: boolean) {
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
     throw new Error(body?.error?.message ?? "Could not save the project")
+  }
+}
+
+export async function saveProjectColumns(key: string, categories: Category[], moveTicketsTo?: string) {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({
+      kind: "projectColumns",
+      key,
+      columns: categories.map(({ slug, name, color }) => ({ slug, name, color })),
+      ...(moveTicketsTo ? { moveTicketsTo } : {}),
+    }),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? "Could not save the columns")
   }
 }
 
