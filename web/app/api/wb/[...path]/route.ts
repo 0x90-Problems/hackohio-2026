@@ -7,7 +7,7 @@ export const revalidate = 0
 
 // Whiteboards live on the whiteboard service under /wb/v1/*. Only those paths are
 // proxied, with the caller's own bearer; the whiteboard API authorizes every call.
-const ALLOWED = /^(health|boards\/wbd_[A-Za-z0-9]+(\/(session|elements|settings|agents|undo-agent))?)$/
+const ALLOWED = /^(health|boards\/wbd_[A-Za-z0-9]+(\/(session|elements|settings|agents|undo-agent|save|autosave|restore))?)$/
 
 async function forward(request: Request, ctx: RouteContext<"/api/wb/[...path]">) {
   const { path } = await ctx.params
