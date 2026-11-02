@@ -51,6 +51,8 @@ export function usePersistentState<T>(key: string, initial: T) {
 
   useEffect(() => {
     const saved = readStorage<T>(key)
+    // Only after mount, so the first render matches the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved !== undefined) setValue(saved)
     setReady(true)
   }, [key])
