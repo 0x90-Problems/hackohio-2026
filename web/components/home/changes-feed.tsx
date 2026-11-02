@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+
 import type { Event } from "@/lib/types"
 import { describeEvent, eventId, timeAgo } from "@/lib/format"
 import { useProjects } from "@/components/projects/projects-store"
@@ -21,7 +23,7 @@ const DAY_MS = 24 * 60 * 60 * 1000
 
 export function ChangesFeed() {
   const store = useProjects()
-  const now = Date.now()
+  const [now] = useState(() => Date.now()) // new events still show; old ones drop off on the next load
   const rows: Row[] = store.activity
     .filter((event) => now - event.created_at.getTime() <= DAY_MS)
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
