@@ -98,6 +98,19 @@ export async function saveProjectTeam(key: string, team: string) {
   }
 }
 
+export async function saveProjectArchived(key: string, archived: boolean) {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ kind: "projectArchived", key, archived }),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? "Could not save the project")
+  }
+}
+
 export async function removeTicketRecord(key: string) {
   const response = await fetch("/api/board", {
     method: "POST",

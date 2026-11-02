@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     kind?: string
     key?: string
     team?: string
+    archived?: boolean
     projectKey?: string
     project?: { name: string; key: string; template?: string; team?: string }
     ticket?: {
@@ -77,6 +78,9 @@ export async function POST(request: Request) {
   }
   if (body.kind === "projectTeam" && body.key && body.team) {
     return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { team: body.team })
+  }
+  if (body.kind === "projectArchived" && body.key && typeof body.archived === "boolean") {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { archived: body.archived })
   }
   if (body.kind === "project" && body.project) {
     return forward("/projects", "POST", {
