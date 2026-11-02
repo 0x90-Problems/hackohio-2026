@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { IMAGE_TYPES } from "@/components/files/thumbnail"
 import { absoluteTime } from "@/lib/format"
 import { type Folder, FoldersError, foldersApi, type Version } from "@/lib/folders-api"
 
@@ -219,6 +220,74 @@ function VersionList({
 }
 
 // One uploaded file: its history, downloads, a new version, or restoring an old one.
+const PREVIEW_TEXT_TYPES = ["text/plain", "text/markdown", "text/csv", "application/json"]
+
+// What the file looks like before downloading it. Other types just have Download.
+function FilePreview({ node }: { node: Folder }) {
+  const type = node.content_type ?? ""
+  const isImage = IMAGE_TYPES.includes(type)
+  const isText = PREVIEW_TEXT_TYPES.includes(type)
+  const [image, setImage] = useState<string | null>(null)
+  const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    if (isImage) {
+      foldersApi
+        .link(node.id, undefined, true)
+        .then((link) => !cancelled && setImage(link.url))
+        .catch(() => !cancelled && setFailed(true))
+    } else if (isText) {
+      foldersApi
+        .content(node.id)
+        .then((content) => !cancelled && setText({ body: content.text, truncated: content.truncated }))
+        .catch(() => !cancelled && setFailed(true))
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [node.id, isImage, isText])
+
+  async function openPdf() {
+    // Opens in the browser's own PDF viewer, on the storage domain (never ours).
+    const viewer = window.open("about:blank", "_blank")
+    try {
+      const link = await foldersApi.link(node.id, undefined, true)
+      if (viewer) {
+        viewer.opener = null
+        viewer.location.href = link.url
+      }
+    } catch {
+      viewer?.close()
+    }
+  }
+
+  if (type === "application/pdf") {
+    return (
+      <Button variant="outline" className="self-start" onClick={() => void openPdf()}>
+        Open preview
+      </Button>
+    )
+  }
+  if (!isImage && !isText) return null
+  if (failed) return <p className="text-sm text-muted-foreground">No preview available.</p>
+  if (isImage) {
+    if (image === null) return <Skeleton className="aspect-video w-full" />
+    // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static asset
+    return <img src={image} alt={`Preview of ${node.name}`} className="max-h-[50dvh] w-full rounded-lg border object-contain" />
+  }
+  if (text === null) return <Skeleton className="h-40 w-full" />
+  return (
+    <div className="flex flex-col gap-1">
+      <pre className="max-h-[40dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
+        {text.body || <span className="text-muted-foreground">This file is empty.</span>}
+      </pre>
+      {text.truncated && <p className="text-xs text-muted-foreground">Showing the first 256 KB.</p>}
+    </div>
+  )
+}
+
 export function FilePanel({
   file,
   canEdit,
@@ -285,6 +354,7 @@ export function FilePanel({
             {node.size !== undefined ? ` · ${nodeSize(node.size)}` : ""}. Every upload is checked before anyone can download it.
           </DialogDescription>
         </DialogHeader>
+        <FilePreview key={node.current_version} node={node} />
         <VersionList
           versions={versions}
           current={node.current_version}
