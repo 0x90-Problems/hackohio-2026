@@ -84,6 +84,20 @@ export function removeProject(key: string) {
     .catch(report)
 }
 
+// Throws with the board's message (e.g. "Only this team's managers or an org admin can do that").
+export async function saveProjectTeam(key: string, team: string) {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ kind: "projectTeam", key, team }),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? "Could not move the project")
+  }
+}
+
 export async function removeTicketRecord(key: string) {
   const response = await fetch("/api/board", {
     method: "POST",

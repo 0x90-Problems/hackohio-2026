@@ -217,7 +217,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                 },
               ]}
             />
-            <ProjectActions project={project} onDeleted={() => router.push("/projects")} />
+            <ProjectActions project={project} onGone={() => router.push("/projects")} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             {/* Find a ticket by id, title or tag; grouped by column */}

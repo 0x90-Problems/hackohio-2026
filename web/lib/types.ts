@@ -63,6 +63,8 @@ export type Project = {
   name: string
   description?: string
   team: string
+  // The board has no team for it, so `team` above is only where it's listed
+  unassigned?: boolean
   template?: ProjectTemplate
   layout?: ProjectLayout
   // Extra columns on a table layout, such as Iteration or Estimate

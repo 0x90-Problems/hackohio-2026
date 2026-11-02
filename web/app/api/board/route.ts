@@ -26,6 +26,7 @@ export async function POST(request: Request) {
   let body: {
     kind?: string
     key?: string
+    team?: string
     projectKey?: string
     project?: { name: string; key: string; template?: string; team?: string }
     ticket?: {
@@ -73,6 +74,9 @@ export async function POST(request: Request) {
   }
   if (body.kind === "deleteTicket" && body.key) {
     return forward(`/tickets/${encodeURIComponent(body.key)}`, "DELETE")
+  }
+  if (body.kind === "projectTeam" && body.key && body.team) {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { team: body.team })
   }
   if (body.kind === "project" && body.project) {
     return forward("/projects", "POST", {

@@ -19,7 +19,7 @@ import {
   CURRENT_USER_ID,
   projectKeyOf,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveTicket, saveTicketQuiet } from "@/lib/board-db"
+import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
 import { readStorage } from "@/lib/local-store"
 import {
@@ -195,7 +195,7 @@ function useProjectsState() {
         if (cancelled) return
         setProjects((current) => {
           const known = new Set(current.map((project) => project.key))
-          const added = remote.projects.filter((project) => !known.has(project.key)).map(withTemplateShape)
+          const added = remote.projects.filter((project) => !known.has(project.key) && !gone.current.has(project.key)).map(withTemplateShape)
           return added.length > 0 ? [...current, ...added] : current
         })
         setTickets((current) => {
@@ -370,14 +370,42 @@ function useProjectsState() {
     toast.success(archived ? `Archived ${project.name}` : `Restored ${project.name}`)
   }
 
-  function deleteProject(key: string) {
-    const project = projects.find((item) => item.key === key)
-    if (!project) return
+  function dropProject(key: string) {
     const belongs = (ticketKey: string) => projectKeyOf(ticketKey) === key
     setProjects((current) => current.filter((item) => item.key !== key))
     setTickets((current) => current.filter((ticket) => !belongs(ticket.key)))
     setComments((current) => current.filter((comment) => !belongs(comment.ticket_key)))
     setActivity((current) => current.filter((event) => event.project_key !== key && !belongs(event.ticket_key)))
+  }
+
+  // Waits for the board and throws with its message, so the dialog can show it.
+  // `losesAccess`: the board stops showing this person the project once it moves.
+  async function moveProject(key: string, team: string, losesAccess: boolean) {
+    const project = projects.find((item) => item.key === key)
+    if (!project) return
+    await saveProjectTeam(key, team)
+    if (losesAccess) {
+      // A refresh already on its way could bring it back.
+      gone.current.add(key)
+      ticketsRef.current.filter((ticket) => projectKeyOf(ticket.key) === key).forEach((ticket) => gone.current.add(ticket.key))
+      dropProject(key)
+    } else {
+      setProjects((current) =>
+        current.map((item) => {
+          if (item.key !== key) return item
+          const next = { ...item, team }
+          delete next.unassigned
+          return next
+        })
+      )
+    }
+    toast.success(`Moved ${project.name} to ${team}`)
+  }
+
+  function deleteProject(key: string) {
+    const project = projects.find((item) => item.key === key)
+    if (!project) return
+    dropProject(key)
     void removeProject(key)
     toast.success(`Deleted ${project.name}`)
   }
@@ -805,6 +833,7 @@ function useProjectsState() {
     tagsOf,
     createProject,
     archiveProject,
+    moveProject,
     deleteProject,
     createTicket,
     moveTicket,
