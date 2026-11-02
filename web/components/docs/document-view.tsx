@@ -23,9 +23,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { colorFor, LiveProvider, type LiveStatus } from "@/lib/docs-live"
+import { mergeLines, missingVersions } from "@/lib/docs-merge"
 import { type Crumb, type Folder, FoldersError, foldersApi } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
 
+const SAVED_CHECK_MS = 30_000
 const AUTOSAVE_MS = 2 * 60_000
 const VIEW_KEY = "nutshell.docs.view"
 const INCH = 96
@@ -227,6 +229,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
   const [readOnly, setReadOnly] = useState(!loaded.canEdit)
   const [note, setNote] = useState(loaded.note)
   const [saving, setSaving] = useState(false)
+  // A version saved outside the editor that overlaps edits made here: someone has to choose.
+  const [overlap, setOverlap] = useState<{ version: number; body: string } | null>(null)
   const dirty = useRef(false)
   const provider = useMemo(() => new LiveProvider(loaded.note.id), [loaded.note.id])
   const live = status !== "off"
@@ -307,6 +311,16 @@ function Editor({ loaded }: { loaded: Loaded }) {
     [provider]
   )
 
+  // The newest saved version the live copy includes. Lives in the document so everyone agrees.
+  const markApplied = useCallback(
+    (version: number) => {
+      const wasDirty = dirty.current
+      provider.doc.getMap<string>("document").set("applied_version", String(version))
+      dirty.current = wasDirty // bookkeeping, not an edit worth a new version
+    },
+    [provider]
+  )
+
   // Connect once the editor is bound to the document, then follow the relay.
   useEffect(() => {
     if (!editor) return
@@ -318,6 +332,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
       // Exactly one browser loads the saved markdown into an empty live page.
       provider.on("seed", () => {
         if (loaded.body.trim()) editor.commands.setContent(loaded.body, { contentType: "markdown" })
+        markApplied(loaded.note.current_version ?? 0)
       }),
     ]
     provider.doc.on("update", () => {
@@ -325,7 +340,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
     })
     void provider.connect()
     return () => offs.forEach((off) => off())
-  }, [editor, provider, loaded.body, loaded.canEdit])
+  }, [editor, provider, loaded.body, loaded.note.current_version, loaded.canEdit, markApplied])
 
   // Live editing off (switched off or unavailable): edit the saved markdown directly.
   useEffect(() => {
@@ -369,6 +384,36 @@ function Editor({ loaded }: { loaded: Loaded }) {
     setPaperLayout(editor, view === "pages" ? { contentHeight: sheet.height - MARGIN * 2, gap: MARGIN * 2 + SHEET_GAP, onPages: setPages } : null)
   }, [editor, view, sheet.height])
 
+  // Bring in a version saved outside the editor (an agent's update_note, a restore). The
+  // live copy is what people see, so it would stay invisible, and the next save would bury it.
+  // True when it overlaps edits made here and someone has to choose.
+  const bringInSaved = useCallback(async () => {
+    if (!editor) return false
+    const applied = Number(provider.doc.getMap<string>("document").get("applied_version") ?? 0)
+    const { items } = await foldersApi.versions(loaded.note.id)
+    const missing = missingVersions(items, applied)
+    if (!missing) {
+      const newest = Math.max(0, ...items.map((v) => v.version))
+      if (newest > applied) markApplied(newest)
+      return false
+    }
+    const [base, latest] = await Promise.all([foldersApi.readNote(loaded.note.id, missing.base), foldersApi.readNote(loaded.note.id, missing.latest)])
+    // Compare what the editor would write, so formatting differences don't look like edits.
+    const manager = editor.markdown
+    const tidy = (text: string) => (manager ? manager.serialize(manager.parse(text)) : text)
+    const theirs = tidy(latest.body ?? "")
+    const merged = mergeLines(tidy(base.body ?? ""), tidy(editor.getMarkdown()), theirs)
+    setNote(latest.note)
+    if (merged === null) {
+      setOverlap({ version: missing.latest, body: theirs })
+      return true
+    }
+    editor.commands.setContent(merged, { contentType: "markdown" })
+    markApplied(missing.latest)
+    toast.info("Updated with a version saved outside this editor")
+    return false
+  }, [editor, provider, loaded.note.id, markApplied])
+
   const save = useCallback(
     async (reason?: string) => {
       if (!editor) return
@@ -380,6 +425,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
         } catch (error) {
           // Someone else (or an agent) saved first: base on the newest version and try once more.
           if (!(error instanceof FoldersError && error.code === "version_conflict")) throw error
+          // Autosave waits while someone chooses; pressing Save version means this text.
+          if (live && (await bringInSaved()) && reason === "autosave") return
           const fresh = await foldersApi.readNote(note.id)
           current = await foldersApi.updateNote(fresh.note, editor.getMarkdown(), reason)
         }
@@ -392,17 +439,35 @@ function Editor({ loaded }: { loaded: Loaded }) {
         setSaving(false)
       }
     },
-    [editor, note]
+    [editor, note, live, bringInSaved]
   )
 
   // One browser in the room writes an autosave version every couple of minutes while there are changes.
   useEffect(() => {
     if (!live || readOnly) return
     const timer = setInterval(() => {
-      if (dirty.current && provider.isSaver()) void save("autosave")
+      if (dirty.current && !overlap && provider.isSaver()) void save("autosave")
     }, AUTOSAVE_MS)
     return () => clearInterval(timer)
-  }, [live, readOnly, provider, save])
+  }, [live, readOnly, overlap, provider, save])
+
+  // One browser in the room watches for versions saved outside the editor, starting straight away.
+  useEffect(() => {
+    if (status !== "live" || readOnly || overlap) return
+    const check = () => {
+      if (provider.isSaver()) void bringInSaved().catch(() => undefined) // the next check retries
+    }
+    check()
+    const timer = setInterval(check, SAVED_CHECK_MS)
+    return () => clearInterval(timer)
+  }, [status, readOnly, overlap, provider, bringInSaved])
+
+  function settleOverlap(useTheirs: boolean) {
+    if (!overlap || !editor) return
+    if (useTheirs) editor.commands.setContent(overlap.body, { contentType: "markdown" })
+    markApplied(overlap.version)
+    setOverlap(null)
+  }
 
   return (
     <div className={cn("mx-auto flex w-full flex-col gap-4 px-6 py-6", view === "pages" ? "max-w-[60rem]" : "max-w-3xl")}>
@@ -453,6 +518,19 @@ function Editor({ loaded }: { loaded: Loaded }) {
           ) : null}
         </div>
       </header>
+      {overlap ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm print:hidden">
+          <p>Version {overlap.version} was saved outside this editor and changes the same part as edits made here. It stays in the version history either way.</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => settleOverlap(false)}>
+              Keep this text
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => settleOverlap(true)}>
+              Use version {overlap.version}
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <p className="text-xs text-muted-foreground">
           Version {note.current_version}
