@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { ArchiveIcon, MoreHorizontalIcon, Trash2Icon } from "@/components/icons"
+import { ArchiveIcon, ArrowRightIcon, MoreHorizontalIcon, Trash2Icon } from "@/components/icons"
 
 import type { Project } from "@/lib/types"
+import { MoveProjectDialog, useProjectMove } from "@/components/projects/move-project-dialog"
 import { useProjects } from "@/components/projects/projects-store"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,13 +24,15 @@ import {
 
 export function ProjectActions({
   project,
-  onDeleted,
+  onGone,
 }: {
   project: Project
-  onDeleted?: () => void
+  onGone?: () => void
 }) {
   const { archiveProject, deleteProject } = useProjects()
+  const move = useProjectMove(project)
   const [confirming, setConfirming] = useState(false)
+  const [moving, setMoving] = useState(false)
 
   return (
     <>
@@ -44,12 +47,19 @@ export function ProjectActions({
             <ArchiveIcon aria-hidden="true" />
             {project.archived ? "Restore" : "Archive"}
           </DropdownMenuItem>
+          {move && (
+            <DropdownMenuItem onSelect={() => setMoving(true)}>
+              <ArrowRightIcon aria-hidden="true" />
+              Move to another team
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
             <Trash2Icon aria-hidden="true" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {move && <MoveProjectDialog project={project} move={move} open={moving} onOpenChange={setMoving} onLostAccess={onGone} />}
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent>
           <DialogHeader>
@@ -67,7 +77,7 @@ export function ProjectActions({
               onClick={() => {
                 deleteProject(project.key)
                 setConfirming(false)
-                onDeleted?.()
+                onGone?.()
               }}
             >
               Delete project

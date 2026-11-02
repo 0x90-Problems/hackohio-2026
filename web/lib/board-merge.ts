@@ -191,6 +191,7 @@ function projectFrom(value: unknown, team: string, users: NamedUser[], agents: N
     name: text(project.name) ?? key,
     ...(text(project.description) ? { description: text(project.description) } : {}),
     team: text(project.team) ?? team,
+    ...(text(project.team) ? {} : { unassigned: true }),
     ...(text(project.template) ? { template: text(project.template) as Project["template"] } : {}),
     layout: project.layout === "table" || project.layout === "roadmap" || project.layout === "board" ? project.layout : "board",
     fields: Array.isArray(project.fields) ? project.fields.filter((field): field is string => typeof field === "string") : [],
