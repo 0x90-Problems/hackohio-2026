@@ -30,6 +30,19 @@ export type WireElement = Record<string, unknown> & { id: string; version: numbe
 export type ElementsPage = { elements: WireElement[]; seq: number; next_since: number | null }
 export type SendResult = { accepted: WireElement[]; stale: WireElement[]; seq: number; first?: number }
 
+export type SaveResult = { saved: boolean; unchanged?: boolean; version?: number; seq: number }
+export type AutosaveResult = { saved: boolean; dirty?: boolean; due_in?: number; version?: number; seq: number }
+export type RestoreResult = {
+  done: boolean
+  restored: number
+  remaining: number
+  through_seq: number
+  from_version: number
+  seq: number
+  before_version?: number // the version holding what was there before
+  version?: number // the version recording this restore
+}
+
 export class WhiteboardError extends Error {
   constructor(
     readonly code: string,
@@ -67,6 +80,9 @@ async function call<T>(path: string, init: { method?: string; body?: unknown; ke
 
 const seg = encodeURIComponent
 
+const RESTORE_TRIES = 4
+const RESTORE_RETRY_MS = 2_000
+
 export const whiteboardApi = {
   async enabled(): Promise<boolean> {
     try {
@@ -84,6 +100,32 @@ export const whiteboardApi = {
   agents: (id: string) => call<{ agents: AgentActivity[] }>(`boards/${seg(id)}/agents`),
   undoAgent: (id: string, agentId: string) =>
     call<{ undone: number; skipped: number; seq: number }>(`boards/${seg(id)}/undo-agent`, { method: "POST", body: { agent_id: agentId } }),
+  save: (id: string, change: { reason?: string; base_version?: number }) => call<SaveResult>(`boards/${seg(id)}/save`, { method: "POST", body: change }),
+  autosave: (id: string) => call<AutosaveResult>(`boards/${seg(id)}/autosave`, { method: "POST", body: {} }),
+  /** Restore a version. A large board takes several calls; each one only writes what still differs. */
+  async restore(id: string, version: number, onProgress?: (remaining: number) => void): Promise<RestoreResult> {
+    let through: number | undefined
+    let before: number | undefined
+    let restored = 0
+    for (let failures = 0; ; ) {
+      let page: RestoreResult
+      try {
+        page = await call<RestoreResult>(`boards/${seg(id)}/restore`, { method: "POST", body: { version, ...(through !== undefined ? { through_seq: through } : {}) } })
+      } catch (error) {
+        const passing = error instanceof WhiteboardError && (error.status === 0 || error.status === 429 || error.status >= 500)
+        // Only retry once the first page has landed: that one also makes the safety copy.
+        if (!passing || through === undefined || ++failures >= RESTORE_TRIES) throw error
+        await new Promise((resolve) => setTimeout(resolve, RESTORE_RETRY_MS * failures))
+        continue
+      }
+      failures = 0
+      through = page.through_seq
+      before ??= page.before_version
+      restored += page.restored
+      if (page.done) return { ...page, restored, ...(before !== undefined ? { before_version: before } : {}) }
+      onProgress?.(page.remaining)
+    }
+  },
 }
 
 // Whiteboards ship behind whiteboard.enabled; ask once per page load.
