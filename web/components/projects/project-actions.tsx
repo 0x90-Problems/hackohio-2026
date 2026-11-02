@@ -50,7 +50,7 @@ export function ProjectActions({
           {move && (
             <DropdownMenuItem onSelect={() => setMoving(true)}>
               <ArrowRightIcon aria-hidden="true" />
-              Move to another team
+              Change team
             </DropdownMenuItem>
           )}
           <DropdownMenuItem variant="destructive" onSelect={() => setConfirming(true)}>
