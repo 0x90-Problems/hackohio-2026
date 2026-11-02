@@ -4,6 +4,7 @@ import * as Y from "yjs"
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from "y-protocols/awareness"
 
 import { readSession } from "@/lib/board-auth"
+import { isSaverIn } from "@/lib/docs-saver"
 import { teamFetch } from "@/lib/team-choice"
 
 // Live documents: a Yjs document kept in sync through the documents relay
@@ -124,6 +125,7 @@ export class LiveProvider {
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   private retry = 0
   private closed = false
+  private canEdit = true // until the relay says; the editor doesn't save a read-only page anyway
   private who = new Map<number, Who>() // awareness client id → name from the server
   private listeners: { [K in keyof Events]: Events[K][] } = { status: [], readOnly: [], seed: [], synced: [], rejected: [] }
 
@@ -279,6 +281,8 @@ export class LiveProvider {
       return this.scheduleRetry()
     }
     this.emit("readOnly", session.read_only)
+    this.canEdit = !session.read_only
+    this.awareness.setLocalStateField("can_edit", this.canEdit) // before the socket opens, so it goes out with the first announce
     window.addEventListener("pagehide", this.sendLast)
     // A push to this window can be dropped too: look for gaps, and check now and then anyway.
     this.catchUpTimer ??= setInterval(() => {
@@ -368,10 +372,9 @@ export class LiveProvider {
     this.retryTimer = setTimeout(() => void this.connect(), RETRY_MS[Math.min(this.retry++, RETRY_MS.length - 1)])
   }
 
-  /** One browser in the room saves markdown versions: the lowest awareness id. */
+  /** One browser in the room saves markdown versions, and it has to be one that can edit. */
   isSaver() {
-    const ids = [...this.awareness.getStates().keys()]
-    return ids.length === 0 || Math.min(...ids) === this.doc.clientID
+    return isSaverIn(this.doc.clientID, this.canEdit, this.awareness.getStates())
   }
 
   destroy() {
