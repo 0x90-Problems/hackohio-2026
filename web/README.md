@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Put `BOARD_API_URL` in `web/.env.local` (AWS board HTTP API). `MONGODB_URI` is optional and unused by `/api/board` and `/api/site` after the DocDB cutover. The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the API page offers `https://hackohio-2026-eta.vercel.app/mcp`.
+Put `BOARD_API_URL` in `web/.env.local` (AWS board HTTP API). The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the API page offers `https://hackohio-2026-eta.vercel.app/mcp`.
 
 ```text
 npm test
@@ -25,7 +25,7 @@ npm run build
 
 ## Deploy
 
-Vercel builds this app. Production needs `BOARD_API_URL` pointing at the AWS board API; leave `MONGODB_URI` unset. Add AWS credentials and `BEDROCK_MODEL_ID` only when Nutty should call Amazon Nova. `BEDROCK_GUARDRAIL_ID` turns the Bedrock guardrail on.
+Vercel builds this app. Production needs `BOARD_API_URL` pointing at the AWS board API. Add AWS credentials and `BEDROCK_MODEL_ID` only when Nutty should call Amazon Nova. `BEDROCK_GUARDRAIL_ID` turns the Bedrock guardrail on.
 
 Components live in `components/`. Shared words such as scopes and status values come from `shared/names.ts` at the repository root. Import those constants instead of typing the strings.
 
