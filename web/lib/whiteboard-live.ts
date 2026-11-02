@@ -19,6 +19,9 @@ type Handlers = {
   onCursor: (connection: string, who: Who, x: number, y: number) => void
   onBoard: (settings: BoardSettings) => void
   onAgent: (who: Who, summary: string, at: { x: number; y: number } | null) => void
+  // Pushes can be lost, so nothing may depend on these arriving.
+  onSaved?: (version: number, who: Who | null, auto: boolean) => void
+  onRestored?: (version: number, savedAs: number | null, who: Who | null) => void
 }
 
 const FLUSH_MS = 100 // batch local edits
@@ -33,6 +36,7 @@ const MAX_BATCH = 50 // server limit per update
 const MAX_SOCKET_BYTES = 24 * 1024
 const MAX_KEEPALIVE_BYTES = 60 * 1024
 const RETRY_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
+const SETTLE_CHECK_MS = 50
 const NOT_RETRYABLE = ["invalid_element", "invalid_input", "too_large", "board_full", "read_only", "invalid_json"]
 
 type Message = {
@@ -54,6 +58,9 @@ type Message = {
   locked?: boolean
   agents_paused?: boolean
   agents_may_edit_all?: boolean
+  version?: number
+  saved_as?: number | null
+  auto?: boolean
 }
 
 export class BoardSync {
@@ -101,9 +108,26 @@ export class BoardSync {
     this.socket = null
   }
 
+  isClosed() {
+    return this.closed
+  }
+
   /** A local edit to send. The newest version of each shape wins while it waits. */
   queue(element: WireElement) {
     this.pending.set(element.id, element)
+  }
+
+  /**
+   * Waits until this window's edits have reached the server, so a save includes what was just
+   * drawn. Resolves false if they haven't after timeoutMs (offline, say); they'll still get there.
+   */
+  async settled(timeoutMs = 5_000): Promise<boolean> {
+    const until = Date.now() + timeoutMs
+    while (this.pending.size || this.inflight) {
+      if (this.closed || Date.now() >= until) return false
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_CHECK_MS))
+    }
+    return true
   }
 
   cursor(x: number, y: number, selected: string[]) {
@@ -304,6 +328,10 @@ export class BoardSync {
       this.on.onCursor(m.connection, m.who, m.x ?? 0, m.y ?? 0)
     } else if (m.type === "board") {
       this.on.onBoard({ locked: Boolean(m.locked), agents_paused: Boolean(m.agents_paused), agents_may_edit_all: Boolean(m.agents_may_edit_all) })
+    } else if (m.type === "saved" && m.version) {
+      this.on.onSaved?.(m.version, m.who ?? null, Boolean(m.auto))
+    } else if (m.type === "restored" && m.version) {
+      this.on.onRestored?.(m.version, m.saved_as ?? null, m.who ?? null)
     } else if (m.type === "agent" && m.who) {
       this.on.onAgent(m.who, m.summary ?? "", m.at ?? null)
     } else if (m.type === "error") {
