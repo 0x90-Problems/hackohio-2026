@@ -19,7 +19,7 @@ import {
   CURRENT_USER_ID,
   projectKeyOf,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectArchived, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
+import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectArchived, saveProjectColumns, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
 import { readStorage } from "@/lib/local-store"
 import {
@@ -276,18 +276,30 @@ function useProjectsState() {
   const categoriesOfTicket = (ticketKey: string) =>
     categoriesOf(projectKeyOf(ticketKey))
 
+  // Saves go one at a time, so quick moves can't reach the board out of order.
+  const columnSaves = useRef<Promise<void>>(Promise.resolve())
+
   function setProjectCategories(
     projectKey: string,
-    update: (current: Category[]) => Category[]
+    update: (current: Category[]) => Category[],
+    removal?: { moveTo: string; undo: () => void }
   ) {
-    setProjects((all) =>
-      all.map((p) => {
-        if (p.key !== projectKey) return p
-        const next = { ...p, categories: update(p.categories) }
-        saveProject(next)
-        return next
+    const project = projects.find((p) => p.key === projectKey)
+    if (!project) return
+    const categories = update(project.categories)
+    if (categories === project.categories) return
+    const setCategories = (value: Category[]) =>
+      setProjects((all) => all.map((p) => (p.key === projectKey ? { ...p, categories: value } : p)))
+    setCategories(categories)
+    columnSaves.current = columnSaves.current
+      .then(() => saveProjectColumns(projectKey, [...categories].sort((a, b) => a.order - b.order), removal?.moveTo))
+      .catch((error: unknown) => {
+        setCategories(project.categories)
+        removal?.undo()
+        toast.error("Couldn't save the change to the columns", {
+          description: error instanceof Error ? error.message : undefined,
+        })
       })
-    )
   }
 
   function addComment(comment: Comment) {
@@ -751,20 +763,20 @@ function useProjectsState() {
   }
 
   function deleteCategory(projectKey: string, slug: string, moveTo: string) {
-    setTickets((current) =>
-      current.map((t) =>
-        projectKeyOf(t.key) === projectKey && t.status === slug
-          ? { ...t, status: moveTo }
-          : t
-      )
+    // The board moves the tickets when it saves the columns, so they can't end up on a missing one.
+    const moved = new Set(
+      ticketsRef.current.filter((t) => projectKeyOf(t.key) === projectKey && t.status === slug).map((t) => t.key)
     )
-    ticketsRef.current
-      .filter((ticket) => projectKeyOf(ticket.key) === projectKey && ticket.status === moveTo)
-      .forEach(saveTicket)
-    setProjectCategories(projectKey, (current) =>
-      current
-        .filter((c) => c.slug !== slug)
-        .map((c, order) => ({ ...c, order }))
+    const setMovedStatus = (status: string) =>
+      setTickets((current) => current.map((t) => (moved.has(t.key) ? { ...t, status } : t)))
+    setMovedStatus(moveTo)
+    setProjectCategories(
+      projectKey,
+      (current) =>
+        current
+          .filter((c) => c.slug !== slug)
+          .map((c, order) => ({ ...c, order })),
+      { moveTo, undo: () => setMovedStatus(slug) }
     )
     toast(`Deleted category ${categoryName(slug, categoriesOf(projectKey))}`)
   }
