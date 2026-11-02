@@ -351,7 +351,7 @@ export function FilePanel({
           <DialogTitle className="break-all">{node.name}</DialogTitle>
           <DialogDescription>
             Version {node.current_version}
-            {node.size !== undefined ? ` · ${nodeSize(node.size)}` : ""}. Every upload is checked before anyone can download it.
+            {node.size !== undefined ? ` · ${nodeSize(node.size)}` : ""}. Uploads get a virus scan and a file type check before anyone can download them.
           </DialogDescription>
         </DialogHeader>
         <FilePreview key={node.current_version} node={node} />
