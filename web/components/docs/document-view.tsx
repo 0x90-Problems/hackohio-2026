@@ -10,9 +10,10 @@ import { Markdown } from "@tiptap/markdown"
 import Collaboration from "@tiptap/extension-collaboration"
 import CollaborationCaret from "@tiptap/extension-collaboration-caret"
 import { TaskItem, TaskList } from "@tiptap/extension-list"
+import type { Node as PMNode } from "@tiptap/pm/model"
 
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { PageBreak, PageLink, PaperPages, setPaperLayout } from "@/components/docs/doc-extensions"
+import { PageBreak, PageLink, type PaperLayout, PaperPages, setPaperLayout } from "@/components/docs/doc-extensions"
 import { MermaidBlock } from "@/components/docs/mermaid-block"
 import { EditorToolbar } from "@/components/docs/editor-toolbar"
 import { Backlinks, PagePicker } from "@/components/docs/page-picker"
@@ -28,6 +29,7 @@ import { type Crumb, type Folder, FoldersError, foldersApi } from "@/lib/folders
 import { cn } from "@/lib/utils"
 
 const SAVED_CHECK_MS = 30_000
+const FIRST_CHECK_MS = 2_000 // long enough to hear who else is here
 const AUTOSAVE_MS = 2 * 60_000
 const VIEW_KEY = "nutshell.docs.view"
 const INCH = 96
@@ -53,6 +55,37 @@ function explain(error: unknown) {
 }
 
 type Loaded = { note: Folder; body: string; crumbs: Crumb[]; rootId: string; canEdit: boolean }
+type FollowLink = (id: string | null, name: string, pos: number) => void
+
+function documentExtensions() {
+  return [
+    // Collaboration brings its own undo history (per person), so StarterKit's is off.
+    StarterKit.configure({ undoRedo: false, link: { openOnClick: false, autolink: true, protocols: ["https"] } }),
+    TaskList,
+    TaskItem.configure({ nested: true }),
+    PageLink,
+    PageBreak,
+    PaperPages,
+    MermaidBlock,
+    Markdown,
+  ]
+}
+
+function clickPageLink(node: PMNode, nodePos: number, event: MouseEvent, follow: FollowLink) {
+  if (node.type.name !== "pageLink") return false
+  event.preventDefault()
+  follow(node.attrs.id, node.attrs.name, nodePos)
+  return true
+}
+
+// The link is a real <a> so it can be opened in a new tab; a plain click stays in the app.
+const linkClickStaysInApp = {
+  click: (_view: unknown, event: MouseEvent) => {
+    const link = (event.target as HTMLElement).closest?.("a[data-page-link]")
+    if (link && !event.ctrlKey && !event.metaKey) event.preventDefault()
+    return false
+  },
+}
 
 // A document page: the page tree on the left, the editor on the right.
 export function DocumentView({ documentId }: { documentId: string }) {
@@ -236,12 +269,17 @@ function Editor({ loaded }: { loaded: Loaded }) {
   const live = status !== "off"
   const router = useRouter()
   const pickerKeys = useRef<((event: KeyboardEvent) => boolean) | null>(null)
-  const followLink = useRef<(id: string | null, name: string, pos: number) => void>(() => undefined)
+  const followLink = useRef<FollowLink>(() => undefined)
+  const follow = useCallback<FollowLink>((id, name, pos) => followLink.current(id, name, pos), [])
   // How you look at it is your own choice; the paper size belongs to the document.
   const [view, setView] = useState<"flow" | "pages">(storedView)
   const [size, setSize] = useState<SheetSize>("letter")
   const [pages, setPages] = useState(1)
   const sheet = SHEETS[size]
+  // Read-only here: a saved version the live copy doesn't have, and whether an editor is here to bring it in.
+  const [saved, setSaved] = useState<{ version: number; body: string } | null>(null)
+  const [editorHere, setEditorHere] = useState(false)
+  const savedCopy = readOnly && status === "live" && !editorHere ? saved : null
 
   useEffect(() => () => provider.destroy(), [provider])
 
@@ -274,15 +312,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
       immediatelyRender: false,
       editable: loaded.canEdit,
       extensions: [
-        // Collaboration brings its own undo history (per person), so StarterKit's is off.
-        StarterKit.configure({ undoRedo: false, link: { openOnClick: false, autolink: true, protocols: ["https"] } }),
-        TaskList,
-        TaskItem.configure({ nested: true }),
-        PageLink,
-        PageBreak,
-        PaperPages,
-        MermaidBlock,
-        Markdown,
+        ...documentExtensions(),
         Collaboration.configure({ document: provider.doc }),
         CollaborationCaret.configure({
           provider: { awareness: provider.awareness },
@@ -292,20 +322,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
       editorProps: {
         attributes: { class: "nutshell-doc", "aria-label": `Document: ${loaded.note.name}` },
         handleKeyDown: (_view, event) => pickerKeys.current?.(event) ?? false,
-        handleClickOn: (_view, _pos, node, nodePos, event) => {
-          if (node.type.name !== "pageLink") return false
-          event.preventDefault()
-          followLink.current(node.attrs.id, node.attrs.name, nodePos)
-          return true
-        },
-        // The link is a real <a> so it can be opened in a new tab; a plain click stays in the app.
-        handleDOMEvents: {
-          click: (_view, event) => {
-            const link = (event.target as HTMLElement).closest?.("a[data-page-link]")
-            if (link && !event.ctrlKey && !event.metaKey) event.preventDefault()
-            return false
-          },
-        },
+        handleClickOn: (_view, _pos, node, nodePos, event) => clickPageLink(node, nodePos, event, follow),
+        handleDOMEvents: linkClickStaysInApp,
       },
     },
     [provider]
@@ -333,6 +351,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
       provider.on("seed", () => {
         if (loaded.body.trim()) editor.commands.setContent(loaded.body, { contentType: "markdown" })
         markApplied(loaded.note.current_version ?? 0)
+        dirty.current = false // it's what's already saved
       }),
     ]
     provider.doc.on("update", () => {
@@ -381,8 +400,8 @@ function Editor({ loaded }: { loaded: Loaded }) {
 
   useEffect(() => {
     if (!editor) return
-    setPaperLayout(editor, view === "pages" ? { contentHeight: sheet.height - MARGIN * 2, gap: MARGIN * 2 + SHEET_GAP, onPages: setPages } : null)
-  }, [editor, view, sheet.height])
+    setPaperLayout(editor, !savedCopy && view === "pages" ? { contentHeight: sheet.height - MARGIN * 2, gap: MARGIN * 2 + SHEET_GAP, onPages: setPages } : null)
+  }, [editor, view, sheet.height, savedCopy])
 
   // Bring in a version saved outside the editor (an agent's update_note, a restore). The
   // live copy is what people see, so it would stay invisible, and the next save would bury it.
@@ -410,6 +429,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
     }
     editor.commands.setContent(merged, { contentType: "markdown" })
     markApplied(missing.latest)
+    if (merged === theirs) dirty.current = false // nothing here that isn't in that version
     toast.info("Updated with a version saved outside this editor")
     return false
   }, [editor, provider, loaded.note.id, markApplied])
@@ -420,17 +440,21 @@ function Editor({ loaded }: { loaded: Loaded }) {
       setSaving(true)
       try {
         let current = note
+        let overlapped = false
         try {
           current = await foldersApi.updateNote(current, editor.getMarkdown(), reason)
         } catch (error) {
           // Someone else (or an agent) saved first: base on the newest version and try once more.
           if (!(error instanceof FoldersError && error.code === "version_conflict")) throw error
           // Autosave waits while someone chooses; pressing Save version means this text.
-          if (live && (await bringInSaved()) && reason === "autosave") return
+          overlapped = live && (await bringInSaved())
+          if (overlapped && reason === "autosave") return
           const fresh = await foldersApi.readNote(note.id)
           current = await foldersApi.updateNote(fresh.note, editor.getMarkdown(), reason)
         }
         setNote(current)
+        // The live copy is this version now. Tell view-only browsers straight away.
+        if (live && !overlapped) markApplied(current.current_version ?? 0)
         dirty.current = false
         if (!reason) toast.success("Saved a new version")
       } catch (error) {
@@ -439,7 +463,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
         setSaving(false)
       }
     },
-    [editor, note, live, bringInSaved]
+    [editor, note, live, bringInSaved, markApplied]
   )
 
   // One browser in the room writes an autosave version every couple of minutes while there are changes.
@@ -457,10 +481,52 @@ function Editor({ loaded }: { loaded: Loaded }) {
     const check = () => {
       if (provider.isSaver()) void bringInSaved().catch(() => undefined) // the next check retries
     }
-    check()
+    const first = setTimeout(check, FIRST_CHECK_MS)
     const timer = setInterval(check, SAVED_CHECK_MS)
-    return () => clearInterval(timer)
+    return () => {
+      clearTimeout(first)
+      clearInterval(timer)
+    }
   }, [status, readOnly, overlap, provider, bringInSaved])
+
+  // Someone else chose while this banner was up.
+  useEffect(() => {
+    if (!overlap) return
+    const settings = provider.doc.getMap<string>("document")
+    const read = () => {
+      if (Number(settings.get("applied_version") ?? 0) >= overlap.version) setOverlap(null)
+    }
+    settings.observe(read)
+    return () => settings.unobserve(read)
+  }, [overlap, provider])
+
+  // A view-only browser can't update the live copy. With no editor here to do it, that copy can be
+  // empty (nobody has opened the page) or behind (an agent saved since), so it shows the saved text.
+  useEffect(() => {
+    if (status !== "live" || !readOnly) return
+    const settings = provider.doc.getMap<string>("document")
+    const applied = () => Number(settings.get("applied_version") ?? 0)
+    const check = () =>
+      void foldersApi
+        .readNote(loaded.note.id)
+        .then((latest) => {
+          const version = latest.note.current_version ?? 0
+          setSaved(version > applied() ? { version, body: latest.body ?? "" } : null)
+        })
+        .catch(() => undefined) // the next check retries
+    const caughtUp = () => setSaved((copy) => (copy && applied() >= copy.version ? null : copy))
+    const whoIsHere = () => setEditorHere(provider.editorHere())
+    check()
+    whoIsHere()
+    const timer = setInterval(check, SAVED_CHECK_MS)
+    settings.observe(caughtUp)
+    provider.awareness.on("change", whoIsHere)
+    return () => {
+      clearInterval(timer)
+      settings.unobserve(caughtUp)
+      provider.awareness.off("change", whoIsHere)
+    }
+  }, [status, readOnly, provider, loaded.note.id])
 
   function settleOverlap(useTheirs: boolean) {
     if (!overlap || !editor) return
@@ -468,6 +534,21 @@ function Editor({ loaded }: { loaded: Loaded }) {
     markApplied(overlap.version)
     setOverlap(null)
   }
+
+  // The live editor stays mounted behind a saved copy, so it's ready when an editor arrives.
+  const content = (
+    <>
+      <div hidden={Boolean(savedCopy)}>{editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}</div>
+      {savedCopy ? (
+        <SavedCopy
+          key={savedCopy.version}
+          body={savedCopy.body}
+          follow={follow}
+          paper={view === "pages" ? { contentHeight: sheet.height - MARGIN * 2, gap: MARGIN * 2 + SHEET_GAP, onPages: setPages } : null}
+        />
+      ) : null}
+    </>
+  )
 
   return (
     <div className={cn("mx-auto flex w-full flex-col gap-4 px-6 py-6", view === "pages" ? "max-w-[60rem]" : "max-w-3xl")}>
@@ -563,6 +644,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
         </div>
       </div>
       {editor && !readOnly ? <EditorToolbar editor={editor} /> : null}
+      {savedCopy ? <p className="text-xs text-muted-foreground print:hidden">Showing the last saved version. Changes appear here live once someone who can edit opens this page.</p> : null}
       {view === "pages" ? (
         // Gray desk, white sheets: the sheets are painted behind one continuous editor.
         <div className="overflow-x-auto rounded-lg bg-muted p-4">
@@ -578,16 +660,42 @@ function Editor({ loaded }: { loaded: Loaded }) {
               } as React.CSSProperties
             }
           >
-            {editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}
+            {content}
           </div>
         </div>
       ) : (
-        <div className="nutshell-print-root rounded-lg border bg-background px-6 py-5">{editor ? <EditorContent editor={editor} /> : <EditorSkeleton />}</div>
+        <div className="nutshell-print-root rounded-lg border bg-background px-6 py-5">{content}</div>
       )}
       {editor && !readOnly ? <PagePicker editor={editor} currentId={note.id} keysRef={pickerKeys} /> : null}
       <Backlinks documentId={note.id} />
     </div>
   )
+}
+
+// The saved text in a plain read-only editor, separate from the live document.
+function SavedCopy({ body, follow, paper }: { body: string; follow: FollowLink; paper: PaperLayout | null }) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    editable: false,
+    extensions: documentExtensions(),
+    content: body,
+    contentType: "markdown",
+    editorProps: {
+      attributes: { class: "nutshell-doc" },
+      handleClickOn: (_view, _pos, node, nodePos, event) => clickPageLink(node, nodePos, event, follow),
+      handleDOMEvents: linkClickStaysInApp,
+    },
+  })
+  const contentHeight = paper?.contentHeight
+  const gap = paper?.gap
+  const onPages = paper?.onPages
+
+  useEffect(() => {
+    if (!editor) return
+    setPaperLayout(editor, contentHeight && gap && onPages ? { contentHeight, gap, onPages } : null)
+  }, [editor, contentHeight, gap, onPages])
+
+  return editor ? <EditorContent editor={editor} /> : <EditorSkeleton />
 }
 
 function EditorSkeleton() {

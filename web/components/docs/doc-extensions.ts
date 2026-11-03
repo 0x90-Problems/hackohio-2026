@@ -115,14 +115,24 @@ export type PaperLayout = {
 type PaperStorage = { layout: PaperLayout | null }
 const paperKey = new PluginKey<DecorationSet>("paperPages")
 
+// A block starting a sheet has its margin replaced by the push, but it needs its usual margin
+// to decide whether it still belongs there. Otherwise it flips between the two on every pass.
+const usualMargins = new Map<string, number>()
+
+function usualMargin(el: HTMLElement) {
+  if (el.classList.contains("nutshell-page-start")) return usualMargins.get(el.tagName) ?? 0
+  const margin = Number.parseFloat(getComputedStyle(el).marginTop) || 0
+  usualMargins.set(el.tagName, margin)
+  return margin
+}
+
 /** Where each sheet's blocks go. Blocks stay whole unless one is taller than a sheet. */
 function measure(view: EditorView, layout: PaperLayout) {
   const period = layout.contentHeight + layout.gap
-  const starts: { from: number; to: number; push: number }[] = []
+  const starts: { from: number; to: number; push: number; drawing: HTMLElement | null }[] = []
   let y = 0
   let page = 0
   let forced = false
-  let first = true
   view.state.doc.forEach((node, offset) => {
     const dom = view.nodeDOM(offset)
     if (!(dom instanceof HTMLElement)) return
@@ -130,14 +140,18 @@ function measure(view: EditorView, layout: PaperLayout) {
       forced = true
       return
     }
-    const started = dom.classList.contains("nutshell-page-start")
-    const margin = first || started ? 0 : Number.parseFloat(getComputedStyle(dom).marginTop) || 0
-    const height = dom.getBoundingClientRect().height
+    // A diagram draws just before its code block, which is hidden unless it's being edited.
+    const before = dom.previousElementSibling
+    const drawing = before instanceof HTMLElement && before.classList.contains("nutshell-mermaid") ? before : null
+    const lead = drawing ?? dom
+    const margin = usualMargin(lead)
+    const end = dom.getClientRects().length ? dom : lead
+    const height = end.getBoundingClientRect().bottom - lead.getBoundingClientRect().top
     const top = y + margin
     const startsSheet = y === page * period
     if (forced || (top + height > page * period + layout.contentHeight && !startsSheet)) {
       page += 1
-      starts.push({ from: offset, to: offset + node.nodeSize, push: page * period - y })
+      starts.push({ from: offset, to: offset + node.nodeSize, push: page * period - y, drawing })
       y = page * period + height
       forced = false
     } else {
@@ -145,7 +159,6 @@ function measure(view: EditorView, layout: PaperLayout) {
     }
     // A block taller than a sheet runs on; carry on from the sheet it ends on.
     page = Math.max(page, Math.floor(Math.max(y - 1, 0) / period))
-    first = false
   })
   if (forced) page += 1 // a break at the very end starts an empty sheet
   return { starts, pages: page + 1 }
@@ -180,6 +193,13 @@ export const PaperPages = Extension.create<object, PaperStorage>({
           const run = () => {
             const layout = storage.layout
             const result = layout ? measure(view, layout) : { starts: [], pages: 1 }
+            // A diagram isn't part of the document, so a decoration can't move it.
+            view.dom.querySelectorAll(".nutshell-mermaid.nutshell-page-start").forEach((el) => el.classList.remove("nutshell-page-start"))
+            for (const { drawing, push } of result.starts) {
+              if (!drawing) continue
+              drawing.classList.add("nutshell-page-start")
+              drawing.style.setProperty("--nutshell-page-push", `${push}px`)
+            }
             const signature = result.starts.map((s) => `${s.from}:${Math.round(s.push)}`).join()
             if (signature !== applied) {
               applied = signature

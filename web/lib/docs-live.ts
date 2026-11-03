@@ -4,7 +4,7 @@ import * as Y from "yjs"
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate, removeAwarenessStates } from "y-protocols/awareness"
 
 import { readSession } from "@/lib/board-auth"
-import { isSaverIn } from "@/lib/docs-saver"
+import { editorIn, isSaverIn } from "@/lib/docs-saver"
 import { teamFetch } from "@/lib/team-choice"
 
 // Live documents: a Yjs document kept in sync through the documents relay
@@ -332,6 +332,8 @@ export class LiveProvider {
         if (m.code !== "read_only") this.emit("rejected")
         void this.flush()
       } else if (m.type === "awareness" && m.update && m.who) this.applyAwareness(m.update, m.who)
+      // Someone new can't see who's here until we say, and until then they'd think they're alone.
+      else if (m.type === "joined") this.sendAwareness()
       // API Gateway's own reply when the relay couldn't run (usually throttled): no type.
       else if (!m.type && m.message && this.inflight?.overSocket) this.resendAfter(THROTTLED_RETRY_MS)
     }
@@ -375,6 +377,11 @@ export class LiveProvider {
   /** One browser in the room saves markdown versions, and it has to be one that can edit. */
   isSaver() {
     return isSaverIn(this.doc.clientID, this.canEdit, this.awareness.getStates())
+  }
+
+  /** Whether someone else here can edit. */
+  editorHere() {
+    return editorIn(this.doc.clientID, this.awareness.getStates())
   }
 
   destroy() {

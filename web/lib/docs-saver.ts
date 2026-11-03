@@ -8,6 +8,11 @@
 
 type RoomState = { can_edit?: unknown }
 
+/** Whether someone else in the room can edit, so they will bring saved versions into the live copy. */
+export function editorIn(me: number, states: Map<number, RoomState>) {
+  return [...states].some(([id, state]) => id !== me && state.can_edit === true)
+}
+
 /**
  * Whether this browser is the saver: the lowest id among browsers that can edit.
  *
