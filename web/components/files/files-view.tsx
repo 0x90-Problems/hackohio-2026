@@ -234,6 +234,11 @@ export function FilesView() {
     [folderId, showTrash, viewKey, apply]
   )
 
+  const reload = useRef(load)
+  useEffect(() => {
+    reload.current = load
+  }, [load])
+
   async function uploadNew(file: File) {
     const toastId = toast.loading(`Uploading ${file.name}…`)
     try {
@@ -244,6 +249,15 @@ export function FilesView() {
       toast.error(`Couldn't add ${file.name}`, { id: toastId, description: explain(error) })
     }
   }
+  // A file sent from a tab that was closed before its scan finished shows up here.
+  useEffect(() => {
+    void foldersApi.resumeUploads((item) => {
+      if (item.outcome === "added") toast.success(`Added ${item.upload.name}`, { description: "It passed the security scan." })
+      else toast.error(`Couldn't add ${item.upload.name}`, { description: item.message })
+      void reload.current()
+    })
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     void fetchView(folderId, showTrash).then((view) => {

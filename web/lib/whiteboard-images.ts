@@ -25,7 +25,7 @@ export async function uploadBoardImage(file: File, parentId: string, boardName: 
   const tag = crypto.randomUUID().slice(0, 8)
   const named = new File([file], imageFileName(boardName, file.type, tag), { type: file.type })
   try {
-    const state = await foldersApi.upload(named, { parentId }, onStatus)
+    const state = await foldersApi.upload(named, { parentId }, onStatus, { temporary: true })
     if (!state.file) throw new Error("The image didn't finish uploading.")
     return state.file.id
   } catch (error) {

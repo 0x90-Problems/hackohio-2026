@@ -1,6 +1,7 @@
 "use client"
 
 import { readSession } from "@/lib/board-auth"
+import { forgetUpload, isFinalRefusal, pendingUploads, rememberUpload, type Settled, settlePending } from "@/lib/pending-uploads"
 import { teamFetch } from "@/lib/team-choice"
 import type { Actor } from "@/lib/types"
 
@@ -97,6 +98,13 @@ const seg = (id: string) => encodeURIComponent(id || ROOT)
 // Files and notes have their own routes for the same tree operations.
 const base = (node: Folder) => `${node.type === "folder" ? "folders" : "files"}/${seg(node.id)}`
 
+// Uploads this tab is waiting on. Leaving mid-scan still works, but the file only appears later.
+const inThisTab = new Set<string>()
+
+function warnBeforeLeaving(event: BeforeUnloadEvent) {
+  event.preventDefault()
+}
+
 export const foldersApi = {
   async enabled(): Promise<boolean> {
     try {
@@ -157,9 +165,16 @@ export const foldersApi = {
 
   /**
    * Upload a new file (parentId) or a new version (node). Bytes go straight to S3
-   * with a presigned PUT; the file only appears once the security scan is clean.
+   * with a presigned PUT; the file only appears once the security scan is clean. Pass
+   * temporary when the file is only wanted by this tab, such as a whiteboard image: it
+   * isn't worth adding later if the tab has gone.
    */
-  async upload(file: File, target: { parentId: string } | { node: Folder }, onStatus?: (status: string) => void): Promise<UploadState> {
+  async upload(
+    file: File,
+    target: { parentId: string } | { node: Folder },
+    onStatus?: (status: string) => void,
+    options?: { temporary?: boolean }
+  ): Promise<UploadState> {
     const started = await call<{ upload_id: string; upload_url: string; headers: Record<string, string> }>("uploads", {
       method: "POST",
       body: {
@@ -173,11 +188,45 @@ export const foldersApi = {
     const put = await fetch(started.upload_url, { method: "PUT", headers: started.headers, body: file }).catch(() => null)
     if (!put?.ok) throw new FoldersError("upload_failed", "The upload didn't go through. Try again.", put?.status ?? 0)
     onStatus?.("Scanning")
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      const state = await call<UploadState>(`uploads/${seg(started.upload_id)}`)
-      if (state.status === "committed") return state
-      await new Promise((resolve) => setTimeout(resolve, attempt < 10 ? 1000 : 3000))
+    if (!options?.temporary) rememberUpload(started.upload_id, file.name)
+    inThisTab.add(started.upload_id)
+    window.addEventListener("beforeunload", warnBeforeLeaving)
+    try {
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        const state = await call<UploadState>(`uploads/${seg(started.upload_id)}`)
+        if (state.status === "committed") {
+          forgetUpload(started.upload_id)
+          return state
+        }
+        await new Promise((resolve) => setTimeout(resolve, attempt < 10 ? 1000 : 3000))
+      }
+    } catch (error) {
+      if (error instanceof FoldersError && isFinalRefusal(error.status)) forgetUpload(started.upload_id)
+      throw error
+    } finally {
+      inThisTab.delete(started.upload_id)
+      if (inThisTab.size === 0) window.removeEventListener("beforeunload", warnBeforeLeaving)
     }
-    throw new FoldersError("scan_timeout", "The security scan is taking longer than usual. Check back in a minute.", 0)
+    throw new FoldersError("scan_timeout", "The security scan is taking longer than usual. It'll appear the next time you open Folders.", 0)
+  },
+
+  /** Finish uploads this browser sent but stopped waiting for, such as when a tab was closed mid-scan. */
+  async resumeUploads(onSettled: (item: Settled) => void) {
+    const ask = async (uploadId: string) => {
+      const state = await call<UploadState>(`uploads/${seg(uploadId)}`)
+      return state.status === "committed" ? ("added" as const) : ("pending" as const)
+    }
+    const statusOf = (error: unknown) =>
+      error instanceof FoldersError ? { status: error.status, message: error.message } : { status: 0, message: "" }
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 5000))
+      const list = pendingUploads().filter((item) => !inThisTab.has(item.upload_id))
+      if (list.length === 0) return
+      const { settled } = await settlePending(list, ask, statusOf)
+      for (const item of settled) {
+        forgetUpload(item.upload.upload_id)
+        onSettled(item)
+      }
+    }
   },
 }
