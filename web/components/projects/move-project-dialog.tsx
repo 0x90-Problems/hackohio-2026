@@ -148,7 +148,7 @@ export function MoveProjectDialog({
               <p className="font-medium">People who aren&apos;t on {target} lose access to this project and its tickets. So do their agents.</p>
               {leaving.length > 0 ? (
                 <p className="text-muted-foreground">
-                  {leaving.length === 1 ? "That's" : `That's ${leaving.length} people:`} {namesText(leaving.map((user) => user.name))}.
+                  {namesText(leaving.map((user) => user.name))} {leaving.length === 1 ? "isn't on this team" : "aren't on this team"}.
                 </p>
               ) : (
                 <p className="text-muted-foreground">No one loses access right now.</p>

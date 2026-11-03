@@ -216,8 +216,9 @@ export const foldersApi = {
       const state = await call<UploadState>(`uploads/${seg(uploadId)}`)
       return state.status === "committed" ? ("added" as const) : ("pending" as const)
     }
+    // A 404 may only mean the upload went to another team than the one open now, so it isn't final here.
     const statusOf = (error: unknown) =>
-      error instanceof FoldersError ? { status: error.status, message: error.message } : { status: 0, message: "" }
+      error instanceof FoldersError && error.status !== 404 ? { status: error.status, message: error.message } : { status: 0, message: "" }
     for (let attempt = 0; attempt < 12; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 5000))
       const list = pendingUploads().filter((item) => !inThisTab.has(item.upload_id))
