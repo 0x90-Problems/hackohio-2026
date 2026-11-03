@@ -29,6 +29,7 @@ import {
   type CategoryColor,
 } from "@/lib/categories"
 import { eventId } from "@/lib/format"
+import { refreshedProjects } from "@/lib/project-refresh"
 import {
   resolvedProjectFields,
   resolvedProjectLayout,
@@ -101,6 +102,15 @@ function useProjectsState() {
   const [newTicketKeys, setNewTicketKeys] = useState<Set<string>>(new Set())
   const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set())
   const [newProjectKeys, setNewProjectKeys] = useState<Set<string>>(new Set())
+  // A refresh that began before a project save finished could undo it on screen.
+  const projectSaves = useRef({ pending: 0, finished: 0 })
+  function trackedProjectSave<T>(save: () => Promise<T>) {
+    projectSaves.current.pending++
+    return save().finally(() => {
+      projectSaves.current.pending--
+      projectSaves.current.finished++
+    })
+  }
 
   // Each new action is at least 1ms after the last, so list keys stay unique.
   const clock = useRef(Date.now())
@@ -191,12 +201,16 @@ function useProjectsState() {
     let cancelled = false
     async function refresh() {
       try {
+        const savesBefore = projectSaves.current.finished
+        const savingBefore = projectSaves.current.pending
         const remote = await loadBoard()
         if (cancelled) return
+        const upToDate = savingBefore === 0 && projectSaves.current.pending === 0 && projectSaves.current.finished === savesBefore
         setProjects((current) => {
-          const known = new Set(current.map((project) => project.key))
+          const refreshed = upToDate ? refreshedProjects(current, remote.projects) : current
+          const known = new Set(refreshed.map((project) => project.key))
           const added = remote.projects.filter((project) => !known.has(project.key) && !gone.current.has(project.key)).map(withTemplateShape)
-          return added.length > 0 ? [...current, ...added] : current
+          return added.length > 0 ? [...refreshed, ...added] : refreshed
         })
         setTickets((current) => {
           const visible = current.filter((ticket) => !gone.current.has(ticket.key))
@@ -291,15 +305,17 @@ function useProjectsState() {
     const setCategories = (value: Category[]) =>
       setProjects((all) => all.map((p) => (p.key === projectKey ? { ...p, categories: value } : p)))
     setCategories(categories)
-    columnSaves.current = columnSaves.current
-      .then(() => saveProjectColumns(projectKey, [...categories].sort((a, b) => a.order - b.order), removal?.moveTo))
-      .catch((error: unknown) => {
-        setCategories(project.categories)
-        removal?.undo()
-        toast.error("Couldn't save the change to the columns", {
-          description: error instanceof Error ? error.message : undefined,
+    columnSaves.current = trackedProjectSave(() =>
+      columnSaves.current
+        .then(() => saveProjectColumns(projectKey, [...categories].sort((a, b) => a.order - b.order), removal?.moveTo))
+        .catch((error: unknown) => {
+          setCategories(project.categories)
+          removal?.undo()
+          toast.error("Couldn't save the change to the columns", {
+            description: error instanceof Error ? error.message : undefined,
+          })
         })
-      })
+    )
   }
 
   function addComment(comment: Comment) {
@@ -380,7 +396,7 @@ function useProjectsState() {
       setProjects((current) => current.map((item) => (item.key === key ? { ...item, archived: value } : item)))
     setArchived(archived)
     try {
-      await saveProjectArchived(key, archived)
+      await trackedProjectSave(() => saveProjectArchived(key, archived))
       toast.success(archived ? `Archived ${project.name}` : `Restored ${project.name}`)
     } catch (error) {
       setArchived(project.archived)
@@ -403,7 +419,7 @@ function useProjectsState() {
   async function moveProject(key: string, team: string, losesAccess: boolean) {
     const project = projects.find((item) => item.key === key)
     if (!project) return
-    await saveProjectTeam(key, team)
+    await trackedProjectSave(() => saveProjectTeam(key, team))
     if (losesAccess) {
       // A refresh already on its way could bring it back.
       gone.current.add(key)
