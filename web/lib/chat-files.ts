@@ -93,7 +93,7 @@ export async function uploadToChannel(channelId: string, file: File, onStatus?: 
   for (let attempt = 1; ; attempt += 1) {
     const named = attempt === 1 ? file : new File([file], numberedName(file.name, attempt), { type: file.type })
     try {
-      const done = await foldersApi.upload(named, { parentId }, onStatus)
+      const done = await foldersApi.upload(named, { parentId }, onStatus, { temporary: true })
       if (!done.file || !done.version) throw new FoldersError("upload_failed", "The upload didn't finish. Try again.", 0)
       return { file_id: done.file.id, version: done.version, name: done.file.name }
     } catch (caught) {
