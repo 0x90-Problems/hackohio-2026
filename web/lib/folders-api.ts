@@ -185,13 +185,14 @@ export const foldersApi = {
       },
     })
     onStatus?.("Uploading")
-    const put = await fetch(started.upload_url, { method: "PUT", headers: started.headers, body: file }).catch(() => null)
-    if (!put?.ok) throw new FoldersError("upload_failed", "The upload didn't go through. Try again.", put?.status ?? 0)
-    onStatus?.("Scanning")
-    if (!options?.temporary) rememberUpload(started.upload_id, file.name)
+    // Only this tab can send the bytes, so leaving now loses the file. After this the server can finish it.
     inThisTab.add(started.upload_id)
     window.addEventListener("beforeunload", warnBeforeLeaving)
     try {
+      const put = await fetch(started.upload_url, { method: "PUT", headers: started.headers, body: file }).catch(() => null)
+      if (!put?.ok) throw new FoldersError("upload_failed", "The upload didn't go through. Try again.", put?.status ?? 0)
+      onStatus?.("Scanning")
+      if (!options?.temporary) rememberUpload(started.upload_id, file.name)
       for (let attempt = 0; attempt < 60; attempt += 1) {
         const state = await call<UploadState>(`uploads/${seg(started.upload_id)}`)
         if (state.status === "committed") {
