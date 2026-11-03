@@ -497,8 +497,10 @@ export function BoardView({ boardId }: { boardId: string }) {
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "o") {
+      // By physical key, since Alt can change the letter. Before the editor, which handles keys too.
+      if (event.altKey && event.shiftKey && event.code === "KeyO") {
         event.preventDefault()
+        event.stopPropagation()
         const opening = panelRef.current !== "outline"
         if (opening && document.activeElement instanceof HTMLElement) panelToggle.current = document.activeElement
         panelRef.current = opening ? "outline" : null
@@ -506,9 +508,9 @@ export function BoardView({ boardId }: { boardId: string }) {
         if (opening) refreshOutline()
       }
     }
-    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keydown", onKeyDown, true)
     return () => {
-      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keydown", onKeyDown, true)
       if (outlineTimer.current) clearTimeout(outlineTimer.current)
       outlineTimer.current = null
     }
