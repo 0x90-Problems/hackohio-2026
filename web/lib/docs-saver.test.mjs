@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { isSaverIn } from "./docs-saver.ts"
+import { editorIn, isSaverIn } from "./docs-saver.ts"
 
 const editor = { can_edit: true }
 const viewer = { can_edit: false }
@@ -8,6 +8,13 @@ const old = {} // a browser on older code, editing or not: it doesn't say
 const room = (entries) => new Map(Object.entries(entries).map(([id, state]) => [Number(id), state]))
 // What a browser on older code does: the lowest id of all.
 const oldSaves = (me, states) => Math.min(...states.keys()) === me
+
+test("someone else who can edit counts as an editor here; view-only and older browsers don't", () => {
+  assert.equal(editorIn(5, room({ 5: viewer })), false)
+  assert.equal(editorIn(5, room({ 5: viewer, 7: viewer, 9: old })), false)
+  assert.equal(editorIn(5, room({ 5: viewer, 7: editor })), true)
+  assert.equal(editorIn(5, room({ 5: editor })), false)
+})
 
 test("alone, or before any other browser is known, you save", () => {
   assert.equal(isSaverIn(5, true, room({})), true)
