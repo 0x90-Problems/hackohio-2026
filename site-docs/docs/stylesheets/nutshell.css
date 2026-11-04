@@ -1,0 +1,72 @@
+/* NutShell palette for the docs site.
+   Red (the app's brand scarlet) is the primary color. Everything else is neutral gray.
+   No blue or purple, to match web/CLAUDE.md. */
+
+[data-md-color-primary="custom"] {
+  --md-primary-fg-color: #bb0620;
+  --md-primary-fg-color--light: #d63a4f;
+  --md-primary-fg-color--dark: #8f0418;
+  --md-primary-bg-color: #ffffff;
+  --md-primary-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-accent="custom"] {
+  --md-accent-fg-color: #bb0620;
+  --md-accent-fg-color--transparent: #bb06201a;
+  --md-accent-bg-color: #ffffff;
+  --md-accent-bg-color--light: #ffffffb3;
+}
+
+[data-md-color-scheme="slate"][data-md-color-primary="custom"] {
+  --md-primary-fg-color: #e0485c;
+  --md-primary-fg-color--light: #ea7282;
+  --md-primary-fg-color--dark: #bb0620;
+}
+
+[data-md-color-scheme="slate"][data-md-color-accent="custom"] {
+  --md-accent-fg-color: #ea7282;
+  --md-accent-fg-color--transparent: #ea72821a;
+}
+
+/* Links use the primary red. */
+:root,
+[data-md-color-scheme="slate"] {
+  --md-typeset-a-color: var(--md-primary-fg-color);
+}
+
+/* Code colors without blue or purple. */
+:root {
+  --md-code-hl-keyword-color: #8f0418;
+  --md-code-hl-function-color: #5c5c5c;
+  --md-code-hl-constant-color: #8f0418;
+  --md-code-hl-special-color: #bb0620;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-code-hl-keyword-color: #ea7282;
+  --md-code-hl-function-color: #c4c4c4;
+  --md-code-hl-constant-color: #ea7282;
+  --md-code-hl-special-color: #e0485c;
+}
+
+/* Note and info boxes are blue by default; make them neutral gray. */
+.md-typeset .admonition.note,
+.md-typeset details.note,
+.md-typeset .admonition.info,
+.md-typeset details.info {
+  border-color: #737373;
+}
+
+.md-typeset .note > .admonition-title,
+.md-typeset .note > summary,
+.md-typeset .info > .admonition-title,
+.md-typeset .info > summary {
+  background-color: #7373731a;
+}
+
+.md-typeset .note > .admonition-title::before,
+.md-typeset .note > summary::before,
+.md-typeset .info > .admonition-title::before,
+.md-typeset .info > summary::before {
+  background-color: #737373;
+}

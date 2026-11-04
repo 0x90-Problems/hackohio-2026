@@ -6,3 +6,8 @@
 
 # Installed packages
 node_modules/
+
+# Docs site build output and local venv
+/site-docs/site/
+/site-docs/.venv/
+/site-docs/.cache/
