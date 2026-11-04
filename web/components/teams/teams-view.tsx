@@ -7,6 +7,7 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
+  Trash2Icon,
   UserPlusIcon,
   UsersIcon,
 } from "@/components/icons"
@@ -18,11 +19,14 @@ import {
   addTeamMember,
   createTeam,
   loadSite,
+  removalPreview,
+  removePerson,
   removeTeamMember,
   renameTeam,
   setTeamManager,
   type SiteState,
 } from "@/lib/site-db"
+import { canRemovePerson, removalSummary, type RemovalCounts } from "@/lib/remove-person"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -105,6 +109,7 @@ export function TeamsView() {
   const store = useProjects()
   const [site, setSite] = useState<{ teams: SiteTeam[]; people: Person[] } | null>(null)
   const [reload, setReload] = useState(0)
+  const [removing, setRemoving] = useState<Person | null>(null)
   const refresh = () => setReload((n) => n + 1)
 
   useEffect(() => {
@@ -129,6 +134,8 @@ export function TeamsView() {
     (a, b) => Number(b.name === account?.team) - Number(a.name === account?.team) || a.name.localeCompare(b.name)
   )
   const unassigned = (site?.people ?? []).filter((person) => teamsOf(person).length === 0)
+  // Org admins only, never yourself or the last admin. The board enforces it too.
+  const removable = (person: Person) => canRemovePerson(person, site?.people ?? [], account?._id, isAdmin)
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -159,6 +166,8 @@ export function TeamsView() {
               people={site.people}
               agents={agents}
               canManage={isAdmin || team.managers.includes(account?._id ?? "")}
+              canRemove={removable}
+              onRemove={setRemoving}
               onChanged={refresh}
             />
           ))}
@@ -169,12 +178,35 @@ export function TeamsView() {
             <Card className="border-dashed">
               <CardHeader>
                 <CardTitle className="text-lg">Not on a team</CardTitle>
-                <CardDescription>A team&apos;s manager can add these people from the team card.</CardDescription>
+                <CardDescription>
+                  A team&apos;s manager can add these people from the team card.
+                  {isAdmin && " An org admin can remove someone from the organization."}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="flex flex-col divide-y">
                   {unassigned.map((person) => (
-                    <MemberRow key={person._id} user={person} agent={agents.find((agent) => agent.owner_id === person._id)} />
+                    <MemberRow
+                      key={person._id}
+                      user={person}
+                      agent={agents.find((agent) => agent.owner_id === person._id)}
+                      extra={
+                        removable(person) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="size-7" aria-label={`Manage ${person.name}`}>
+                                <MoreHorizontalIcon aria-hidden="true" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem variant="destructive" onSelect={() => setRemoving(person)}>
+                                Remove from organization
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )
+                      }
+                    />
                   ))}
                 </ul>
               </CardContent>
@@ -182,6 +214,13 @@ export function TeamsView() {
           )}
         </div>
       )}
+      <RemovePersonDialog
+        person={removing}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(null)
+        }}
+        onRemoved={refresh}
+      />
     </main>
   )
 }
@@ -191,12 +230,16 @@ function TeamCard({
   people,
   agents,
   canManage,
+  canRemove,
+  onRemove,
   onChanged,
 }: {
   team: SiteTeam
   people: Person[]
   agents: Agent[]
   canManage: boolean
+  canRemove: (person: Person) => boolean
+  onRemove: (person: Person) => void
   onChanged: () => void
 }) {
   const members = people.filter((person) => teamsOf(person).includes(team.name))
@@ -258,6 +301,11 @@ function TeamCard({
                             >
                               Remove from team
                             </DropdownMenuItem>
+                            {canRemove(member) && (
+                              <DropdownMenuItem variant="destructive" onSelect={() => onRemove(member)}>
+                                Remove from organization
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
@@ -343,6 +391,72 @@ function MemberRow({ user, agent, extra }: { user: User; agent?: Agent; extra?: 
         )}
       </div>
     </li>
+  )
+}
+
+// Org admins remove someone from the organization: off every team, their agents and
+// tokens deleted, and sign-in blocked. Their name stays on tickets, comments and files.
+function RemovePersonDialog({
+  person,
+  onOpenChange,
+  onRemoved,
+}: {
+  person: Person | null
+  onOpenChange: (open: boolean) => void
+  onRemoved: () => void
+}) {
+  // Counts are kept with whose they are, so a dialog for someone else never shows stale ones.
+  const [preview, setPreview] = useState<{ id: string; counts: RemovalCounts | null } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const personId = person?._id
+  const counts = preview && preview.id === personId ? preview.counts : null
+
+  useEffect(() => {
+    let cancelled = false
+    if (!personId) return
+    void removalPreview(personId).then((loaded) => {
+      if (!cancelled) setPreview({ id: personId, counts: loaded })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [personId])
+
+  async function confirm() {
+    if (!person) return
+    setBusy(true)
+    try {
+      await removePerson(person._id)
+      toast.success(`Removed ${person.name} from the organization`)
+      onOpenChange(false)
+      onRemoved()
+    } catch (error) {
+      toast.error(`Couldn't remove ${person.name}`, { description: explain(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog open={person !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Remove {person?.name} from the organization?</DialogTitle>
+          <DialogDescription>{person ? removalSummary(person.name, counts) : null}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="button" variant="destructive" disabled={busy} onClick={() => void confirm()}>
+            <Trash2Icon data-icon="inline-start" aria-hidden="true" />
+            Remove
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

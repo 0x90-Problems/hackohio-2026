@@ -27,6 +27,7 @@ type SitePostBody = {
     revoked?: boolean
   }
   user?: { _id: string; auth_username: string; name: string; role?: string; team: string }
+  user_id?: string
 }
 
 async function boardJson(request: Request, path: string, init?: { method?: string; body?: unknown }) {
@@ -63,6 +64,13 @@ export async function GET(request: Request) {
       { error: { code: "unauthorized", message: "Sign in to load site settings" } },
       { status: 401 },
     )
+  }
+
+  // The Remove dialog asks how many agents and tokens would stop working (org admins only).
+  const removal = new URL(request.url).searchParams.get("removal")
+  if (removal) {
+    const result = await boardJson(request, `/users/${encodeURIComponent(removal)}/removal`)
+    return NextResponse.json(result.json ?? { error: { code: "database", message: "Board request failed" } }, { status: result.status })
   }
 
   const [organization, teams, users, agents] = await Promise.all([
@@ -135,7 +143,8 @@ export async function GET(request: Request) {
       // People without a team are kept (team "") so managers can add them somewhere.
       const team = typeof user.team === "string" ? user.team : ""
       const teams = Array.isArray(user.teams) ? user.teams.filter((name): name is string => typeof name === "string") : team ? [team] : []
-      if (!_id || !auth_username || !name) return []
+      // Removed people stay on the board for history; they aren't in the organization.
+      if (!_id || !auth_username || !name || typeof user.removed_at === "string") return []
       return [
         {
           _id,
@@ -228,6 +237,13 @@ export async function POST(request: Request) {
   if (body.kind === "manager" && body.manager?.team && body.manager.user_id) {
     const path = `/teams/${encodeURIComponent(body.manager.team)}/managers/${encodeURIComponent(body.manager.user_id)}`
     return relay(await boardJson(request, path, { method: "PUT", body: { manager: body.manager.manager === true } }), "Could not change the team's managers")
+  }
+
+  if (body.kind === "removePerson" && body.user_id) {
+    return relay(
+      await boardJson(request, `/users/${encodeURIComponent(body.user_id)}`, { method: "DELETE" }),
+      "Could not remove them from the organization"
+    )
   }
 
   if (body.kind === "apiKey" && body.apiKey?.name) {
