@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { proxyBoard } from "@/lib/board-proxy"
+import { AGENT_CONNECTION } from "@/shared/names"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
   const apiKeys = agentList.flatMap((item) => {
     const agent = asRecord(item)
     if (!agent || agent.revoked === true) return []
-    if (agent.connection !== "api_key") return []
+    if (agent.connection !== AGENT_CONNECTION.API_KEY) return []
     const id = typeof agent._id === "string" ? agent._id : undefined
     const name = typeof agent.name === "string" ? agent.name : "Agent"
     const owner_id = typeof agent.owner_id === "string" ? agent.owner_id : ""
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
       body: {
         name: body.apiKey.name,
         scopes: body.apiKey.scopes?.length ? body.apiKey.scopes : ["tickets:read", "tickets:write"],
-        connection: "api_key",
+        connection: AGENT_CONNECTION.API_KEY,
       },
     })
     if (result.status >= 400) {

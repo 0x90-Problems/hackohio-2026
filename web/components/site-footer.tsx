@@ -16,13 +16,13 @@ const COLUMNS = [
     heading: "Agents",
     links: [
       { href: "/agents", label: "Connect an agent" },
-      { href: "/api", label: "MCP setup" },
-      { href: "/api", label: "API keys" },
+      { href: "/agents#mcp", label: "MCP setup" },
     ],
   },
   {
     heading: "Resources",
     links: [
+      { href: "/api", label: "REST API & keys" },
       { href: "/api", label: "OpenAPI reference" },
       {
         href: "https://github.com/0x90-Problems",

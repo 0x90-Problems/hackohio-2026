@@ -152,7 +152,9 @@ export const COLLECTIONS = {
 export const TOKEN_PREFIX = "clw_";        // shown as clw_rd••••••
 export const DEFAULT_TOKEN_EXPIRY_HOURS = 24;
 
-// ---------- MCP tools (names shown on the API page) ----------
+// ---------- MCP tools (names shown on the Agents page) ----------
+// Same names as TOOLS in 0x90-NextJS-Backend src/mcp-http.ts. Descriptions live in
+// shared/mcp-tools.json (web/scripts/sync-mcp-tools.mjs copies them from there).
 export const MCP_TOOLS = {
   GET_BOARD: "get_board",
   CREATE_TICKET: "create_ticket",
@@ -176,6 +178,7 @@ export const MCP_TOOLS = {
   CHAT_LIST_CHANNELS: "chat_list_channels",
   CHAT_READ: "chat_read",
   CHAT_THREAD: "chat_thread",
+  CHAT_SEARCH: "chat_search",
   CHAT_POST: "chat_post",
   CHAT_JOIN: "chat_join",
   CHAT_LEAVE: "chat_leave",
@@ -195,4 +198,17 @@ export const MCP_TOOLS = {
   GET_FILE_LINK: "get_file_link",
   REQUEST_UPLOAD: "request_upload",
   UPLOAD_STATUS: "upload_status",
+  FILE_DIFF: "file_diff",
+  SEARCH_FILES: "search_files",
+  LIST_FILE_LINKS: "list_file_links",
+  LIST_TICKET_FILES: "list_ticket_files",
+  LINK_FILE_TO_TICKET: "link_file_to_ticket",
+  UNLINK_FILE_FROM_TICKET: "unlink_file_from_ticket",
+  WB_LIST_BOARDS: "wb_list_boards",
+  WB_CREATE_BOARD: "wb_create_board",
+  WB_READ_BOARD: "wb_read_board",
+  WB_APPLY_OPS: "wb_apply_ops",
+  WB_SAVE_BOARD: "wb_save_board",
+  WB_VIEW_REGION: "wb_view_region",
 } as const;
+export type McpTool = (typeof MCP_TOOLS)[keyof typeof MCP_TOOLS];
