@@ -1,4 +1,5 @@
-import { EVENT_ACTIONS } from "@/shared/names"
+import { AGENT_CONNECTION, EVENT_ACTIONS } from "@/shared/names"
+import { deletedEventText } from "@/lib/delete-agent"
 import type { Category, Event } from "@/lib/types"
 import { categoryName } from "@/lib/categories"
 import { tickets } from "@/lib/mock-data"
@@ -54,6 +55,8 @@ export function describeEvent(
       return `Deleted ${key}`
     case EVENT_ACTIONS.PERSON_REMOVED:
       return `Removed ${event.details?.name ?? "someone"} from the organization`
+    case EVENT_ACTIONS.AGENT_DELETED:
+      return deletedEventText(event.details, AGENT_CONNECTION.API_KEY)
     default:
       // Never render an empty row for an action this app doesn't know yet.
       return `${String(event.action).replaceAll("_", " ")} · ${key}`

@@ -10,7 +10,7 @@
   "category_colors": ["gray", "red", "orange", "amber", "green", "teal", "pink"],
   "project_templates": ["blank", "team-planning", "kanban", "feature-release", "bug-tracker", "iterative-development", "product-launch", "roadmap", "team-retrospective"],
   "agent_connection": ["mcp", "api_key"],
-  "event_actions": ["ticket_created", "ticket_moved", "comment_added", "commit_linked", "ticket_closed"],
+  "event_actions": ["ticket_created", "ticket_moved", "comment_added", "commit_linked", "ticket_closed", "ticket_deleted", "ticket_updated", "person_removed", "agent_deleted"],
   "db_name": "hackathon",
   "collections": ["users", "projects", "agents", "agent_tokens", "tickets", "comments", "events"],
   "token_prefix": "clw_",

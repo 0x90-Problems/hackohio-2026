@@ -1,6 +1,7 @@
 import { AGENT_CONNECTION, type AgentConnection, type Scope } from "@/shared/names"
 import { readAgentUsage, type AgentUsage } from "@/lib/agent-usage"
 import { clearSession, readSession } from "@/lib/board-auth"
+import { parseCleanup, parseDeletedAgent, type AgentCleanup, type DeletedAgent } from "@/lib/delete-agent"
 import { mcpLinksFromApi, type McpInstallLinks } from "@/lib/mcp-install"
 import type { Agent } from "@/lib/types"
 
@@ -167,6 +168,52 @@ export async function revokeAgentAccess(agentId: string): Promise<void> {
   if (!response.ok) throw new ConnectAgentError(staleSession(await errorMessage(response)))
 }
 
+/**
+ * Deletes an agent or API key for good (owner or org admin). Its tokens stop working; its
+ * history stays. Null means it was already gone, so the caller can drop it from the list.
+ */
+export async function deleteAgent(agentId: string): Promise<DeletedAgent | null> {
+  const session = readSession()
+  if (!session) throw new ConnectAgentError("Sign in before deleting")
+  const response = await sendDelete(`/api/agents/${encodeURIComponent(agentId)}`, session.secret)
+  if (response.status === 404) {
+    const message = await errorMessage(response, "")
+    // An older board answers "No route for DELETE …": deleting isn't live there yet.
+    if (message.startsWith("No route")) throw new ConnectAgentError("The board API can't delete agents yet")
+    return null
+  }
+  if (!response.ok) throw new ConnectAgentError(deleteError(response.status, await errorMessage(response, "Couldn't delete it")))
+  return parseDeletedAgent(await response.json().catch(() => null))
+}
+
+/** Your own inactive agents and API keys (revoked, or every token revoked or expired). */
+export async function cleanupInactiveAgents(dryRun: boolean): Promise<AgentCleanup> {
+  const session = readSession()
+  if (!session) throw new ConnectAgentError("Sign in before cleaning up")
+  const response = await sendDelete(`/api/agents?state=inactive&dry_run=${dryRun ? "true" : "false"}`, session.secret)
+  if (response.status === 404) throw new ConnectAgentError("The board API can't clean up agents yet")
+  if (!response.ok) throw new ConnectAgentError(deleteError(response.status, await errorMessage(response, "Couldn't clean up")))
+  const cleanup = parseCleanup(await response.json().catch(() => null))
+  if (!cleanup) throw new ConnectAgentError("The board API returned an unexpected response")
+  return cleanup
+}
+
+async function sendDelete(path: string, secret: string): Promise<Response> {
+  try {
+    return await fetch(path, {
+      method: "DELETE",
+      headers: { accept: "application/json", authorization: `Bearer ${secret}` },
+    })
+  } catch {
+    throw new ConnectAgentError("The board API could not be reached")
+  }
+}
+
+function deleteError(status: number, message: string): string {
+  if (status === 403) return "Only its owner or an org admin can delete it"
+  return staleSession(message)
+}
+
 function staleSession(message: string): string {
   if (message.includes("Token is not recognized") || message.includes("Token is expired") || message.includes("Token is revoked")) {
     clearSession()
@@ -175,11 +222,11 @@ function staleSession(message: string): string {
   return message
 }
 
-async function errorMessage(response: Response): Promise<string> {
+async function errorMessage(response: Response, fallback = "Couldn't connect that agent"): Promise<string> {
   try {
     const body = (await response.json()) as { error?: { message?: string } }
-    return body.error?.message ?? "Couldn't connect that agent"
+    return body.error?.message ?? fallback
   } catch {
-    return "Couldn't connect that agent"
+    return fallback
   }
 }

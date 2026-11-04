@@ -20,6 +20,22 @@ export function visibleAgentName(
   return readable(name, id) ?? readable(alternate, id) ?? "Agent"
 }
 
+/**
+ * An author on a ticket, comment or event. Prefers the stored name, then the directory's.
+ * When neither is readable and the loaded directory doesn't list the agent, it was deleted.
+ * `listed` is undefined while the directory is still loading, so nothing flashes "Deleted agent".
+ */
+export function authorAgentName(
+  name: string | undefined | null,
+  id: string,
+  alternate: string | null | undefined,
+  listed: boolean | undefined
+): string {
+  const shown = readable(name, id) ?? readable(alternate, id)
+  if (shown) return shown
+  return listed === false ? "Deleted agent" : "Agent"
+}
+
 export function mergeAgentRecords(primary: Agent[], extra: Agent[]): Agent[] {
   const byId = new Map(primary.map((agent) => [agent._id, agent]))
   for (const agent of extra) {

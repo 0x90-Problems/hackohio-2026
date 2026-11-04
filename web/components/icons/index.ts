@@ -1,5 +1,6 @@
 export {
   Bold as BoldIcon,
+  BrushCleaning as BrushCleaningIcon,
   Code as CodeIcon,
   Heading1 as Heading1Icon,
   Heading2 as Heading2Icon,

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { useProjects } from "@/components/projects/projects-store"
 import { useBoardDirectory } from "@/lib/use-board-directory"
-import { visibleAgentName } from "@/lib/agent-label"
+import { authorAgentName, visibleAgentName } from "@/lib/agent-label"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { EmptyState } from "@/components/illustrations"
 import { ScopeBadge } from "@/components/scope-badge"
@@ -367,6 +367,12 @@ function ActivityTimeline({
   limit: number
 }) {
   const { tickets } = useProjects()
+  const directory = useBoardDirectory()
+  // A deleted agent keeps its stored name; with none, it reads "Deleted agent".
+  const eventAgentName = (name: string | undefined, id: string) => {
+    const known = directory.agents.find((agent) => agent._id === id) ?? getAgent(id)
+    return authorAgentName(name, id, known?.name, directory.agentsLoaded ? Boolean(known) : undefined)
+  }
   const recent = [...events]
     .sort((a, b) => b.created_at.getTime() - a.created_at.getTime())
     .slice(0, limit)
@@ -396,7 +402,7 @@ function ActivityTimeline({
             </p>
             <p className="text-xs text-muted-foreground">
               {byAgent
-                ? `${visibleAgentName(e.actor.name, e.actor.id, getAgent(e.actor.id)?.name)} · `
+                ? `${eventAgentName(e.actor.name, e.actor.id)} · `
                 : ""}
               {timeAgo(e.created_at)}
             </p>
