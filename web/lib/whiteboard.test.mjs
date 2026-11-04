@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { Autosaver } from "./whiteboard-autosave.ts"
-import { exportFileName, imageFileName, imageProblem, ImageLoader, isFileRef, versionFileName } from "./whiteboard-files.ts"
+import { blankVersions, exportFileName, imageFileName, imageProblem, ImageLoader, isFileRef, versionFileName } from "./whiteboard-files.ts"
 import { describeRow, matchesFilter, outlineOf } from "./whiteboard-outline.ts"
 
 const shape = (id, type, extra = {}) => ({ id, type, x: 0, y: 0, ...extra })
@@ -274,4 +274,23 @@ test("an edit made during a check isn't forgotten", async (t) => {
   await flush()
   assert.equal(count, 2)
   saver.stop()
+})
+
+// NSB-51: version 1 is the blank board every whiteboard starts as. Restoring it empties the board,
+// so the history has to say so instead of looking like the first drawing.
+test("version 1, and any restore of it, is marked as the blank board", () => {
+  const versions = [
+    { version: 9, reason: "Autosave" },
+    { version: 7, restored_from: 5 },
+    { version: 6, restored_from: 4 },
+    { version: 5, restored_from: 1 },
+    { version: 4, restored_from: 2 },
+    { version: 2, reason: "nothing changed" },
+    { version: 1 },
+  ]
+  assert.deepEqual([...blankVersions(versions)].sort((a, b) => a - b), [1, 5, 7])
+})
+
+test("a restore of a version that isn't in the list isn't guessed at", () => {
+  assert.deepEqual([...blankVersions([{ version: 3, restored_from: 2 }])], [])
 })

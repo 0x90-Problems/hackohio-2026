@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 import { ActorBadge } from "@/components/actor-badge"
 import { DownloadIcon, HistoryIcon, SaveIcon, XIcon } from "@/components/icons"
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { foldersApi, FoldersError, type Version } from "@/lib/folders-api"
 import { absoluteTime } from "@/lib/format"
+import { blankVersions, type RestoreChoice } from "@/lib/whiteboard-files"
 
 function explain(error: unknown) {
   return error instanceof FoldersError ? error.message : "Try again in a moment."
@@ -33,7 +34,7 @@ export function VersionsPanel({
   saving: boolean
   busyVersion: number | null
   onSave: (reason: string) => Promise<boolean>
-  onRestore: (version: Version) => void
+  onRestore: (version: RestoreChoice) => void
   onDownload: (version: Version) => void
   onClose: () => void
 }) {
@@ -64,6 +65,7 @@ export function VersionsPanel({
   }, [boardId, refreshKey])
 
   const current = versions?.[0]?.version
+  const blank = useMemo(() => blankVersions(versions ?? []), [versions])
 
   return (
     <aside
@@ -117,6 +119,9 @@ export function VersionsPanel({
                 {version.version === current ? <span className="rounded border px-1 text-xs text-muted-foreground">Latest</span> : null}
               </div>
               {version.reason ? <p className="break-words text-muted-foreground">{version.reason}</p> : null}
+              {blank.has(version.version) ? (
+                <p className="text-xs text-muted-foreground">{version.version === 1 ? "Blank board, as it was made" : "Blank board"}</p>
+              ) : null}
               {version.restored_from && !version.reason ? <p className="text-xs text-muted-foreground">Restored from version {version.restored_from}</p> : null}
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {version.created_by ? <ActorBadge actor={version.created_by} interactive={false} /> : null}
@@ -124,7 +129,7 @@ export function VersionsPanel({
               </div>
               <div className="flex gap-1">
                 {canEdit ? (
-                  <Button variant="outline" size="xs" disabled={busyVersion !== null} onClick={() => onRestore(version)}>
+                  <Button variant="outline" size="xs" disabled={busyVersion !== null} onClick={() => onRestore({ ...version, blank: blank.has(version.version) })}>
                     {busyVersion === version.version ? "Restoring…" : "Restore"}
                   </Button>
                 ) : null}
