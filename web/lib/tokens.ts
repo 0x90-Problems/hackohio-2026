@@ -1,7 +1,7 @@
 import { SCOPES, TOKEN_PREFIX, type Scope } from "@/shared/names"
 
-// Plain-English names for each scope, in the order shown.
-export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
+// Plain-English names for each scope, in the order shown. A hint shows under the label.
+export const SCOPE_OPTIONS: { scope: Scope; label: string; hint?: string }[] = [
   { scope: SCOPES.TICKETS_READ, label: "Read tickets" },
   { scope: SCOPES.TICKETS_WRITE, label: "Create and move tickets" },
   { scope: SCOPES.COMMENTS_WRITE, label: "Comment" },
@@ -13,6 +13,12 @@ export const SCOPE_OPTIONS: { scope: Scope; label: string }[] = [
   { scope: SCOPES.FILES_WRITE, label: "Upload files and edit documents" },
   { scope: SCOPES.WHITEBOARD_READ, label: "See whiteboards" },
   { scope: SCOPES.WHITEBOARD_WRITE, label: "Draw on whiteboards" },
+  {
+    scope: SCOPES.WHITEBOARD_VIEW,
+    label: "See whiteboard pictures",
+    // NSB-47: writing in a picture reaches the agent unfiltered, so this stays off unless ticked.
+    hint: "Needs See whiteboards. Off by default: handwriting or text in a picture can hide instructions for your agent.",
+  },
   { scope: SCOPES.CHAT_READ, label: "Read chat" },
   { scope: SCOPES.CHAT_WRITE, label: "Post in chat" },
   // folders:share, chat:manage and chat:dm are never offered: they are people-only.

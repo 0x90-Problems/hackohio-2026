@@ -376,16 +376,24 @@ function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) 
           <legend className="mb-3 font-mono text-xs tracking-widest text-muted-foreground uppercase">
             1 · Scopes
           </legend>
-          {SCOPE_OPTIONS.map(({ scope, label }) => (
+          {SCOPE_OPTIONS.map(({ scope, label, hint }) => (
             <div key={scope} className="flex items-center gap-2.5">
               <Checkbox
                 id={`scope-${scope}`}
+                aria-describedby={hint ? `scope-${scope}-hint` : undefined}
                 checked={scopes.includes(scope)}
                 onCheckedChange={(on) => toggle(scope, on === true)}
               />
-              <Label htmlFor={`scope-${scope}`} className="flex-1 font-normal">
-                {label}
-              </Label>
+              <div className="flex flex-1 flex-col gap-0.5">
+                <Label htmlFor={`scope-${scope}`} className="font-normal">
+                  {label}
+                </Label>
+                {hint ? (
+                  <p id={`scope-${scope}-hint`} className="text-xs text-muted-foreground">
+                    {hint}
+                  </p>
+                ) : null}
+              </div>
               <code className="font-mono text-xs text-muted-foreground">{scope}</code>
             </div>
           ))}
