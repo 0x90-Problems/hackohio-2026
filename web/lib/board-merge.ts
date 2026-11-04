@@ -83,7 +83,8 @@ function commitsOf(value: unknown): Ticket["linked_commits"] {
     if (!commit || !sha || !message) return []
     const added = typeof commit.added === "number" ? commit.added : 0
     const removed = typeof commit.removed === "number" ? commit.removed : 0
-    return [{ sha, message, added, removed }]
+    const repo = text(commit.repo)
+    return [{ sha, message, added, removed, ...(repo ? { repo } : {}) }]
   })
 }
 
