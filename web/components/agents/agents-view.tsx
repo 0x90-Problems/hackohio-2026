@@ -5,6 +5,7 @@ import {
   AlertTriangleIcon,
   ActivityIcon,
   BotIcon,
+  ClockIcon,
   CopyIcon,
   KeyRoundIcon,
   ShieldOffIcon,
@@ -21,10 +22,8 @@ import {
   type Scope,
 } from "@/shared/names"
 import type { Agent } from "@/lib/types"
-import {
-  agentTokens,
-  getUser,
-} from "@/lib/mock-data"
+import { getUser } from "@/lib/mock-data"
+import { agentAccess, type AgentUsage } from "@/lib/agent-usage"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { McpInstallActions } from "@/components/mcp-install-actions"
 import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
@@ -74,18 +73,12 @@ const CONNECTION_LABELS = {
   [AGENT_CONNECTION.API_KEY]: "via API key",
 }
 
-// Most recent use across the agent's tokens, or null if never used.
-function lastActive(agentId: string) {
-  const times = agentTokens
-    .filter((t) => t.agent_id === agentId && t.last_used_at)
-    .map((t) => t.last_used_at!.getTime())
-  return times.length ? new Date(Math.max(...times)) : null
-}
-
 export function AgentsView() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
+  // Last use and expiry per agent, derived by the board API from all of its tokens.
+  const [usage, setUsage] = useState<Map<string, AgentUsage>>(new Map())
 
   useEffect(() => {
     let cancelled = false
@@ -103,6 +96,7 @@ export function AgentsView() {
       .then(([board, live]) => {
         if (cancelled) return
         const saved = board?.agents ?? []
+        setUsage(new Map(live.map((agent) => [agent._id, agent])))
         // Empty DocDB stays empty — do not push mock demo agents back into the board.
         setAgents(mergeAgentRecords(saved, live))
       })
@@ -177,6 +171,7 @@ export function AgentsView() {
                   agent={agent}
                   isNew={newIds.has(agent._id)}
                   people={people}
+                  usage={usage.get(agent._id)}
                   onRevoke={revoke}
                 />
               ))}
@@ -194,11 +189,13 @@ function AgentRow({
   agent,
   isNew,
   people,
+  usage,
   onRevoke,
 }: {
   agent: Agent
   isNew: boolean
   people: { _id: string; name: string }[]
+  usage?: AgentUsage
   onRevoke: (agent: Agent) => void
 }) {
   const account = useAuthUser()
@@ -206,16 +203,19 @@ function AgentRow({
     people.find((person) => person._id === agent.owner_id)?.name ??
     getUser(agent.owner_id)?.name ??
     (account?._id === agent.owner_id ? account.name : undefined)
-  const active = lastActive(agent._id)
+  const active = usage?.last_used_at ?? null
+  // An expired agent can't act any more, so it reads like a revoked one.
+  const access = agentAccess(agent, usage)
+  const inactive = access !== "active"
   return (
     <TableRow
       className={cn(
-        agent.revoked && "text-muted-foreground",
+        inactive && "text-muted-foreground",
         isNew && "duration-300 animate-in fade-in slide-in-from-top-2"
       )}
     >
       <TableCell className="pl-4">
-        <div className={cn("flex flex-col gap-1", agent.revoked && "opacity-60")}>
+        <div className={cn("flex flex-col gap-1", inactive && "opacity-60")}>
           <ActorBadge
             actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: agent.owner_id }}
           />
@@ -239,7 +239,7 @@ function AgentRow({
         )}
       </TableCell>
       <TableCell>
-        <div className={cn("flex flex-col items-start gap-1", agent.revoked && "opacity-60")}>
+        <div className={cn("flex flex-col items-start gap-1", inactive && "opacity-60")}>
           {agent.scopes.map((scope) => (
             <ScopeBadge key={scope} scope={scope} />
           ))}
@@ -249,10 +249,15 @@ function AgentRow({
         {active ? timeAgo(active) : <span className="text-muted-foreground">Never</span>}
       </TableCell>
       <TableCell className="pr-4 text-right">
-        {agent.revoked ? (
+        {access === "revoked" ? (
           <Badge variant="outline">
             <WifiOffIcon className="size-3" aria-hidden="true" />
             Revoked
+          </Badge>
+        ) : access === "expired" ? (
+          <Badge variant="outline">
+            <ClockIcon className="size-3" aria-hidden="true" />
+            Expired
           </Badge>
         ) : account?._id === agent.owner_id ? (
           <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />

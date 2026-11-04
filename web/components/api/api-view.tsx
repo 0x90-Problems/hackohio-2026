@@ -5,6 +5,7 @@ import {
   AlertTriangleIcon,
   ArrowRightIcon,
   BookOpenIcon,
+  ClockIcon,
   CopyIcon,
   KeyRoundIcon,
 } from "@/components/icons"
@@ -25,7 +26,8 @@ import {
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { loadSite, saveApiKey } from "@/lib/site-db"
-import { ConnectAgentError, connectAgent } from "@/lib/connect-agent"
+import { withKeyUsage } from "@/lib/agent-usage"
+import { ConnectAgentError, connectAgent, listBoardAgents } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
 import { SCOPE_OPTIONS, maskToken } from "@/lib/tokens"
@@ -100,6 +102,7 @@ type ApiKey = {
   token_prefix: string
   last_used_at: Date | null
   scopes: Scope[]
+  expired?: boolean
 }
 
 // Existing keys: agents that connect with an API key, plus their current token.
@@ -129,10 +132,11 @@ export function ApiView() {
 
   useEffect(() => {
     let cancelled = false
-    loadSite()
-      .then((site) => {
+    Promise.all([loadSite(), listBoardAgents().catch(() => [])])
+      .then(([site, live]) => {
         if (cancelled || site.apiKeys.length === 0) return
-        setKeys(site.apiKeys as ApiKey[])
+        // Saved keys never update last_used_at; the board API knows the real last use and expiry.
+        setKeys(withKeyUsage(site.apiKeys as ApiKey[], live))
       })
       .catch(() => {
         toast.error("Couldn't load API keys from the database")
@@ -262,7 +266,15 @@ export function ApiView() {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold">{visibleAgentName(key.name)}</span>
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm font-semibold">{visibleAgentName(key.name)}</span>
+                        {key.expired && (
+                          <Badge variant="outline" className="shrink-0">
+                            <ClockIcon className="size-3" aria-hidden="true" />
+                            Expired
+                          </Badge>
+                        )}
+                      </span>
                       {owner && (
                         <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                           <HumanAvatar name={owner.name} /> {owner.name}

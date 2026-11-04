@@ -1,4 +1,5 @@
 import { AGENT_CONNECTION, type AgentConnection, type Scope } from "@/shared/names"
+import { readAgentUsage, type AgentUsage } from "@/lib/agent-usage"
 import { clearSession, readSession } from "@/lib/board-auth"
 import { mcpLinksFromApi, type McpInstallLinks } from "@/lib/mcp-install"
 import type { Agent } from "@/lib/types"
@@ -127,7 +128,10 @@ export async function listBoardUsers(): Promise<{ _id: string; name: string }[]>
   })
 }
 
-export async function listBoardAgents(): Promise<Agent[]> {
+/** A GET /agents row: the agent plus usage derived from its tokens. */
+export type LiveAgent = Agent & AgentUsage
+
+export async function listBoardAgents(): Promise<LiveAgent[]> {
   const session = readSession()
   if (!session) throw new ConnectAgentError("Sign in before loading agents")
   const response = await fetch("/api/agents", {
@@ -148,6 +152,7 @@ export async function listBoardAgents(): Promise<Agent[]> {
       connection: agent.connection === AGENT_CONNECTION.API_KEY ? AGENT_CONNECTION.API_KEY : AGENT_CONNECTION.MCP,
       scopes: agent.scopes as Agent["scopes"],
       revoked: agent.revoked === true,
+      ...readAgentUsage(item),
     }]
   })
 }
