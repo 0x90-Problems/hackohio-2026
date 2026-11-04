@@ -25,9 +25,11 @@ import type { Agent } from "@/lib/types"
 import { getUser } from "@/lib/mock-data"
 import { agentAccess, type AgentUsage } from "@/lib/agent-usage"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { CleanupInactiveButton, DeleteAgentDialog } from "@/components/agents/delete-agent"
 import { McpInstallActions } from "@/components/mcp-install-actions"
 import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
+import { canDeleteAgent } from "@/lib/delete-agent"
 import { ConnectAgentError, connectAgent, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
@@ -132,6 +134,12 @@ export function AgentsView() {
     toast.success(`Revoked ${visibleAgentName(agent.name, agent._id)}`, { description: "Its token stopped working." })
   }
 
+  // Deleted on the board: drop the rows. Their history keeps the stored names.
+  function forget(agentIds: string[]) {
+    const gone = new Set(agentIds)
+    setAgents((current) => current.filter((agent) => !gone.has(agent._id)))
+  }
+
   function connect(agent: Agent) {
     setAgents((current) => [agent, ...current])
     setNewIds((ids) => new Set(ids).add(agent._id))
@@ -140,19 +148,27 @@ export function AgentsView() {
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-          <BotIcon className="size-6" aria-hidden="true" />
-          Agents
-        </h1>
-        <p className="text-muted-foreground">
-          AI agents connect over MCP. Every agent belongs to a person. Revoke one and its token stops
-          working right away. Scripting the board instead? Use the{" "}
-          <Link href="/api" className="font-medium text-foreground underline underline-offset-4">
-            API (REST)
-          </Link>
-          .
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+            <BotIcon className="size-6" aria-hidden="true" />
+            Agents
+          </h1>
+          <p className="text-muted-foreground">
+            AI agents connect over MCP. Every agent belongs to a person. Revoke one and its token stops
+            working right away. Scripting the board instead? Use the{" "}
+            <Link href="/api" className="font-medium text-foreground underline underline-offset-4">
+              API (REST)
+            </Link>
+            .
+          </p>
+        </div>
+        <CleanupInactiveButton
+          connection={AGENT_CONNECTION.MCP}
+          missing={AGENT_CONNECTION.MCP}
+          words={{ one: "agent", many: "agents", otherOne: "API key", otherMany: "API keys", otherPage: "API page" }}
+          onDeleted={forget}
+        />
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -182,6 +198,7 @@ export function AgentsView() {
                     people={people}
                     usage={usage.get(agent._id)}
                     onRevoke={revoke}
+                    onDeleted={(id) => forget([id])}
                   />
                 ))}
               </TableBody>
@@ -203,12 +220,14 @@ function AgentRow({
   people,
   usage,
   onRevoke,
+  onDeleted,
 }: {
   agent: Agent
   isNew: boolean
   people: { _id: string; name: string }[]
   usage?: AgentUsage
   onRevoke: (agent: Agent) => void
+  onDeleted: (agentId: string) => void
 }) {
   const account = useAuthUser()
   const ownerName =
@@ -219,6 +238,7 @@ function AgentRow({
   // An expired agent can't act any more, so it reads like a revoked one.
   const access = agentAccess(agent, usage)
   const inactive = access !== "active"
+  const deletable = canDeleteAgent(agent.owner_id, account?._id, account?.admin === true)
   return (
     <TableRow
       className={cn(
@@ -253,21 +273,32 @@ function AgentRow({
         {active ? timeAgo(active) : <span className="text-muted-foreground">Never</span>}
       </TableCell>
       <TableCell className="pr-4 text-right">
-        {access === "revoked" ? (
-          <Badge variant="outline">
-            <WifiOffIcon className="size-3" aria-hidden="true" />
-            Revoked
-          </Badge>
-        ) : access === "expired" ? (
-          <Badge variant="outline">
-            <ClockIcon className="size-3" aria-hidden="true" />
-            Expired
-          </Badge>
-        ) : account?._id === agent.owner_id ? (
-          <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />
-        ) : (
-          <span className="text-sm text-muted-foreground">Active</span>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {access === "revoked" ? (
+            <Badge variant="outline">
+              <WifiOffIcon className="size-3" aria-hidden="true" />
+              Revoked
+            </Badge>
+          ) : access === "expired" ? (
+            <Badge variant="outline">
+              <ClockIcon className="size-3" aria-hidden="true" />
+              Expired
+            </Badge>
+          ) : account?._id === agent.owner_id ? (
+            <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />
+          ) : (
+            <span className="text-sm text-muted-foreground">Active</span>
+          )}
+          {deletable && (
+            <DeleteAgentDialog
+              agentId={agent._id}
+              name={visibleAgentName(agent.name, agent._id)}
+              kind="agent"
+              ownerName={ownerName}
+              onDeleted={onDeleted}
+            />
+          )}
+        </div>
       </TableCell>
     </TableRow>
   )

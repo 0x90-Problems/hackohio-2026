@@ -133,6 +133,8 @@ export const EVENT_ACTIONS = {
   TICKET_UPDATED: "ticket_updated",
   // An org admin removed someone from the organization. ticket_key is "": it isn't about a ticket.
   PERSON_REMOVED: "person_removed",
+  // An agent or API key was deleted for good. ticket_key is "", like person_removed.
+  AGENT_DELETED: "agent_deleted",
 } as const;
 export type EventAction = (typeof EVENT_ACTIONS)[keyof typeof EVENT_ACTIONS];
 

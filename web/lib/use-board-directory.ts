@@ -41,6 +41,8 @@ function loadAgents() {
 export function useBoardDirectory() {
   const [people, setPeople] = useState<Person[]>(peopleCache ?? [])
   const [agents, setAgents] = useState<Agent[]>(agentCache ?? [])
+  // True once GET /agents has answered, so an agent missing from it was deleted.
+  const [agentsLoaded, setAgentsLoaded] = useState(agentCache !== null)
 
   useEffect(() => {
     let cancelled = false
@@ -48,12 +50,14 @@ export function useBoardDirectory() {
       if (!cancelled) setPeople(users)
     })
     loadAgents().then((rows) => {
-      if (!cancelled) setAgents(rows)
+      if (cancelled) return
+      setAgents(rows)
+      setAgentsLoaded(agentCache !== null)
     })
     return () => {
       cancelled = true
     }
   }, [])
 
-  return { people, agents }
+  return { people, agents, agentsLoaded }
 }

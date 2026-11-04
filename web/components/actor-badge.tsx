@@ -4,7 +4,7 @@ import { ACTOR_TYPES } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { BotIcon } from "@/components/icons"
-import { visibleAgentName } from "@/lib/agent-label"
+import { authorAgentName } from "@/lib/agent-label"
 import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
 import { useBoardDirectory } from "@/lib/use-board-directory"
@@ -92,13 +92,16 @@ export function ActorBadge({
   interactive?: boolean
 }) {
   const account = useAuthUser()
-  const { people, agents } = useBoardDirectory()
+  const { people, agents, agentsLoaded } = useBoardDirectory()
   if (actor.type === ACTOR_TYPES.AGENT) {
     const record = agents.find((agent) => agent._id === actor.id)
-    const agentName = visibleAgentName(
+    const sample = getAgent(actor.id)
+    // History keeps a deleted agent's stored name; with none, it reads "Deleted agent".
+    const agentName = authorAgentName(
       actor.name,
       actor.id,
-      record?.name || getAgent(actor.id)?.name
+      record?.name || sample?.name,
+      agentsLoaded ? Boolean(record || sample) : undefined
     )
     const ownerName =
       (actor.acting_for === account?._id ? account.name : undefined) ||
@@ -154,13 +157,16 @@ export function ActorBadge({
 // First word of the display name, without the agent tag or "for owner" line.
 export function useShortActorName(actor: Actor): string {
   const account = useAuthUser()
-  const { people, agents } = useBoardDirectory()
+  const { people, agents, agentsLoaded } = useBoardDirectory()
+  const record = agents.find((agent) => agent._id === actor.id)
+  const sample = getAgent(actor.id)
   const full =
     actor.type === ACTOR_TYPES.AGENT
-      ? visibleAgentName(
+      ? authorAgentName(
           actor.name,
           actor.id,
-          agents.find((agent) => agent._id === actor.id)?.name || getAgent(actor.id)?.name
+          record?.name || sample?.name,
+          agentsLoaded ? Boolean(record || sample) : undefined
         )
       : actor.name ||
         (actor.id === account?._id ? account.name : undefined) ||

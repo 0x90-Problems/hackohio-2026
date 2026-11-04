@@ -22,6 +22,7 @@ import {
   type Scope,
 } from "@/shared/names"
 import { useAuthUser } from "@/components/auth/auth-gate"
+import { CleanupInactiveButton, DeleteAgentDialog } from "@/components/agents/delete-agent"
 import { loadSite } from "@/lib/site-db"
 import { withKeyUsage } from "@/lib/agent-usage"
 import {
@@ -31,6 +32,7 @@ import {
   listBoardUsers,
   revokeAgentAccess,
 } from "@/lib/connect-agent"
+import { canDeleteAgent } from "@/lib/delete-agent"
 import { timeAgo } from "@/lib/format"
 import { boardApiPublicUrl, curlExample, onlyConnection } from "@/lib/rest-api"
 import { REST_ENDPOINTS, type RestMethod } from "@/lib/rest-endpoints"
@@ -152,6 +154,12 @@ export function ApiView() {
     }
     setKeys((current) => current.filter((k) => k !== key))
     toast.success(`Revoked ${key.name}`, { description: "Requests with this key now get 401." })
+  }
+
+  // Deleted on the board: drop the rows.
+  function forget(agentIds: string[]) {
+    const gone = new Set(agentIds)
+    setKeys((current) => current.filter((key) => !key.id || !gone.has(key.id)))
   }
 
   return (
@@ -287,6 +295,9 @@ export function ApiView() {
                 const ownerName =
                   people.find((person) => person._id === key.owner_id)?.name ??
                   (account?._id === key.owner_id ? account.name : undefined)
+                const mine = account?._id === key.owner_id
+                // The owner or an org admin; only the owner revokes here, as before.
+                const deletable = canDeleteAgent(key.owner_id, account?._id, account?.admin === true)
                 return (
                   <li
                     key={(key.id ?? key.token_prefix) + key.name}
@@ -318,9 +329,16 @@ export function ApiView() {
                         <ScopeBadge key={s} scope={s} />
                       ))}
                     </div>
-                    {key.id && account?._id === key.owner_id ? (
-                      <div className="flex justify-end">
-                        <RevokeKeyDialog apiKey={key} onRevoke={revoke} />
+                    {key.id && deletable ? (
+                      <div className="flex justify-end gap-2">
+                        {mine && <RevokeKeyDialog apiKey={key} onRevoke={revoke} />}
+                        <DeleteAgentDialog
+                          agentId={key.id}
+                          name={key.name}
+                          kind="key"
+                          ownerName={mine ? undefined : ownerName}
+                          onDeleted={(id) => forget([id])}
+                        />
                       </div>
                     ) : null}
                   </li>
@@ -328,7 +346,7 @@ export function ApiView() {
               })}
             </ul>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col items-stretch gap-2">
             <CreateKeyDialog
               baseUrl={baseUrl}
               onCreate={(key) => {
@@ -336,6 +354,12 @@ export function ApiView() {
                 setKeys((current) => [key, ...current])
                 setNewKeyName(key.name)
               }}
+            />
+            <CleanupInactiveButton
+              connection={AGENT_CONNECTION.API_KEY}
+              missing={AGENT_CONNECTION.MCP}
+              words={{ one: "API key", many: "API keys", otherOne: "agent", otherMany: "agents", otherPage: "Agents page" }}
+              onDeleted={forget}
             />
           </CardFooter>
         </Card>
