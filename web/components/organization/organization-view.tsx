@@ -5,6 +5,7 @@ import {
   BotIcon,
   Building2Icon,
   ChevronRightIcon,
+  MoreHorizontalIcon,
   SettingsIcon,
   UserIcon,
   UsersIcon,
@@ -12,11 +13,17 @@ import {
 import { toast } from "sonner"
 
 import { DEFAULT_TOKEN_EXPIRY_HOURS } from "@/shared/names"
-import { TEAM, agents, users } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { loadSite, saveOrganization } from "@/lib/site-db"
+import { useOpenProfile } from "@/components/profile/profile-dialog"
+import { useProjects } from "@/components/projects/projects-store"
+import { RemovePersonDialog } from "@/components/teams/remove-person-dialog"
+import { loadSite, saveOrganization, type SiteState } from "@/lib/site-db"
+import { absoluteTime, timeAgo } from "@/lib/format"
+import { ROLE_LABELS, orgCounts, orgMembers, teamsOf, type OrgMember } from "@/lib/org-members"
+import { canRemovePerson } from "@/lib/remove-person"
 import { cn } from "@/lib/utils"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -27,6 +34,12 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -36,6 +49,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+type Person = SiteState["users"][number]
 
 // No organization collection yet, so the name is a placeholder.
 const DEFAULT_ORG_NAME = "NutShell"
@@ -61,33 +85,42 @@ export function OrganizationView() {
   const [rules, setRules] = useState<Record<string, boolean>>(
     Object.fromEntries(RULES.map((r) => [r.id, true]))
   )
+  // Teams and people from the board. Null until it loads.
+  const [site, setSite] = useState<Pick<SiteState, "teams" | "users"> | null>(null)
+  const [reload, setReload] = useState(0)
+  const [removing, setRemoving] = useState<Person | null>(null)
 
   useEffect(() => {
     let cancelled = false
     loadSite()
-      .then((site) => {
-        if (cancelled || !site.organization) return
-        setOrgName(site.organization.name)
-        setSavedName(site.organization.name)
-        setExpiry(String(site.organization.token_expiry_hours))
-        setRules((current) => ({ ...current, ...site.organization?.rules }))
+      .then((loaded) => {
+        if (cancelled) return
+        setSite({ teams: loaded.teams, users: loaded.users })
+        // Only the first load fills the form, so a reload never undoes an unsaved name.
+        if (reload > 0 || !loaded.organization) return
+        setOrgName(loaded.organization.name)
+        setSavedName(loaded.organization.name)
+        setExpiry(String(loaded.organization.token_expiry_hours))
+        setRules((current) => ({ ...current, ...loaded.organization?.rules }))
       })
       .catch(() => {
-        toast.error("Couldn't load the organization from the database")
+        if (!cancelled) toast.error("Couldn't load the organization from the database")
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [reload])
 
   const account = useAuthUser()
-  const myAgent = agents.find((a) => a.owner_id === account?._id && !a.revoked)
-  const teamCount = new Set([
-    ...users.map((u) => u.team),
-    ...(account?.team ? [account.team] : []),
-  ]).size
-  const peopleCount = users.some((u) => u._id === account?._id) ? users.length : users.length + (account ? 1 : 0)
-  const agentCount = agents.filter((a) => !a.revoked).length
+  const store = useProjects()
+  // Real board data. The page used mock-data.ts before, so its numbers were made up.
+  const counts = site ? orgCounts(site, store.boardAgents) : null
+  const members = site
+    ? orgMembers(site, store.boardAgents, [...store.activity, ...store.comments, ...store.tickets])
+    : null
+  const myAgents = store.boardAgents.filter((a) => a.owner_id === account?._id && !a.revoked)
+  const me = site?.users.find((u) => u._id === account?._id)
+  const myTeam = account?.team || (me ? teamsOf(me)[0] : undefined)
 
   const flow = [
     {
@@ -95,7 +128,7 @@ export function OrganizationView() {
       icon: Building2Icon,
       content: <span className="truncate">{orgName || "Untitled"}</span>,
     },
-    { kind: "Team", icon: UsersIcon, content: <span className="truncate">{account?.team || TEAM}</span> },
+    { kind: "Team", icon: UsersIcon, content: <span className="truncate">{myTeam || "No team yet"}</span> },
     {
       kind: "User",
       icon: UserIcon,
@@ -111,7 +144,14 @@ export function OrganizationView() {
       dashed: true,
       content: (
         <span className="inline-flex min-w-0 items-center gap-1.5">
-          <AgentTag /> <span className="truncate">{myAgent?.name ?? "No agent yet"}</span>
+          <AgentTag />{" "}
+          <span className="truncate">
+            {myAgents.length === 0
+              ? "No agent yet"
+              : myAgents.length === 1
+                ? myAgents[0].name
+                : `${myAgents[0].name} +${myAgents.length - 1} more`}
+          </span>
         </span>
       ),
     },
@@ -214,13 +254,15 @@ export function OrganizationView() {
             </form>
             <dl className="flex gap-10">
               {[
-                { label: "Teams", value: teamCount },
-                { label: "People", value: peopleCount },
-                { label: "Agents", value: agentCount },
+                { label: "Teams", value: counts?.teams },
+                { label: "People", value: counts?.people },
+                { label: "Agents", value: counts?.agents },
               ].map((stat) => (
                 <div key={stat.label} className="flex flex-col gap-1">
                   <dt className="text-sm text-muted-foreground">{stat.label}</dt>
-                  <dd className="text-3xl font-semibold tabular-nums">{stat.value}</dd>
+                  <dd className="text-3xl font-semibold tabular-nums">
+                    {stat.value ?? <Skeleton className="h-9 w-10" />}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -234,7 +276,7 @@ export function OrganizationView() {
               <SettingsIcon className="size-4" aria-hidden="true" />
               Agent rules
             </CardTitle>
-            <CardDescription>Apply to every agent in {TEAM}.</CardDescription>
+            <CardDescription>Apply to every agent in {savedName}.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
@@ -294,6 +336,129 @@ export function OrganizationView() {
           </CardFooter>
         </Card>
       </div>
+
+      <MembersCard
+        members={members}
+        canRemove={(person) => canRemovePerson(person, site?.users ?? [], account?._id, admin)}
+        onRemove={setRemoving}
+      />
+      <RemovePersonDialog
+        person={removing}
+        onOpenChange={(open) => {
+          if (!open) setRemoving(null)
+        }}
+        onRemoved={() => setReload((n) => n + 1)}
+      />
     </main>
+  )
+}
+
+// "just now", "6 min ago", "2 h ago".
+function ago(date: Date) {
+  const text = timeAgo(date)
+  return text === "just now" ? text : `${text} ago`
+}
+
+// Everyone in the organization, with their role, teams, agents and last activity.
+// Org admins can remove someone here too, with the same rules as the Teams page.
+function MembersCard({
+  members,
+  canRemove,
+  onRemove,
+}: {
+  members: OrgMember[] | null
+  canRemove: (person: Person) => boolean
+  onRemove: (person: Person) => void
+}) {
+  const openProfile = useOpenProfile()
+  return (
+    <Card className="pb-0">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <UsersIcon className="size-4" aria-hidden="true" />
+          Members
+        </CardTitle>
+        <CardDescription>
+          Everyone in the organization. Team managers add and remove people on the Teams page.
+        </CardDescription>
+      </CardHeader>
+      {members === null ? (
+        <CardContent className="flex flex-col gap-3 pb-6">
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+          <Skeleton className="h-10" />
+        </CardContent>
+      ) : members.length === 0 ? (
+        <CardContent className="pb-6">
+          <p className="text-sm text-muted-foreground">No one in the organization yet.</p>
+        </CardContent>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Person</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Teams</TableHead>
+              <TableHead className="text-right">Agents</TableHead>
+              <TableHead>Last active</TableHead>
+              <TableHead className="pr-6">
+                <span className="sr-only">Actions</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {members.map((member) => (
+              <TableRow key={member.person._id}>
+                <TableCell className="pl-6">
+                  <button
+                    type="button"
+                    onClick={() => openProfile?.(member.person._id)}
+                    className="inline-flex items-center gap-2 rounded-md text-left font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                    <HumanAvatar name={member.person.name} />
+                    {member.person.name}
+                  </button>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={member.role === "member" ? "outline" : "secondary"}
+                    title={member.role === "manager" ? `Manages ${member.managerOf.join(", ")}` : undefined}
+                  >
+                    {ROLE_LABELS[member.role]}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-64 truncate text-muted-foreground">
+                  {member.teams.length ? member.teams.join(", ") : "Not on a team"}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{member.agents}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  {member.lastActive ? (
+                    <time dateTime={member.lastActive.toISOString()} title={absoluteTime(member.lastActive)}>
+                      {ago(member.lastActive)}
+                    </time>
+                  ) : null}
+                </TableCell>
+                <TableCell className="pr-6 text-right">
+                  {canRemove(member.person) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-7" aria-label={`Manage ${member.person.name}`}>
+                          <MoreHorizontalIcon aria-hidden="true" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem variant="destructive" onSelect={() => onRemove(member.person)}>
+                          Remove from organization
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Card>
   )
 }
