@@ -28,6 +28,7 @@ export {
   Building2 as Building2Icon,
   Check as CheckIcon,
   CheckCircle2 as CheckCircle2Icon,
+  Clock as ClockIcon,
   ChevronDown as ChevronDownIcon,
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
