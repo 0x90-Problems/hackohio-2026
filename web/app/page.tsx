@@ -1,5 +1,6 @@
 import { ChangesFeed } from "@/components/home/changes-feed"
 import { HomeWelcome } from "@/components/home/home-welcome"
+import { NoTeamBanner } from "@/components/no-team"
 import { PendingActions } from "@/components/home/pending-actions"
 import { PendingFeed } from "@/components/home/pending-feed"
 import { SiteFooter } from "@/components/site-footer"
@@ -15,6 +16,8 @@ export default function HomePage() {
             make, on one board your{" "}
             <span className="text-brand-scarlet">team</span> can see.
           </h2>
+
+          <NoTeamBanner className="mx-auto w-full max-w-2xl bg-background" />
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
             <div className="flex min-w-0 flex-col gap-6">

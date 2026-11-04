@@ -52,6 +52,9 @@ import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
 import { TeamSwitcher } from "@/components/team-switcher"
+import { NoTeamNotice } from "@/components/no-team"
+import { isNoTeamError } from "@/lib/no-team"
+import { NO_TEAM } from "@/shared/names"
 import { Thumbnail } from "@/components/files/thumbnail"
 import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -88,6 +91,7 @@ function storedMode(): string | null {
 
 type View =
   | { kind: "off" }
+  | { kind: "no_team" }
   | { kind: "error"; message: string }
   | { kind: "ready"; workspace: Workspace; items: Folder[]; role: Folder["role"]; cursor: string | null; crumbs: Crumb[] }
 
@@ -107,6 +111,8 @@ async function fetchView(folderId: string, showTrash: boolean): Promise<View> {
     ])
     return { kind: "ready", workspace, items: page.items, role: page.role, cursor: page.next_cursor, crumbs: path.items }
   } catch (error) {
+    // A new signup is on no team: that's a state to explain, not an error to retry.
+    if (isNoTeamError(error, NO_TEAM.CODE)) return { kind: "no_team" }
     return { kind: "error", message: explain(error) }
   }
 }
@@ -129,7 +135,7 @@ export function FilesView() {
   // Explorer is the default; ?mode=grid (or this browser's last choice) switches to cards.
   const mode: "grid" | "explorer" = (params.get("mode") ?? storedMode()) === "grid" ? "grid" : "explorer"
 
-  const [state, setState] = useState<"off" | "ready" | "error">("ready")
+  const [state, setState] = useState<"off" | "no_team" | "ready" | "error">("ready")
   // Which view the data on screen belongs to; anything else is still loading.
   const [loadedFor, setLoadedFor] = useState<string | null>(null)
   const viewKey = `${folderId}|${showTrash ? "trash" : "folders"}`
@@ -421,6 +427,8 @@ export function FilesView() {
           <p className="mt-1 text-sm text-muted-foreground">They&apos;re built but not switched on yet.</p>
         </div>
       )}
+
+      {phase === "no_team" && <NoTeamNotice />}
 
       {phase === "error" && (
         <div role="alert" className="flex flex-col items-center gap-3 rounded-xl border p-10 text-center">

@@ -40,9 +40,8 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     const password = String(form.get("password") ?? "")
     const name = String(form.get("name") ?? "")
     const email = String(form.get("email") ?? "")
-    const team = String(form.get("team") ?? "")
     const problem = signup
-      ? validateSignUp({ username, password, name, email, team })
+      ? validateSignUp({ username, password, name, email })
       : validateSignIn({ username, password })
     if (problem) {
       setError(problem)
@@ -52,7 +51,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     setPending(true)
     setError(null)
     try {
-      if (signup) await signUp({ username, password, name, email, team })
+      if (signup) await signUp({ username, password, name, email })
       else await signIn({ username, password })
       router.push("/")
       router.refresh()
@@ -110,22 +109,17 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
               <Input id="username" name="username" placeholder="raddy" autoComplete="username" />
             </div>
             {signup ? (
-              <>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="optional"
-                    autoComplete="email"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="team">Team</Label>
-                  <Input id="team" name="team" placeholder="optional" autoComplete="organization" />
-                </div>
-              </>
+              // No Team box: a new account is on no team until an admin adds them.
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="optional"
+                  autoComplete="email"
+                />
+              </div>
             ) : null}
             <div className="flex flex-col gap-2">
               <Label htmlFor="password">Password</Label>

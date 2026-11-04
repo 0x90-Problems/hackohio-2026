@@ -150,6 +150,15 @@ export const COLLECTIONS = {
   EVENTS: "events",
 } as const;
 
+// ---------- Someone on no team ----------
+// New signups join no team until an admin adds them. Folders and Chat answer
+// 403 with CODE for them; the pages show TITLE and HINT instead of an error.
+export const NO_TEAM = {
+  CODE: "no_team",
+  TITLE: "You're not on a team yet.",
+  HINT: "Ask an admin to invite you.",
+} as const;
+
 // ---------- Agent tokens ----------
 export const TOKEN_PREFIX = "clw_";        // shown as clw_rd••••••
 export const DEFAULT_TOKEN_EXPIRY_HOURS = 24;

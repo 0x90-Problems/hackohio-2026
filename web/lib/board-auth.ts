@@ -43,7 +43,6 @@ export type SignUpInput = {
   password: string
   name: string
   email?: string
-  team?: string
 }
 
 export function validateUsername(username: string): string | null {
@@ -77,13 +76,11 @@ export function signIn(input: { username: string; password: string }): Promise<A
 
 export function signUp(input: SignUpInput): Promise<AuthSession> {
   const email = input.email?.trim()
-  const team = input.team?.trim()
   return postAuth("/auth/signup", {
     username: input.username.trim(),
     password: input.password,
     name: input.name.trim(),
     ...(email ? { email } : {}),
-    ...(team ? { team } : {}),
   })
 }
 

@@ -59,7 +59,9 @@ import {
 } from "@/lib/chat-api"
 import { type Activity, ChatLive, coalesce } from "@/lib/chat-live"
 import { absoluteTime, timeAgo } from "@/lib/format"
+import { isNoTeamError } from "@/lib/no-team"
 import { cn } from "@/lib/utils"
+import { NO_TEAM } from "@/shared/names"
 
 // Pushes say what changed, and polling catches anything they missed: often while the tab
 // is visible and the socket is down, rarely while connected or hidden.
@@ -165,7 +167,7 @@ export function ChatView() {
   const selectedId = params.get("c")
   const threadId = params.get("t")
   const [ws, setWs] = useState<ChatWorkspace | null>(null)
-  const [state, setState] = useState<"loading" | "ready" | "off" | "error">("loading")
+  const [state, setState] = useState<"loading" | "ready" | "off" | "no_team" | "error">("loading")
   const [error, setError] = useState("")
   const [dialog, setDialog] = useState<null | "channel" | "dm" | "browse" | "section">(null)
   const { live, connected } = useChatLive()
@@ -186,6 +188,8 @@ export function ChatView() {
       setState("ready")
     } catch (caught) {
       if (caught instanceof ChatError && caught.code === "feature_disabled") setState("off")
+      // A new signup is on no team: explain it rather than offer "Try again".
+      else if (isNoTeamError(caught, NO_TEAM.CODE)) setState("no_team")
       else {
         setError(explain(caught))
         setState((current) => (current === "ready" ? current : "error"))
@@ -217,6 +221,7 @@ export function ChatView() {
       <EmptyState title="Chat isn't turned on yet" body="An admin can turn it on once it's ready for your team." />
     )
   }
+  if (state === "no_team") return <EmptyState title={NO_TEAM.TITLE} body={NO_TEAM.HINT} />
   if (state === "error" || !ws) return <EmptyState title="Couldn't open chat" body={error} action={<Button onClick={() => void refresh()}>Try again</Button>} />
 
   return (
