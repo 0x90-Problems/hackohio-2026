@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { ChatAttachment } from "@/lib/chat-api"
 import { AttachmentDirectory, uploadToChannel } from "@/lib/chat-files"
+import { downloadFile } from "@/lib/file-links"
 import { type Folder, FoldersError, foldersApi, ROOT } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
 
@@ -84,8 +85,8 @@ function AttachmentChip({ item }: { item: ChatAttachment }) {
     if (file.type === "whiteboard") return router.push(`/boards/${encodeURIComponent(file.file_id)}`)
     setOpening(true)
     try {
-      const { url } = await foldersApi.link(file.file_id, item.version)
-      window.location.assign(url) // served as an attachment, never rendered from the bucket
+      // The app's signed-in address, served as an attachment, never rendered from the bucket.
+      await downloadFile(file.file_id, item.version)
     } catch (caught) {
       const gone = caught instanceof FoldersError && (caught.status === 403 || caught.status === 404)
       toast.error("Couldn't open that file", { description: gone ? "It may have been moved to the trash, or you may no longer have access." : explain(caught) })
