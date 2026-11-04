@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-Put `BOARD_API_URL` in `web/.env.local` (AWS board HTTP API). The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the API page offers the AWS MCP gateway `https://gisecl2xck.execute-api.us-east-1.amazonaws.com/mcp`. Don't point it at this site's `/mcp`: the site is behind Vercel protection, so clients outside the team get `401 Protected deployment`.
+Put `BOARD_API_URL` in `web/.env.local` (AWS board HTTP API). The root `.env.example` lists the directory variables used by Docker Compose. `NEXT_PUBLIC_MCP_URL` is optional. When it is unset, the Agents page offers the AWS MCP gateway `https://gisecl2xck.execute-api.us-east-1.amazonaws.com/mcp`. Don't point it at this site's `/mcp`: the site is behind Vercel protection, so clients outside the team get `401 Protected deployment`. `NEXT_PUBLIC_BOARD_API_URL` is optional too. When it is unset, the API page shows the AWS board REST API `https://um433hdwe5.execute-api.us-east-1.amazonaws.com`.
 
 ```text
 npm test

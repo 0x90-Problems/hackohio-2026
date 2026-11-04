@@ -1,35 +1,39 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   AlertTriangleIcon,
   ArrowRightIcon,
   BookOpenIcon,
+  BotIcon,
   ClockIcon,
   CopyIcon,
   KeyRoundIcon,
+  ShieldOffIcon,
 } from "@/components/icons"
 import { toast } from "sonner"
 
 import {
   AGENT_CONNECTION,
-  MCP_TOOLS,
+  DEFAULT_TOKEN_EXPIRY_HOURS,
   SCOPES,
+  TOKEN_PREFIX,
   type Scope,
 } from "@/shared/names"
-import { visibleAgentName } from "@/lib/agent-label"
-import {
-  MOCK_NOW,
-  agentTokens,
-  agents,
-  getUser,
-} from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { loadSite, saveApiKey } from "@/lib/site-db"
+import { loadSite } from "@/lib/site-db"
 import { withKeyUsage } from "@/lib/agent-usage"
-import { ConnectAgentError, connectAgent, listBoardAgents } from "@/lib/connect-agent"
+import {
+  ConnectAgentError,
+  connectAgent,
+  listBoardAgents,
+  listBoardUsers,
+  revokeAgentAccess,
+} from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
+import { boardApiPublicUrl, curlExample, onlyConnection } from "@/lib/rest-api"
+import { REST_ENDPOINTS, type RestMethod } from "@/lib/rest-endpoints"
 import { SCOPE_OPTIONS, maskToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
@@ -58,45 +62,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-
-const TOOL_DESCRIPTIONS: Record<string, string> = {
-  [MCP_TOOLS.GET_BOARD]: "Read every ticket on the board",
-  [MCP_TOOLS.CREATE_TICKET]: "Add a ticket to Backlog",
-  [MCP_TOOLS.MOVE_TICKET]: "Move a ticket to another column",
-  [MCP_TOOLS.ADD_COMMENT]: "Comment on a ticket",
-  [MCP_TOOLS.LINK_COMMIT]: "Attach a git commit to a ticket",
-  [MCP_TOOLS.WATCH_CHANGES]: "Get told when the board changes",
-  [MCP_TOOLS.LIST_PROJECT_TEMPLATES]: "List templates. Each one is a board, a table, or a roadmap",
-  [MCP_TOOLS.GET_PROJECT_TEMPLATE]: "Read one template's layout, columns, fields, and starter tags",
-  [MCP_TOOLS.CREATE_PROJECT]: "Create a project from a template",
-  [MCP_TOOLS.GET_PROJECT_TABLE]: "Read a project as groups and rows, with its layout and fields",
-}
-
-type Method = "GET" | "POST" | "PATCH"
-const ENDPOINTS: { method: Method; path: string; description: string }[] = [
-  { method: "GET", path: "/tickets", description: "List tickets on a board" },
-  { method: "POST", path: "/tickets", description: "Create a ticket" },
-  { method: "PATCH", path: "/tickets/:key", description: "Move or edit a ticket" },
-  { method: "POST", path: "/tickets/:key/comments", description: "Comment as a person or agent" },
-  { method: "GET", path: "/events", description: "Live stream of board changes" },
-  { method: "GET", path: "/agents", description: "List agents and their owners" },
-  { method: "GET", path: "/project-templates", description: "List templates (board, table, or roadmap)" },
-  { method: "GET", path: "/project-templates/:id", description: "Layout, columns, fields, and starter tags for one template" },
-  { method: "GET", path: "/projects", description: "List projects with their layout and fields" },
-  { method: "POST", path: "/projects", description: "Create a project from a template" },
-  { method: "GET", path: "/projects/:key/table", description: "Read one project as table groups and rows" },
-]
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 // Neutral styles only: no red, blue or purple for HTTP methods.
-const METHOD_STYLES: Record<Method, string> = {
+const METHOD_STYLES: Record<RestMethod, string> = {
   GET: "bg-foreground text-background",
   POST: "bg-secondary text-secondary-foreground border-border",
   PATCH: "bg-transparent text-foreground border-foreground/40",
 }
 
 type ApiKey = {
+  id?: string
   name: string
   owner_id: string
   token_prefix: string
@@ -104,18 +80,6 @@ type ApiKey = {
   scopes: Scope[]
   expired?: boolean
 }
-
-// Existing keys: agents that connect with an API key, plus their current token.
-const initialKeys: ApiKey[] = agents
-  .filter((a) => a.connection === AGENT_CONNECTION.API_KEY && !a.revoked)
-  .flatMap((a) => {
-    const token = agentTokens.find(
-      (t) => t.agent_id === a._id && !t.revoked && t.expires_at > MOCK_NOW
-    )
-    return token
-      ? [{ name: a.name, owner_id: a.owner_id, token_prefix: token.token_prefix, last_used_at: token.last_used_at, scopes: token.scopes }]
-      : []
-  })
 
 async function copyText(text: string, what: string, description?: string) {
   try {
@@ -126,17 +90,46 @@ async function copyText(text: string, what: string, description?: string) {
   }
 }
 
+function CodeLine({ text, what }: { text: string; what: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
+      <code className="min-w-0 flex-1 font-mono text-xs break-all">{text}</code>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        className="shrink-0 text-background hover:bg-background/15 hover:text-background"
+        onClick={() => copyText(text, what)}
+        aria-label={`Copy ${what}`}
+      >
+        <CopyIcon aria-hidden="true" />
+      </Button>
+    </div>
+  )
+}
+
 export function ApiView() {
-  const [keys, setKeys] = useState<ApiKey[]>(initialKeys)
+  const account = useAuthUser()
+  const [keys, setKeys] = useState<ApiKey[]>([])
+  const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
   const [newKeyName, setNewKeyName] = useState<string>()
+  const baseUrl = boardApiPublicUrl()
 
   useEffect(() => {
     let cancelled = false
+    listBoardUsers()
+      .then((users) => {
+        if (!cancelled) setPeople(users)
+      })
+      .catch(() => {
+        // Owner names fall back to the signed-in person.
+      })
     Promise.all([loadSite(), listBoardAgents().catch(() => [])])
       .then(([site, live]) => {
-        if (cancelled || site.apiKeys.length === 0) return
+        if (cancelled) return
         // Saved keys never update last_used_at; the board API knows the real last use and expiry.
-        setKeys(withKeyUsage(site.apiKeys as ApiKey[], live))
+        // Only API-key agents count: an MCP agent lives on the Agents page.
+        const apiKeyAgents = onlyConnection(live, AGENT_CONNECTION.API_KEY, AGENT_CONNECTION.MCP)
+        setKeys(withKeyUsage(site.apiKeys as ApiKey[], apiKeyAgents))
       })
       .catch(() => {
         toast.error("Couldn't load API keys from the database")
@@ -145,6 +138,21 @@ export function ApiView() {
       cancelled = true
     }
   }, [])
+
+  async function revoke(key: ApiKey) {
+    if (!key.id) return
+    try {
+      await revokeAgentAccess(key.id)
+    } catch (error) {
+      const message = error instanceof ConnectAgentError ? error.message : "Couldn't revoke that key"
+      if (!message.includes("was not found")) {
+        toast.error(message)
+        return
+      }
+    }
+    setKeys((current) => current.filter((k) => k !== key))
+    toast.success(`Revoked ${key.name}`, { description: "Requests with this key now get 401." })
+  }
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -155,7 +163,7 @@ export function ApiView() {
             API
           </h1>
           <p className="text-muted-foreground">
-            Connect any agent over MCP, or script the board over HTTP.
+            Script the board over REST from scripts, CI jobs, and integrations.
           </p>
         </div>
         <Button
@@ -171,51 +179,73 @@ export function ApiView() {
         </Button>
       </div>
 
+      <Alert>
+        <BotIcon aria-hidden="true" />
+        <AlertTitle>Connecting an AI agent?</AlertTitle>
+        <AlertDescription>
+          <span>
+            Use{" "}
+            <Link href="/agents" className="font-medium text-foreground underline underline-offset-4">
+              Agents (MCP)
+            </Link>
+            . This page is for programs that call the REST API directly.
+          </span>
+        </AlertDescription>
+      </Alert>
+
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-6">
-          {/* MCP */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Connect over MCP</CardTitle>
+              <CardTitle className="text-lg">Base URL and auth</CardTitle>
               <CardDescription>
-                Create an API key to get the MCP config for{" "}
-                <span className="font-mono">{mcpPublicUrl()}</span>. A saved key
-                is only a prefix, so the config is issued with the key and
-                can&apos;t be rebuilt later.
+                Every request goes to this address and sends an API key in the{" "}
+                <code className="font-mono">Authorization</code> header.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
-                <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-                  Tools your agent gets
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {Object.values(MCP_TOOLS).map((tool) => (
-                    <Tooltip key={tool}>
-                      <TooltipTrigger asChild>
-                        <Badge variant="secondary" className="cursor-default rounded-md font-mono">
-                          {tool}
-                        </Badge>
-                      </TooltipTrigger>
-                      <TooltipContent>{TOOL_DESCRIPTIONS[tool]}</TooltipContent>
-                    </Tooltip>
-                  ))}
-                </div>
+                <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Base URL</h3>
+                <CodeLine text={baseUrl} what="Base URL" />
+              </div>
+              <div className="flex flex-col gap-2">
+                <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Header</h3>
+                <code className="rounded-lg border p-3 font-mono text-xs">
+                  Authorization: Bearer {TOKEN_PREFIX}…
+                </code>
+                <p className="text-sm text-muted-foreground">
+                  A missing, expired, or revoked key gets <code className="font-mono">401</code>. A key without
+                  the endpoint&apos;s scope gets <code className="font-mono">403</code>. Keys expire after your
+                  organization&apos;s token expiry ({DEFAULT_TOKEN_EXPIRY_HOURS} h by default).
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Try it</h3>
+                <CodeLine text={curlExample(baseUrl)} what="curl example" />
+                <p className="text-sm text-muted-foreground">
+                  Put the key in <code className="font-mono">NUTSHELL_API_KEY</code> first, so it stays out of
+                  your shell history and CI logs.
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* HTTP */}
           <Card className="pb-0">
             <CardHeader>
-              <CardTitle className="text-lg">HTTP endpoints</CardTitle>
-              <CardDescription>
-                Send the same token as <code className="font-mono">Authorization: Bearer …</code>
-              </CardDescription>
+              <CardTitle className="text-lg">Endpoints</CardTitle>
+              <CardDescription>Paths are relative to the base URL. JSON in, JSON out.</CardDescription>
             </CardHeader>
             <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Method</TableHead>
+                  <TableHead>Path</TableHead>
+                  <TableHead>What it does</TableHead>
+                  <TableHead className="pr-6">Scope</TableHead>
+                </TableRow>
+              </TableHeader>
               <TableBody>
-                {ENDPOINTS.map((e) => (
+                {REST_ENDPOINTS.map((e) => (
                   <TableRow key={`${e.method} ${e.path}`}>
                     <TableCell className="w-20 pl-6">
                       <Badge
@@ -225,10 +255,11 @@ export function ApiView() {
                         {e.method}
                       </Badge>
                     </TableCell>
-                    <TableCell className="w-px pr-6 font-mono font-semibold whitespace-nowrap">
-                      {e.path}
+                    <TableCell className="w-px font-mono font-semibold whitespace-nowrap">{e.path}</TableCell>
+                    <TableCell className="text-muted-foreground">{e.description}</TableCell>
+                    <TableCell className="pr-6">
+                      {e.scope ? <ScopeBadge scope={e.scope} /> : <span className="text-xs text-muted-foreground">None</span>}
                     </TableCell>
-                    <TableCell className="pr-6 text-muted-foreground">{e.description}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -236,30 +267,29 @@ export function ApiView() {
           </Card>
         </div>
 
-        {/* API keys */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <KeyRoundIcon className="size-4" aria-hidden="true" />
               API keys
             </CardTitle>
-            <CardDescription>
-              For scripts and always-on agents that can&apos;t sign in through MCP.
-            </CardDescription>
+            <CardDescription>For scripts, CI, and integrations that call the REST API.</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-2">
               {keys.length === 0 && (
                 <li className="flex flex-col items-center gap-2 py-6 text-center text-sm text-muted-foreground">
                   <KeyRoundIcon className="size-8" aria-hidden="true" />
-                  <span>No API keys yet. Create one for a script or agent.</span>
+                  <span>No API keys yet. Create one for a script or CI job.</span>
                 </li>
               )}
               {keys.map((key) => {
-                const owner = getUser(key.owner_id)
+                const ownerName =
+                  people.find((person) => person._id === key.owner_id)?.name ??
+                  (account?._id === key.owner_id ? account.name : undefined)
                 return (
                   <li
-                    key={key.token_prefix + key.name}
+                    key={(key.id ?? key.token_prefix) + key.name}
                     className={cn(
                       "flex flex-col gap-1.5 rounded-lg border p-3",
                       key.name === newKeyName && "duration-300 animate-in fade-in slide-in-from-top-2"
@@ -267,7 +297,7 @@ export function ApiView() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
-                        <span className="truncate text-sm font-semibold">{visibleAgentName(key.name)}</span>
+                        <span className="truncate text-sm font-semibold">{key.name}</span>
                         {key.expired && (
                           <Badge variant="outline" className="shrink-0">
                             <ClockIcon className="size-3" aria-hidden="true" />
@@ -275,19 +305,24 @@ export function ApiView() {
                           </Badge>
                         )}
                       </span>
-                      {owner && (
+                      {ownerName && (
                         <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                          <HumanAvatar name={owner.name} /> {owner.name}
+                          <HumanAvatar name={ownerName} /> {ownerName}
                         </span>
                       )}
                     </div>
-                    <code className="font-mono text-sm">{maskToken(key.token_prefix)}</code>
+                    <code className="font-mono text-sm">{maskToken(key.token_prefix || TOKEN_PREFIX)}</code>
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       Last used {key.last_used_at ? timeAgo(key.last_used_at) : "never"} ·
                       {key.scopes.map((s) => (
                         <ScopeBadge key={s} scope={s} />
                       ))}
                     </div>
+                    {key.id && account?._id === key.owner_id ? (
+                      <div className="flex justify-end">
+                        <RevokeKeyDialog apiKey={key} onRevoke={revoke} />
+                      </div>
+                    ) : null}
                   </li>
                 )
               })}
@@ -295,10 +330,11 @@ export function ApiView() {
           </CardContent>
           <CardFooter>
             <CreateKeyDialog
+              baseUrl={baseUrl}
               onCreate={(key) => {
+                // The board API already stored it; don't save it again.
                 setKeys((current) => [key, ...current])
                 setNewKeyName(key.name)
-                saveApiKey(key)
               }}
             />
           </CardFooter>
@@ -308,13 +344,44 @@ export function ApiView() {
   )
 }
 
-function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
+function RevokeKeyDialog({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (key: ApiKey) => void }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="destructive" size="sm">
+          <ShieldOffIcon className="size-4" aria-hidden="true" />
+          Revoke
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Revoke {apiKey.name}?</DialogTitle>
+          <DialogDescription>
+            It stops working right away. Scripts and CI jobs that use it will get 401 until you give them a new key.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+          <DialogClose asChild>
+            <Button variant="destructive" onClick={() => onRevoke(apiKey)}>
+              <ShieldOffIcon className="size-4" aria-hidden="true" />
+              Revoke
+            </Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CreateKeyDialog({ baseUrl, onCreate }: { baseUrl: string; onCreate: (key: ApiKey) => void }) {
   const account = useAuthUser()
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [scopes, setScopes] = useState<Scope[]>([SCOPES.TICKETS_READ])
   const [secret, setSecret] = useState<string>()
-  const [install, setInstall] = useState<McpInstallLinks>()
   const [pending, setPending] = useState(false)
 
   function reset(nextOpen: boolean) {
@@ -323,7 +390,6 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
       setName("")
       setScopes([SCOPES.TICKETS_READ])
       setSecret(undefined)
-      setInstall(undefined)
       setPending(false)
     }
   }
@@ -342,8 +408,8 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
         connection: AGENT_CONNECTION.API_KEY,
       })
       setSecret(connected.secret)
-      setInstall(connected.install)
       onCreate({
+        id: connected.agent._id,
         name: connected.agent.name,
         owner_id: connected.agent.owner_id,
         token_prefix: connected.secret.slice(0, 10),
@@ -366,8 +432,8 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
         </Button>
       </DialogTrigger>
       <DialogContent className={secret ? "sm:max-w-lg" : undefined}>
-        {secret && install ? (
-          <IssuedKey secret={secret} install={install} />
+        {secret ? (
+          <IssuedKey secret={secret} baseUrl={baseUrl} />
         ) : (
           <form onSubmit={create} className="flex flex-col gap-4">
             <DialogHeader>
@@ -430,28 +496,14 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
   )
 }
 
-function IssuedKey({ secret, install }: { secret: string; install: McpInstallLinks }) {
-
+function IssuedKey({ secret, baseUrl }: { secret: string; baseUrl: string }) {
   return (
     <div className="flex flex-col gap-4">
       <DialogHeader>
         <DialogTitle>Your new API key</DialogTitle>
-        <DialogDescription>
-          Copy the secret now. The install config below is built from it.
-        </DialogDescription>
+        <DialogDescription>Copy the key now, then store it as a secret in your script or CI.</DialogDescription>
       </DialogHeader>
-      <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
-        <code className="min-w-0 flex-1 font-mono text-xs break-all">{secret}</code>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          className="shrink-0 text-background hover:bg-background/15 hover:text-background"
-          onClick={() => copyText(secret, "API key")}
-          aria-label="Copy API key"
-        >
-          <CopyIcon aria-hidden="true" />
-        </Button>
-      </div>
+      <CodeLine text={secret} what="API key" />
       <Alert>
         <AlertTriangleIcon aria-hidden="true" />
         <AlertTitle>This key is shown once</AlertTitle>
@@ -460,32 +512,16 @@ function IssuedKey({ secret, install }: { secret: string; install: McpInstallLin
         </AlertDescription>
       </Alert>
       <div className="flex flex-col gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start"
-          onClick={() => copyText(install.json, "MCP config")}
-        >
-          <CopyIcon data-icon="inline-start" aria-hidden="true" />
-          Copy MCP config
-        </Button>
-        <Button variant="outline" className="w-full justify-start" asChild>
-          <a href={install.cursorUrl}>
-            <ArrowRightIcon data-icon="inline-start" aria-hidden="true" />
-            Add to Cursor
-          </a>
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-start"
-          onClick={() => copyText(install.claudeCommand, "Claude Code command")}
-        >
-          <CopyIcon data-icon="inline-start" aria-hidden="true" />
-          Copy Claude Code command
-        </Button>
+        <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Try it</span>
+        <CodeLine text={curlExample(baseUrl)} what="curl example" />
       </div>
       <DialogFooter>
+        <Button variant="outline" asChild>
+          <Link href="/agents">
+            <ArrowRightIcon data-icon="inline-start" aria-hidden="true" />
+            For an AI agent, use Agents (MCP)
+          </Link>
+        </Button>
         <DialogClose asChild>
           <Button variant="outline">Done</Button>
         </DialogClose>

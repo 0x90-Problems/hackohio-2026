@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import {
   AlertTriangleIcon,
   ActivityIcon,
@@ -10,7 +11,6 @@ import {
   KeyRoundIcon,
   ShieldOffIcon,
   WifiOffIcon,
-  WifiIcon,
 } from "@/components/icons"
 import { toast } from "sonner"
 
@@ -30,7 +30,10 @@ import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
 import { ConnectAgentError, connectAgent, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import type { McpInstallLinks } from "@/lib/mcp-install"
+import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
+import { groupTools, type McpToolCatalog } from "@/lib/mcp-tools"
+import { onlyConnection } from "@/lib/rest-api"
+import mcpToolCatalog from "@/shared/mcp-tools.json"
 import { SCOPE_OPTIONS } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
@@ -68,10 +71,9 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-const CONNECTION_LABELS = {
-  [AGENT_CONNECTION.MCP]: "via MCP",
-  [AGENT_CONNECTION.API_KEY]: "via API key",
-}
+// Tools a client sees from the gateway's tools/list, in the backend's own words.
+const TOOL_AREAS = groupTools(mcpToolCatalog as McpToolCatalog)
+const TOOL_COUNT = TOOL_AREAS.reduce((total, area) => total + area.tools.length, 0)
 
 export function AgentsView() {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -98,7 +100,8 @@ export function AgentsView() {
         const saved = board?.agents ?? []
         setUsage(new Map(live.map((agent) => [agent._id, agent])))
         // Empty DocDB stays empty — do not push mock demo agents back into the board.
-        setAgents(mergeAgentRecords(saved, live))
+        // API keys are listed on the API page, so only MCP agents show here.
+        setAgents(onlyConnection(mergeAgentRecords(saved, live), AGENT_CONNECTION.MCP, AGENT_CONNECTION.MCP))
       })
       .catch(() => {
         setAgents([])
@@ -143,41 +146,50 @@ export function AgentsView() {
           Agents
         </h1>
         <p className="text-muted-foreground">
-          Every agent belongs to a person. Revoke one and its token stops working right away.
+          AI agents connect over MCP. Every agent belongs to a person. Revoke one and its token stops
+          working right away. Scripting the board instead? Use the{" "}
+          <Link href="/api" className="font-medium text-foreground underline underline-offset-4">
+            API (REST)
+          </Link>
+          .
         </p>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Card className="py-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-4">Agent</TableHead>
-                <TableHead>Owner</TableHead>
-                <TableHead>Scopes</TableHead>
-                <TableHead>
-                  <span className="inline-flex items-center gap-1.5">
-                    <ActivityIcon className="size-4" aria-hidden="true" />
-                    Last active
-                  </span>
-                </TableHead>
-                <TableHead className="pr-4 text-right">Access</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {agents.map((agent) => (
-                <AgentRow
-                  key={agent._id}
-                  agent={agent}
-                  isNew={newIds.has(agent._id)}
-                  people={people}
-                  usage={usage.get(agent._id)}
-                  onRevoke={revoke}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card className="py-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-4">Agent</TableHead>
+                  <TableHead>Owner</TableHead>
+                  <TableHead>Scopes</TableHead>
+                  <TableHead>
+                    <span className="inline-flex items-center gap-1.5">
+                      <ActivityIcon className="size-4" aria-hidden="true" />
+                      Last active
+                    </span>
+                  </TableHead>
+                  <TableHead className="pr-4 text-right">Access</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agents.map((agent) => (
+                  <AgentRow
+                    key={agent._id}
+                    agent={agent}
+                    isNew={newIds.has(agent._id)}
+                    people={people}
+                    usage={usage.get(agent._id)}
+                    onRevoke={revoke}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+
+          <McpGatewayCard />
+        </div>
 
         <ConnectAgentCard onConnect={connect} />
       </div>
@@ -219,14 +231,6 @@ function AgentRow({
           <ActorBadge
             actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: agent.owner_id }}
           />
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            {agent.connection === AGENT_CONNECTION.MCP ? (
-              <WifiIcon className="size-3.5" aria-hidden="true" />
-            ) : (
-              <KeyRoundIcon className="size-3.5" aria-hidden="true" />
-            )}
-            {CONNECTION_LABELS[agent.connection]}
-          </span>
         </div>
       </TableCell>
       <TableCell>
@@ -310,6 +314,66 @@ function RevokeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function McpGatewayCard() {
+  const url = mcpPublicUrl()
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success("MCP URL copied")
+    } catch {
+      toast.error("Couldn't copy", { description: "Select the URL and copy it by hand." })
+    }
+  }
+  return (
+    <Card id="mcp">
+      <CardHeader>
+        <CardTitle className="text-lg">MCP gateway</CardTitle>
+        <CardDescription>
+          Streamable HTTP. Your agent sends its token as <code className="font-mono">Authorization: Bearer …</code>.
+          The install config comes with the token in <span className="font-medium">Connect your agent</span>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
+          <code className="min-w-0 flex-1 font-mono text-xs break-all">{url}</code>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            className="shrink-0 text-background hover:bg-background/15 hover:text-background"
+            onClick={copy}
+            aria-label="Copy MCP URL"
+          >
+            <CopyIcon aria-hidden="true" />
+          </Button>
+        </div>
+        <div className="flex flex-col gap-4">
+          <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            Tools your agent gets · {TOOL_COUNT}
+          </h3>
+          {TOOL_AREAS.map((area) => (
+            <section key={area.id} aria-labelledby={`tools-${area.id}`} className="flex flex-col gap-1.5">
+              <h4 id={`tools-${area.id}`} className="text-sm font-semibold">
+                {area.label}
+              </h4>
+              <ul className="flex flex-col divide-y rounded-lg border">
+                {area.tools.map((tool) => (
+                  <li key={tool.name} className="flex flex-col gap-0.5 px-3 py-2 sm:flex-row sm:items-baseline sm:gap-3">
+                    <code className="shrink-0 font-mono text-xs font-semibold sm:w-48">{tool.name}</code>
+                    <span className="text-sm text-muted-foreground">{tool.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <p className="text-xs text-muted-foreground">
+            Each tool also needs its scope on the token. Without it the call is refused.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

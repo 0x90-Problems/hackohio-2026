@@ -12,6 +12,7 @@ import { SCOPES, TICKET_STATUS } from "@/shared/names";
 
 - `names.ts` is the TypeScript source for the Next.js app and the board API.
 - `names.json` is the same list for code that is not TypeScript.
+- `mcp-tools.json` is the MCP tool list with one-line descriptions, copied from the board API's `src/mcp-http.ts` by `web/scripts/sync-mcp-tools.mjs`. Don't edit it by hand. A new tool goes in `MCP_TOOLS` in both names files, then rerun the script.
 
 Change a name in both files, then update [docs/schema.md](../docs/schema.md). The board API keeps its own `src/names.ts` and it has to stay aligned with this folder.
 
