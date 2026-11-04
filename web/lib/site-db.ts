@@ -92,6 +92,23 @@ export function removeTeamMember(team: string, userId: string) {
   return save({ kind: "member", member: { team, user_id: userId, remove: true } })
 }
 
+// Org admins only. Takes them off every team, deletes their agents and tokens, and blocks sign-in.
+export function removePerson(userId: string) {
+  return save({ kind: "removePerson", user_id: userId })
+}
+
+/** How many of their agents and tokens would stop working. Null if the board can't say. */
+export async function removalPreview(userId: string): Promise<{ agents: number; tokens: number } | null> {
+  try {
+    const response = await fetch(`/api/site?removal=${encodeURIComponent(userId)}`, { cache: "no-store", headers: authHeaders() })
+    if (!response.ok) return null
+    const body = (await response.json()) as { agents?: unknown; tokens?: unknown }
+    return typeof body.agents === "number" && typeof body.tokens === "number" ? { agents: body.agents, tokens: body.tokens } : null
+  } catch {
+    return null
+  }
+}
+
 export function setTeamManager(team: string, userId: string, manager: boolean) {
   return save({ kind: "manager", manager: { team, user_id: userId, manager } })
 }

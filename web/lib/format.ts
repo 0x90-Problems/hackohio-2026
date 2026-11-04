@@ -52,6 +52,8 @@ export function describeEvent(
     }
     case EVENT_ACTIONS.TICKET_DELETED:
       return `Deleted ${key}`
+    case EVENT_ACTIONS.PERSON_REMOVED:
+      return `Removed ${event.details?.name ?? "someone"} from the organization`
     default:
       // Never render an empty row for an action this app doesn't know yet.
       return `${String(event.action).replaceAll("_", " ")} · ${key}`

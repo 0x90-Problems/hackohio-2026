@@ -55,7 +55,7 @@ Use these exact spellings everywhere. They should also go in the team's shared c
 | Actor type | `human`, `agent` |
 | Agent connection | `mcp`, `api_key` |
 | Token scopes | `tickets:read`, `tickets:write`, `comments:write`, `tickets:close`, `events:read`, `chat:read`, `chat:write`, `chat:manage`, `chat:dm`, `rules:read`, `rules:write`, `rules:run`, `files:read`, `files:write`, `folders:read`, `folders:write`, `folders:delete`, `folders:share` (`chat:manage`, `chat:dm` and `folders:share` are for people only) |
-| Event action | `ticket_created`, `ticket_moved`, `comment_added`, `commit_linked`, `ticket_closed`, `ticket_deleted`, `ticket_updated` |
+| Event action | `ticket_created`, `ticket_moved`, `comment_added`, `commit_linked`, `ticket_closed`, `ticket_deleted`, `ticket_updated`, `person_removed` (an org event: `ticket_key` is empty) |
 
 ### Naming rules
 
@@ -76,6 +76,8 @@ One document per human on the team.
 | `role` | text | no | `UI design / database design` | Shown on the Teams page |
 | `team` | text | yes | `0x90 Problems` | Team the person belongs to |
 | `type` | text | yes | `human` | Always `human` here |
+| `removed_at` | date | no | `2026-11-03T15:00:00Z` | Set when an org admin removed this person from the organization. The row stays so history keeps their name; sign-in is refused and they aren't listed as people |
+| `removed_by` | text | no | `user_dylan` | The `_id` of the admin who removed them |
 
 How login works: the board checks the password against the directory (see "Passwords and login"), then looks up the user whose `auth_username` matches. Never add a password field to this collection.
 
