@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { ExpandableImage } from "@/components/files/image-viewer"
 import { IMAGE_TYPES } from "@/components/files/thumbnail"
 import { absoluteTime } from "@/lib/format"
 import { type Folder, FoldersError, foldersApi, type Version } from "@/lib/folders-api"
@@ -274,8 +275,7 @@ function FilePreview({ node }: { node: Folder }) {
   if (failed) return <p className="text-sm text-muted-foreground">No preview available.</p>
   if (isImage) {
     if (image === null) return <Skeleton className="aspect-video w-full" />
-    // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static asset
-    return <img src={image} alt={`Preview of ${node.name}`} className="max-h-[50dvh] w-full rounded-lg border object-contain" />
+    return <ExpandableImage url={image} name={node.name} />
   }
   if (text === null) return <Skeleton className="h-40 w-full" />
   return (

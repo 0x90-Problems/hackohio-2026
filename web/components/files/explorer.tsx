@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 
 import { ActorBadge } from "@/components/actor-badge"
 import { nodeSize } from "@/components/files/file-panels"
+import { ExpandableImage } from "@/components/files/image-viewer"
 import { IMAGE_TYPES, NodeIcon, Thumbnail } from "@/components/files/thumbnail"
 import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
@@ -267,8 +268,9 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
     if (showTrash) return
     let cancelled = false
     if (isImage) {
+      // Inline, so the full-size view's "Open in new tab" shows it instead of downloading it.
       foldersApi
-        .link(node.id)
+        .link(node.id, undefined, true)
         .then((link) => !cancelled && setImage(link.url))
         .catch(() => !cancelled && setImage(""))
     } else if (node.type === "note") {
@@ -316,8 +318,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         (image === null ? (
           <Skeleton className="aspect-video w-full" />
         ) : image ? (
-          // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static asset
-          <img src={image} alt={`Preview of ${node.name}`} className="max-h-[50dvh] w-full rounded-lg border object-contain" />
+          <ExpandableImage url={image} name={node.name} />
         ) : (
           <p className="text-sm text-muted-foreground">No preview available.</p>
         ))}
