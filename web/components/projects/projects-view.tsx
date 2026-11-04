@@ -12,6 +12,8 @@ import { useAuthUser } from "@/components/auth/auth-gate"
 import { TEAM } from "@/lib/mock-data"
 import { loadSite } from "@/lib/site-db"
 import { activeTeam, chooseTeam } from "@/lib/team-choice"
+import { onNoTeam } from "@/lib/no-team"
+import { NoTeamNotice } from "@/components/no-team"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { timeAgo } from "@/lib/format"
 import {
@@ -61,6 +63,7 @@ export function ProjectsView() {
   const router = useRouter()
   const account = useAuthUser()
   const [myTeams, setMyTeams] = useState<string[]>([])
+  const [noTeam, setNoTeam] = useState(false)
   const [chosen, setChosen] = useState(activeTeam)
 
   useEffect(() => {
@@ -68,17 +71,22 @@ export function ProjectsView() {
     void loadSite()
       .then((site) => {
         const me = site.users.find((user) => user._id === account?._id)
-        if (!cancelled && me) setMyTeams(me.teams ?? (me.team ? [me.team] : []))
+        if (!cancelled && me) {
+          setMyTeams(me.teams ?? (me.team ? [me.team] : []))
+          setNoTeam(onNoTeam(me, account?.admin === true) === true)
+        }
       })
       .catch(() => undefined)
     return () => {
       cancelled = true
     }
-  }, [account?._id])
+  }, [account?._id, account?.admin])
 
   // Your teams, plus any others you can see projects on (an org admin sees all of them).
   const teams = [...new Set([...myTeams, ...projects.map((p) => p.team)])].filter(Boolean)
-  const team = teams.includes(chosen) ? chosen : teams.includes(account?.team ?? "") ? (account?.team ?? TEAM) : (teams[0] ?? TEAM)
+  // Someone on no team gets no fallback team name (ours), only what they can actually see.
+  const fallback = noTeam ? "" : TEAM
+  const team = teams.includes(chosen) ? chosen : teams.includes(account?.team ?? "") ? (account?.team ?? fallback) : (teams[0] ?? fallback)
   const setTeam = (next: string) => {
     setChosen(next)
     chooseTeam(next) // the same choice as the switcher in Folders, Whiteboards and Chat
@@ -137,9 +145,14 @@ export function ProjectsView() {
               },
             ]}
           />
-          <NewProjectDialog key={team} defaultTeam={team} teams={myTeams.includes(team) ? myTeams : [team, ...myTeams]} />
+          {/* A project needs a team to go on, and they have none to pick. */}
+          {!noTeam && (
+            <NewProjectDialog key={team} defaultTeam={team} teams={myTeams.includes(team) ? myTeams : [team, ...myTeams]} />
+          )}
         </div>
       </div>
+
+      {noTeam && <NoTeamNotice />}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <AnimatePresence initial={true}>
