@@ -52,6 +52,8 @@ export type LinkedCommit = {
   message: string
   added: number
   removed: number
+  // Repository name in the 0x90-Problems GitHub org, when the agent sent one.
+  repo?: string
 }
 
 // A project is one board, like a GitHub repo. A team can have several.

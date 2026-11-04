@@ -41,7 +41,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { HistoryIcon } from "@/components/icons"
+import { ExternalLinkIcon, HistoryIcon } from "@/components/icons"
+import { commitUrl } from "@/lib/commit-links"
 import { EmptyState } from "@/components/illustrations"
 
 const CONNECTION_LABELS = {
@@ -470,27 +471,57 @@ function TicketDetail({
         </h3>
         {ticket.linked_commits?.length ? (
           <ul className="flex flex-col gap-2">
-            {ticket.linked_commits.map((commit) => (
-              <li
-                key={commit.sha}
-                className="flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
-              >
-                <code className="font-mono text-xs font-semibold">
-                  {commit.sha}
-                </code>
-                <span className="min-w-0 flex-1 truncate">
-                  {commit.message}
-                </span>
-                <span className="flex shrink-0 gap-2 font-mono text-xs">
-                  <span className="text-green-600 dark:text-green-400">
-                    +{commit.added}
+            {ticket.linked_commits.map((commit) => {
+              const url = commitUrl(commit)
+              const row = (
+                <>
+                  <code className="font-mono text-xs font-semibold">
+                    {commit.sha}
+                  </code>
+                  <span className="min-w-0 flex-1 truncate">
+                    {commit.message}
                   </span>
-                  <span className="text-red-600 dark:text-red-400">
-                    -{commit.removed}
+                  <span className="flex shrink-0 gap-2 font-mono text-xs">
+                    <span className="text-green-600 dark:text-green-400">
+                      +{commit.added}
+                    </span>
+                    <span className="text-red-600 dark:text-red-400">
+                      -{commit.removed}
+                    </span>
                   </span>
-                </span>
-              </li>
-            ))}
+                </>
+              )
+              const rowClass =
+                "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm"
+              return (
+                <li key={commit.sha}>
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={
+                        commit.repo
+                          ? `Open on GitHub (${commit.repo})`
+                          : "Find on GitHub"
+                      }
+                      className={cn(
+                        rowClass,
+                        "transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      )}
+                    >
+                      {row}
+                      <ExternalLinkIcon
+                        aria-hidden
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                      />
+                    </a>
+                  ) : (
+                    <div className={rowClass}>{row}</div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
