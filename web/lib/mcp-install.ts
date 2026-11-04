@@ -4,7 +4,9 @@
 
 export const MCP_SERVER_NAME = "nutshell"
 
-export const DEFAULT_MCP_URL = "https://hackohio-2026-eta.vercel.app/mcp"
+// The AWS MCP gateway. The site's own /mcp is behind Vercel protection, so
+// clients outside the team get 401 "Protected deployment" there.
+export const DEFAULT_MCP_URL = "https://gisecl2xck.execute-api.us-east-1.amazonaws.com/mcp"
 
 export function mcpPublicUrl() {
   const configured = process.env.NEXT_PUBLIC_MCP_URL?.trim()
@@ -12,6 +14,7 @@ export function mcpPublicUrl() {
 }
 
 type McpServer = {
+  type?: "http"
   url: string
   headers: { Authorization: string }
 }
@@ -41,7 +44,8 @@ export function mcpInstall(secret: string): McpInstallLinks {
     headers: { Authorization: `Bearer ${secret}` },
   }
   const json = JSON.stringify(
-    { mcpServers: { [MCP_SERVER_NAME]: server } },
+    // Claude Code skips an mcpServers entry that has a url but no type.
+    { mcpServers: { [MCP_SERVER_NAME]: { type: "http", ...server } } },
     null,
     2
   )

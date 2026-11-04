@@ -470,26 +470,6 @@ function IssuedKey({ secret, install }: { secret: string; install: McpInstallLin
         <Button
           type="button"
           variant="outline"
-          className="h-auto w-full justify-start py-2 whitespace-normal"
-          onClick={() =>
-            copyText(
-              install.json,
-              "Claude Desktop config",
-              "Paste it into claude_desktop_config.json."
-            )
-          }
-        >
-          <CopyIcon data-icon="inline-start" aria-hidden="true" />
-          <span className="flex flex-col items-start gap-0.5 text-left">
-            <span>Copy for Claude Desktop</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Paste into claude_desktop_config.json
-            </span>
-          </span>
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
           className="w-full justify-start"
           onClick={() => copyText(install.claudeCommand, "Claude Code command")}
         >
