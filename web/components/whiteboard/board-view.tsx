@@ -33,7 +33,7 @@ import type { Actor } from "@/lib/types"
 import { useBoardDirectory } from "@/lib/use-board-directory"
 import { type AgentActivity, type BoardInfo, type BoardSettings, type WireElement, WhiteboardError, whiteboardApi } from "@/lib/whiteboard-api"
 import { Autosaver } from "@/lib/whiteboard-autosave"
-import { exportFileName, ImageLoader, isFileRef, versionFileName } from "@/lib/whiteboard-files"
+import { exportFileName, ImageLoader, isFileRef, versionFileName, type RestoreChoice } from "@/lib/whiteboard-files"
 import { fetchBoardImage, uploadBoardImage } from "@/lib/whiteboard-images"
 import { BoardSync, type Status } from "@/lib/whiteboard-live"
 import { outlineOf, type OutlineElement, type OutlineRow } from "@/lib/whiteboard-outline"
@@ -101,7 +101,7 @@ export function BoardView({ boardId }: { boardId: string }) {
   const [panel, setPanel] = useState<Panel>(null)
   const [saving, setSaving] = useState(false)
   const [versionsKey, setVersionsKey] = useState(0)
-  const [confirmRestore, setConfirmRestore] = useState<Version | null>(null)
+  const [confirmRestore, setConfirmRestore] = useState<RestoreChoice | null>(null)
   const [restoring, setRestoring] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [outlineRows, setOutlineRows] = useState<OutlineRow[]>([])
@@ -398,7 +398,7 @@ export function BoardView({ boardId }: { boardId: string }) {
     }
   }
 
-  async function restoreVersion(version: Version) {
+  async function restoreVersion(version: RestoreChoice) {
     setConfirmRestore(null)
     setRestoring(version.version)
     restoringHere.current = true
@@ -408,7 +408,8 @@ export function BoardView({ boardId }: { boardId: string }) {
       const out = await whiteboardApi.restore(boardId, version.version, (remaining) => toast.loading(`Restoring version ${version.version}… ${remaining} left`, { id: note }))
       if (out.version) baseVersion.current = out.version
       const before = out.before_version ? ` Version ${out.before_version} has what was there before.` : ""
-      toast.success(out.restored ? `Version ${version.version} is back.${before}` : `The board already matches version ${version.version}.`, { id: note })
+      if (version.blank) toast.success(out.restored ? `The board is blank again, as in version ${version.version}.${before}` : "The board is already blank.", { id: note })
+      else toast.success(out.restored ? `Version ${version.version} is back.${before}` : `The board already matches version ${version.version}.`, { id: note })
     } catch (error) {
       toast.error("Couldn't finish restoring", { id: note, description: reasonFor(error) })
     } finally {
@@ -681,14 +682,21 @@ export function BoardView({ boardId }: { boardId: string }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Restore version {confirmRestore?.version}?</DialogTitle>
-            <DialogDescription>The board changes back for everyone on it, straight away. What&apos;s there now is kept as a new version first, so you can go back to it.</DialogDescription>
+            <DialogDescription>
+              {confirmRestore?.blank
+                ? confirmRestore.version === 1
+                  ? "Version 1 is the blank board this whiteboard started as, so restoring it clears every shape, for everyone on it. "
+                  : `Version ${confirmRestore.version} is a copy of the blank board, so restoring it clears every shape, for everyone on it. `
+                : "The board changes back for everyone on it, straight away. "}
+              What&apos;s there now is kept as a version first, so you can go back to it.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmRestore(null)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={() => confirmRestore && void restoreVersion(confirmRestore)}>
-              Restore version
+              {confirmRestore?.blank ? "Clear the board" : "Restore version"}
             </Button>
           </DialogFooter>
         </DialogContent>

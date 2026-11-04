@@ -39,6 +39,30 @@ export function versionFileName(boardName: string, version: number) {
   return `${safeName(boardName)} v${version}.excalidraw`
 }
 
+type VersionLink = { version: number; restored_from?: number | null }
+
+/** A version someone asked to restore, and whether it is the blank board. */
+export type RestoreChoice = { version: number; restored_from?: number | null; blank?: boolean }
+
+/**
+ * Versions that hold the blank board. Version 1 is always the empty board saved when the board was
+ * made (Files writes it at create time), and a restore copies the version it restores, so a restore
+ * of a blank version is blank too. Restoring one of these clears the board.
+ */
+export function blankVersions(versions: readonly VersionLink[]): Set<number> {
+  const byNumber = new Map(versions.map((v) => [v.version, v]))
+  const blank = new Set<number>()
+  const isBlank = (v: VersionLink | undefined, seen: Set<number>): boolean => {
+    if (!v || seen.has(v.version)) return false
+    if (v.version === 1) return true
+    if (!v.restored_from) return false
+    seen.add(v.version)
+    return isBlank(byNumber.get(v.restored_from), seen)
+  }
+  for (const v of versions) if (isBlank(v, new Set())) blank.add(v.version)
+  return blank
+}
+
 export type LoadedImage = { id: string; mimeType: string; dataURL: string; created: number }
 
 const MAX_LOADING = 3 // every image starts with a call to Files, and the account's concurrency is small
