@@ -387,10 +387,11 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
             </div>
             <fieldset className="flex flex-col gap-3">
               <legend className="mb-2 text-sm font-medium">Scopes</legend>
-              {SCOPE_OPTIONS.map(({ scope, label }) => (
+              {SCOPE_OPTIONS.map(({ scope, label, hint }) => (
                 <div key={scope} className="flex items-center gap-2.5">
                   <Checkbox
                     id={`key-scope-${scope}`}
+                    aria-describedby={hint ? `key-scope-${scope}-hint` : undefined}
                     checked={scopes.includes(scope)}
                     onCheckedChange={(on) =>
                       setScopes((cur) =>
@@ -398,9 +399,16 @@ function CreateKeyDialog({ onCreate }: { onCreate: (key: ApiKey) => void }) {
                       )
                     }
                   />
-                  <Label htmlFor={`key-scope-${scope}`} className="flex-1 font-normal">
-                    {label}
-                  </Label>
+                  <div className="flex flex-1 flex-col gap-0.5">
+                    <Label htmlFor={`key-scope-${scope}`} className="font-normal">
+                      {label}
+                    </Label>
+                    {hint ? (
+                      <p id={`key-scope-${scope}-hint`} className="text-xs text-muted-foreground">
+                        {hint}
+                      </p>
+                    ) : null}
+                  </div>
                   <code className="font-mono text-xs text-muted-foreground">{scope}</code>
                 </div>
               ))}
