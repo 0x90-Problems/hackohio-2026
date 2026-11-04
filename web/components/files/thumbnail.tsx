@@ -11,7 +11,8 @@ import { whiteboardApi } from "@/lib/whiteboard-api"
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"]
 
 const MAX_LOADING = 3 // every thumbnail is a Lambda call, and the account's concurrency is small
-const LINK_LIFETIME_MS = 4 * 60_000 // download links last 5 minutes
+const LINK_LIFETIME_MS = 45_000 // image links last a minute; ask again before then
+const TEXT_LIFETIME_MS = 4 * 60_000 // documents and drawings, until they could have changed
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024 // images are shown full size; skip the huge ones
 const MAX_SHAPES = 500
 const TEXT_CHARS = 500
@@ -70,8 +71,12 @@ function loadThumb(node: Folder) {
   if (hit && hit.until > Date.now()) return hit.thumb
   if (cache.size > 300) cache.clear()
   const thumb = inTurn(() => fetchThumb(node)).catch((): Thumb => ({ kind: "none" }))
-  cache.set(key, { until: Date.now() + LINK_LIFETIME_MS, thumb })
+  cache.set(key, { until: Date.now() + (node.type === "file" ? LINK_LIFETIME_MS : TEXT_LIFETIME_MS), thumb })
   return thumb
+}
+
+function forgetThumb(node: Folder) {
+  cache.delete(keyOf(node))
 }
 
 // Reading text only: documents are user content, never rendered as HTML.
@@ -189,6 +194,7 @@ export function Thumbnail({ node, variant, className }: { node: Folder; variant:
   const box = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [loaded, setLoaded] = useState<{ key: string; thumb: Thumb } | null>(null)
+  const [refetched, setRefetched] = useState<string | null>(null)
   const key = keyOf(node)
   const eligible = hasThumbnail(node)
   const thumb = loaded?.key === key ? loaded.thumb : null
@@ -223,8 +229,15 @@ export function Thumbnail({ node, variant, className }: { node: Folder; variant:
   let content: React.ReactNode = icon
   if (eligible && !thumb) content = <Skeleton className="size-full rounded-none" />
   else if (thumb?.kind === "image") {
+    // A link that expired before the image loaded gets one fresh link, then gives up quietly.
+    const failed = () => {
+      if (refetched === key) return setLoaded({ key, thumb: { kind: "none" } })
+      setRefetched(key)
+      forgetThumb(node)
+      void loadThumb(node).then((result) => setLoaded({ key, thumb: result }))
+    }
     // eslint-disable-next-line @next/next/no-img-element -- presigned S3 URL, not a static asset
-    content = <img src={thumb.url} alt="" loading="lazy" className="size-full object-cover" onError={() => setLoaded({ key, thumb: { kind: "none" } })} />
+    content = <img src={thumb.url} alt="" loading="lazy" className="size-full object-cover" onError={failed} />
   } else if (thumb?.kind === "text" && thumb.text) {
     content = (
       <p className={cn("size-full overflow-hidden text-left break-words whitespace-pre-wrap text-muted-foreground", variant === "card" ? "p-2 text-[10px] leading-snug" : "p-0.5 text-[3px] leading-[4px]")}>

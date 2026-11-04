@@ -108,6 +108,8 @@ export function subscribeAuth(onChange: () => void): () => void {
 
 export function clearSession(): void {
   sessionStorage.removeItem(SESSION_KEY)
+  // File links check an HttpOnly cookie (lib/file-links.ts); signing out drops it too.
+  void fetch("/api/files/session", { method: "DELETE", keepalive: true }).catch(() => undefined)
   remember(null)
   publishAuth()
 }

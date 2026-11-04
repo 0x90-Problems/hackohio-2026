@@ -6,6 +6,7 @@ import { toast } from "sonner"
 
 import { FileIcon, FileTextIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
+import { downloadFile } from "@/lib/file-links"
 import { type Folder, FoldersError, foldersApi } from "@/lib/folders-api"
 
 // Files linked to a ticket (from the Files page). Hidden when there are none or
@@ -28,8 +29,7 @@ export function TicketFiles({ ticketKey }: { ticketKey: string }) {
 
   async function download(file: Folder) {
     try {
-      const { url } = await foldersApi.link(file.id)
-      window.location.assign(url)
+      await downloadFile(file.id) // the app's signed-in address, never a storage link
     } catch (error) {
       toast.error("Couldn't get a download link", { description: error instanceof FoldersError ? error.message : undefined })
     }

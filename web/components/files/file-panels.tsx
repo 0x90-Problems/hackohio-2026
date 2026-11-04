@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { ExpandableImage } from "@/components/files/image-viewer"
 import { IMAGE_TYPES } from "@/components/files/thumbnail"
+import { downloadFile, openFileInNewTab } from "@/lib/file-links"
 import { absoluteTime } from "@/lib/format"
 import { type Folder, FoldersError, foldersApi, type Version } from "@/lib/folders-api"
 
@@ -228,18 +229,12 @@ function FilePreview({ node }: { node: Folder }) {
   const type = node.content_type ?? ""
   const isImage = IMAGE_TYPES.includes(type)
   const isText = PREVIEW_TEXT_TYPES.includes(type)
-  const [image, setImage] = useState<string | null>(null)
   const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    if (isImage) {
-      foldersApi
-        .link(node.id, undefined, true)
-        .then((link) => !cancelled && setImage(link.url))
-        .catch(() => !cancelled && setFailed(true))
-    } else if (isText) {
+    if (isText) {
       foldersApi
         .content(node.id)
         .then((content) => !cancelled && setText({ body: content.text, truncated: content.truncated }))
@@ -248,19 +243,14 @@ function FilePreview({ node }: { node: Folder }) {
     return () => {
       cancelled = true
     }
-  }, [node.id, isImage, isText])
+  }, [node.id, isText])
 
   async function openPdf() {
-    // Opens in the browser's own PDF viewer, on the storage domain (never ours).
-    const viewer = window.open("about:blank", "_blank")
+    // Opens in the browser's own PDF viewer, through the app's signed-in address for the file.
     try {
-      const link = await foldersApi.link(node.id, undefined, true)
-      if (viewer) {
-        viewer.opener = null
-        viewer.location.href = link.url
-      }
-    } catch {
-      viewer?.close()
+      await openFileInNewTab(node.id)
+    } catch (error) {
+      toast.error("Couldn't open the preview", { description: explain(error) })
     }
   }
 
@@ -273,10 +263,7 @@ function FilePreview({ node }: { node: Folder }) {
   }
   if (!isImage && !isText) return null
   if (failed) return <p className="text-sm text-muted-foreground">No preview available.</p>
-  if (isImage) {
-    if (image === null) return <Skeleton className="aspect-video w-full" />
-    return <ExpandableImage url={image} name={node.name} />
-  }
+  if (isImage) return <ExpandableImage fileId={node.id} name={node.name} />
   if (text === null) return <Skeleton className="h-40 w-full" />
   return (
     <div className="flex flex-col gap-1">
@@ -308,8 +295,8 @@ export function FilePanel({
 
   async function download(version?: number) {
     try {
-      const { url } = await foldersApi.link(node.id, version)
-      window.location.assign(url) // served as an attachment, never rendered from the bucket
+      // The app's signed-in address, served as an attachment, never rendered from the bucket.
+      await downloadFile(node.id, version)
     } catch (error) {
       toast.error("Couldn't get a download link", { description: explain(error) })
     }

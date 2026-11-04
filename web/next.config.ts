@@ -20,6 +20,15 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: SECURITY_HEADERS,
       },
+      // File links 302 to a signed storage link; it must never travel on as a referrer.
+      // Listed last, so it wins over the site-wide Referrer-Policy above.
+      {
+        source: "/api/files/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store, private" },
+        ],
+      },
     ]
   },
 }
@@ -31,7 +40,7 @@ const SECURITY_HEADERS = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      // Folder previews show images from the files bucket (presigned, 5-minute links).
+      // Folder previews show images from the files bucket (presigned, 1-minute links).
       "img-src 'self' data: blob: https://nutshell-prod-files-883501587155.s3.amazonaws.com https://nutshell-prod-files-883501587155.s3.us-east-1.amazonaws.com",
       "font-src 'self' data:",
       // Live whiteboards, documents and chat use API Gateway WebSockets (wss isn't covered by https:).

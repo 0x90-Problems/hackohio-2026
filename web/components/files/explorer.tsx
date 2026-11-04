@@ -9,6 +9,7 @@ import { IMAGE_TYPES, NodeIcon, Thumbnail } from "@/components/files/thumbnail"
 import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { openFileInNewTab } from "@/lib/file-links"
 import { absoluteTime } from "@/lib/format"
 import { type Crumb, type Folder, foldersApi, ROOT } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
@@ -257,7 +258,6 @@ function TreeNode({ id, name, depth, tree, initiallyOpen = false }: { id: string
 const TEXT_TYPES = ["text/plain", "text/markdown", "text/csv", "application/json"]
 
 function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean; onOpen: () => void }) {
-  const [image, setImage] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
   const isImage = node.type === "file" && IMAGE_TYPES.includes(node.content_type ?? "")
@@ -267,13 +267,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
   useEffect(() => {
     if (showTrash) return
     let cancelled = false
-    if (isImage) {
-      // Inline, so the full-size view's "Open in new tab" shows it instead of downloading it.
-      foldersApi
-        .link(node.id, undefined, true)
-        .then((link) => !cancelled && setImage(link.url))
-        .catch(() => !cancelled && setImage(""))
-    } else if (node.type === "note") {
+    if (node.type === "note") {
       foldersApi
         .readNote(node.id)
         .then((result) => !cancelled && setNote(result.body ?? ""))
@@ -287,20 +281,11 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
     return () => {
       cancelled = true
     }
-  }, [node.id, node.type, isImage, isText, showTrash])
+  }, [node.id, node.type, isText, showTrash])
 
   async function openPdf() {
-    // Opens in the browser's own PDF viewer, on the storage domain (never ours).
-    const viewer = window.open("about:blank", "_blank")
-    try {
-      const link = await foldersApi.link(node.id, undefined, true)
-      if (viewer) {
-        viewer.opener = null
-        viewer.location.href = link.url
-      }
-    } catch {
-      viewer?.close()
-    }
+    // Opens in the browser's own PDF viewer, through the app's signed-in address for the file.
+    await openFileInNewTab(node.id).catch(() => undefined)
   }
 
   const kind = node.type === "folder" ? "Folder" : node.type === "note" ? "Document" : node.type === "whiteboard" ? "Whiteboard" : node.content_type || "File"
@@ -313,15 +298,7 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         <h2 className="min-w-0 font-semibold break-words">{node.name}</h2>
       </div>
 
-      {isImage &&
-        !showTrash &&
-        (image === null ? (
-          <Skeleton className="aspect-video w-full" />
-        ) : image ? (
-          <ExpandableImage url={image} name={node.name} />
-        ) : (
-          <p className="text-sm text-muted-foreground">No preview available.</p>
-        ))}
+      {isImage && !showTrash && <ExpandableImage fileId={node.id} name={node.name} />}
 
       {isText &&
         !showTrash &&
