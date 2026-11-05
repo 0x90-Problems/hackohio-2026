@@ -138,105 +138,105 @@ export function AppHeader() {
 
   return (
     <header className="border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-screen-2xl items-center gap-3 px-4">
+      {/* Three columns (1fr auto 1fr) so the links sit in the true center whatever the sides hold. */}
+      <div className="mx-auto grid h-14 max-w-screen-2xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-4">
         {/* Left: app launcher + logo */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative"
-              aria-label={chatAttention ? `Open NutShell apps, ${chatBadge} waiting for you in Chat` : "Open NutShell apps"}
-            >
-              <LayoutGridIcon aria-hidden="true" />
-              {chatAttention ? (
-                <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-foreground px-1 text-center text-[10px] leading-4 font-medium text-background" aria-hidden="true">
-                  {chatBadge}
-                </span>
-              ) : null}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-80 p-2">
-            <DropdownMenuLabel className="text-xs text-muted-foreground">NutShell apps</DropdownMenuLabel>
-            <div className="grid grid-cols-2 gap-1">
-              {SERVICES.map((base) =>
-                base.label === "Folders" && foldersOn
-                  ? { ...base, href: "/files" }
-                  : base.label === "Chat" && chatOn
-                    ? { ...base, href: "/chat" }
-                    : base.label === "Whiteboard" && whiteboardOn && foldersOn
-                      ? { ...base, href: "/boards" }
-                      : base
-              ).map((service) => {
-                const tile = (
-                  <>
-                    <span className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">
-                      <service.icon className="size-5" aria-hidden="true" />
-                    </span>
-                    <span className="flex items-center gap-1.5 text-sm font-medium">
-                      {service.label}
-                      {service.label === "Chat" && chatAttention ? (
-                        <span className="rounded-full bg-foreground px-1.5 text-[10px] leading-4 font-medium text-background">{chatBadge}</span>
-                      ) : null}
-                      {!("href" in service) && (
-                        <span className="rounded border border-dashed px-1 text-[10px] font-normal text-muted-foreground">
-                          Soon
-                        </span>
+        <div className="flex min-w-0 items-center gap-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+                aria-label={chatAttention ? `Open NutShell apps, ${chatBadge} waiting for you in Chat` : "Open NutShell apps"}
+              >
+                <LayoutGridIcon aria-hidden="true" />
+                {chatAttention ? (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-foreground px-1 text-center text-[10px] leading-4 font-medium text-background" aria-hidden="true">
+                    {chatBadge}
+                  </span>
+                ) : null}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80 p-2">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">NutShell apps</DropdownMenuLabel>
+              <div className="grid grid-cols-2 gap-1">
+                {SERVICES.map((base) =>
+                  base.label === "Folders" && foldersOn
+                    ? { ...base, href: "/files" }
+                    : base.label === "Chat" && chatOn
+                      ? { ...base, href: "/chat" }
+                      : base.label === "Whiteboard" && whiteboardOn && foldersOn
+                        ? { ...base, href: "/boards" }
+                        : base
+                ).map((service) => {
+                  const tile = (
+                    <>
+                      <span className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">
+                        <service.icon className="size-5" aria-hidden="true" />
+                      </span>
+                      <span className="flex items-center gap-1.5 text-sm font-medium">
+                        {service.label}
+                        {service.label === "Chat" && chatAttention ? (
+                          <span className="rounded-full bg-foreground px-1.5 text-[10px] leading-4 font-medium text-background">{chatBadge}</span>
+                        ) : null}
+                        {!("href" in service) && (
+                          <span className="rounded border border-dashed px-1 text-[10px] font-normal text-muted-foreground">
+                            Soon
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs leading-snug text-muted-foreground">{service.description}</span>
+                    </>
+                  )
+                  return "href" in service ? (
+                    <DropdownMenuItem
+                      key={service.label}
+                      asChild
+                      className={cn(
+                        "flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal",
+                        pathname.startsWith(service.href) && "bg-muted"
                       )}
-                    </span>
-                    <span className="text-xs leading-snug text-muted-foreground">{service.description}</span>
-                  </>
-                )
-                return "href" in service ? (
-                  <DropdownMenuItem
-                    key={service.label}
-                    asChild
-                    className={cn(
-                      "flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal",
-                      pathname.startsWith(service.href) && "bg-muted"
-                    )}
-                  >
-                    <Link href={service.href}>{tile}</Link>
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem
-                    key={service.label}
-                    disabled
-                    aria-label={`${service.label}, coming soon`}
-                    className="flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal"
-                  >
-                    {tile}
-                  </DropdownMenuItem>
-                )
-              })}
-            </div>
-            {/* The page nav is hidden below xl, so the launcher carries it there. */}
-            <div className="xl:hidden">
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/">Home</Link>
-              </DropdownMenuItem>
-              {NAV_LINKS.map((link) => (
-                <DropdownMenuItem key={link.href} asChild>
-                  <Link href={link.href}>
-                    <link.icon className="size-4" aria-hidden="true" />
-                    {link.label}
-                  </Link>
+                    >
+                      <Link href={service.href}>{tile}</Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      key={service.label}
+                      disabled
+                      aria-label={`${service.label}, coming soon`}
+                      className="flex h-auto flex-col items-start gap-1 rounded-lg p-2.5 whitespace-normal"
+                    >
+                      {tile}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </div>
+              {/* The page nav is hidden below xl, so the launcher carries it there. */}
+              <div className="xl:hidden">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/">Home</Link>
                 </DropdownMenuItem>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {NAV_LINKS.map((link) => (
+                  <DropdownMenuItem key={link.href} asChild>
+                    <Link href={link.href}>
+                      <link.icon className="size-4" aria-hidden="true" />
+                      {link.label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <Link href="/" className="text-foreground">
-          <Logo />
-        </Link>
-
-        {/* Several orgs: the org and team you're working in, above the pages' team switchers. */}
-        {multiOrgOn() ? <OrgSwitcher /> : null}
+          <Link href="/" className="shrink-0 text-foreground">
+            <Logo />
+          </Link>
+        </div>
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}
-        <NavigationMenu viewport={false} className="mx-auto hidden xl:flex">
+        <NavigationMenu viewport={false} className="hidden xl:flex">
           <NavigationMenuList>
             {NAV_LINKS.map((link) => {
               const active = pathname.startsWith(link.href)
@@ -261,51 +261,55 @@ export function AppHeader() {
           </NavigationMenuList>
         </NavigationMenu>
 
-        {/* Right: current user */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="ml-auto gap-2 xl:ml-0">
-              <span className="text-sm">{name}</span>
-              <HumanAvatar name={name} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuLabel>
-              <div className="font-medium">{name}</div>
-              <div className="text-xs font-normal text-muted-foreground">
-                {detail}
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link href="/profile">
-                <UserIcon aria-hidden="true" />
-                Your profile
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            >
-              {resolvedTheme === "dark" ? (
-                <SunIcon aria-hidden="true" />
-              ) : (
-                <MoonIcon aria-hidden="true" />
-              )}
-              {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link
-                href="/login"
-                onClick={() => {
-                  clearSession()
-                }}
+        {/* Right: several orgs' org and team switcher, then the current user */}
+        <div className="col-start-3 flex min-w-0 items-center justify-end gap-1">
+          {multiOrgOn() ? <OrgSwitcher /> : null}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="gap-2" title={name}>
+                {/* Avatar only on phones; the menu names you. */}
+                <span className="max-w-40 truncate text-sm max-sm:sr-only">{name}</span>
+                <HumanAvatar name={name} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>
+                <div className="font-medium">{name}</div>
+                <div className="text-xs font-normal text-muted-foreground">
+                  {detail}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <UserIcon aria-hidden="true" />
+                  Your profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               >
-                <LogOutIcon aria-hidden="true" />
-                Log out
-              </Link>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {resolvedTheme === "dark" ? (
+                  <SunIcon aria-hidden="true" />
+                ) : (
+                  <MoonIcon aria-hidden="true" />
+                )}
+                {resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link
+                  href="/login"
+                  onClick={() => {
+                    clearSession()
+                  }}
+                >
+                  <LogOutIcon aria-hidden="true" />
+                  Log out
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   )
