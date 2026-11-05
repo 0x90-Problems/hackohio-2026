@@ -51,3 +51,9 @@ export function mergeAgentRecords(primary: Agent[], extra: Agent[]): Agent[] {
   }
   return [...byId.values()]
 }
+
+/** "No agents", "1 agent", "3 agents": the short line on a team member's card. */
+export function agentCountLabel(count: number): string {
+  if (count === 0) return "No agents"
+  return `${count} ${count === 1 ? "agent" : "agents"}`
+}

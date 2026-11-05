@@ -35,7 +35,7 @@ import { onlyConnection } from "@/lib/rest-api"
 import mcpToolCatalog from "@/shared/mcp-tools.json"
 import { cn } from "@/lib/utils"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
-import { ScopeBadge } from "@/components/scope-badge"
+import { ScopeSummary } from "@/components/scope-summary"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -265,11 +265,7 @@ function AgentRow({
         )}
       </TableCell>
       <TableCell>
-        <div className={cn("flex flex-col items-start gap-1", inactive && "opacity-60")}>
-          {agent.scopes.map((scope) => (
-            <ScopeBadge key={scope} scope={scope} />
-          ))}
-        </div>
+        <ScopeSummary scopes={agent.scopes} className={cn(inactive && "opacity-60")} />
       </TableCell>
       <TableCell className="tabular-nums">
         {active ? timeAgo(active) : <span className="text-muted-foreground">Never</span>}

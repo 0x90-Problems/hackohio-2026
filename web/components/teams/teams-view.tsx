@@ -26,8 +26,8 @@ import {
 import { canRemovePerson } from "@/lib/remove-person"
 import { RemovePersonDialog } from "@/components/teams/remove-person-dialog"
 import { useAuthUser } from "@/components/auth/auth-gate"
-import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
-import { ScopeBadge } from "@/components/scope-badge"
+import { AgentTag, HumanAvatar } from "@/components/actor-badge"
+import { agentCountLabel } from "@/lib/agent-label"
 import { SearchCombobox } from "@/components/search-combobox"
 import { Button } from "@/components/ui/button"
 import {
@@ -187,7 +187,7 @@ export function TeamsView() {
                     <MemberRow
                       key={person._id}
                       user={person}
-                      agent={agents.find((agent) => agent.owner_id === person._id)}
+                      agents={agents.filter((agent) => agent.owner_id === person._id)}
                       extra={
                         removable(person) && (
                           <DropdownMenu>
@@ -253,7 +253,7 @@ function TeamCard({
           {canManage && <RenameTeamButton name={team.name} onRenamed={onChanged} />}
         </CardTitle>
         <CardAction className="text-sm text-muted-foreground">
-          {members.length} {members.length === 1 ? "person" : "people"} · {activeAgents.length} agents
+          {members.length} {members.length === 1 ? "person" : "people"} · {agentCountLabel(activeAgents.length).toLowerCase()}
         </CardAction>
       </CardHeader>
       <CardContent>
@@ -267,7 +267,7 @@ function TeamCard({
                 <MemberRow
                   key={member._id}
                   user={member}
-                  agent={activeAgents.find((agent) => agent.owner_id === member._id)}
+                  agents={activeAgents.filter((agent) => agent.owner_id === member._id)}
                   extra={
                     <>
                       {isManager && <span className="rounded border px-1.5 text-xs text-muted-foreground">Manager</span>}
@@ -352,7 +352,9 @@ function TeamCard({
   )
 }
 
-function MemberRow({ user, agent, extra }: { user: User; agent?: Agent; extra?: React.ReactNode }) {
+// Just the person: name, open tickets and how many agents work for them. Their
+// agents and scopes are on the profile, which the count opens.
+function MemberRow({ user, agents, extra }: { user: User; agents: Agent[]; extra?: React.ReactNode }) {
   const store = useProjects()
   const openProfile = useOpenProfile()
   const open = openTicketCount(user._id, store.tickets)
@@ -377,13 +379,16 @@ function MemberRow({ user, agent, extra }: { user: User; agent?: Agent; extra?: 
           </span>
         </div>
         {user.role && <p className="text-sm text-muted-foreground">{user.role}</p>}
-        {agent ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <ActorBadge actor={{ type: ACTOR_TYPES.AGENT, id: agent._id, name: agent.name, acting_for: user._id }} />
-            {agent.scopes.map((scope) => (
-              <ScopeBadge key={scope} scope={scope} />
-            ))}
-          </div>
+        {agents.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => openProfile?.(user._id)}
+            aria-label={`${agentCountLabel(agents.length)} for ${user.name}. Open their profile`}
+            className="flex items-center gap-1.5 self-start rounded-sm text-sm text-muted-foreground hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <AgentTag />
+            {agentCountLabel(agents.length)}
+          </button>
         ) : (
           <p className="text-sm text-muted-foreground">No agent connected</p>
         )}
