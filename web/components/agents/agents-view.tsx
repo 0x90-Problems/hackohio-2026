@@ -3,12 +3,10 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangleIcon,
   ActivityIcon,
   BotIcon,
   ClockIcon,
   CopyIcon,
-  KeyRoundIcon,
   ShieldOffIcon,
   WifiOffIcon,
 } from "@/components/icons"
@@ -18,40 +16,35 @@ import {
   ACTOR_TYPES,
   AGENT_CONNECTION,
   DEFAULT_TOKEN_EXPIRY_HOURS,
-  SCOPES,
-  type Scope,
 } from "@/shared/names"
 import type { Agent } from "@/lib/types"
 import { getUser } from "@/lib/mock-data"
 import { agentAccess, type AgentUsage } from "@/lib/agent-usage"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { CleanupInactiveButton, DeleteAgentDialog } from "@/components/agents/delete-agent"
-import { McpInstallActions } from "@/components/mcp-install-actions"
+import { ConnectAgentWizard } from "@/components/agents/connect-agent-wizard"
+import { loadSite } from "@/lib/site-db"
 import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
 import { canDeleteAgent } from "@/lib/delete-agent"
-import { ConnectAgentError, connectAgent, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
+import { ConnectAgentError, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
-import { mcpPublicUrl, type McpInstallLinks } from "@/lib/mcp-install"
+import { mcpPublicUrl } from "@/lib/mcp-install"
 import { groupTools, type McpToolCatalog } from "@/lib/mcp-tools"
 import { onlyConnection } from "@/lib/rest-api"
 import mcpToolCatalog from "@/shared/mcp-tools.json"
-import { SCOPE_OPTIONS } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { ActorBadge, HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogClose,
@@ -62,8 +55,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -83,9 +74,19 @@ export function AgentsView() {
   const [newIds, setNewIds] = useState<Set<string>>(new Set())
   // Last use and expiry per agent, derived by the board API from all of its tokens.
   const [usage, setUsage] = useState<Map<string, AgentUsage>>(new Map())
+  // The organization's token expiry, shown in the Connect agent wizard.
+  const [expiryHours, setExpiryHours] = useState(DEFAULT_TOKEN_EXPIRY_HOURS)
 
   useEffect(() => {
     let cancelled = false
+    loadSite()
+      .then((site) => {
+        const hours = site.organization?.token_expiry_hours
+        if (!cancelled && hours) setExpiryHours(hours)
+      })
+      .catch(() => {
+        // Keeps the default expiry.
+      })
     listBoardUsers()
       .then((users) => {
         if (!cancelled) setPeople(users)
@@ -163,15 +164,18 @@ export function AgentsView() {
             .
           </p>
         </div>
-        <CleanupInactiveButton
-          connection={AGENT_CONNECTION.MCP}
-          missing={AGENT_CONNECTION.MCP}
-          words={{ one: "agent", many: "agents", otherOne: "API key", otherMany: "API keys", otherPage: "API page" }}
-          onDeleted={forget}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <CleanupInactiveButton
+            connection={AGENT_CONNECTION.MCP}
+            missing={AGENT_CONNECTION.MCP}
+            words={{ one: "agent", many: "agents", otherOne: "API key", otherMany: "API keys", otherPage: "API page" }}
+            onDeleted={forget}
+          />
+          <ConnectAgentWizard expiryHours={expiryHours} onConnect={connect} />
+        </div>
       </div>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid items-start gap-6">
         <div className="flex min-w-0 flex-col gap-6">
           <Card className="py-0">
             <Table>
@@ -207,8 +211,6 @@ export function AgentsView() {
 
           <McpGatewayCard />
         </div>
-
-        <ConnectAgentCard onConnect={connect} />
       </div>
     </main>
   )
@@ -364,7 +366,7 @@ function McpGatewayCard() {
         <CardTitle className="text-lg">MCP gateway</CardTitle>
         <CardDescription>
           Streamable HTTP. Your agent sends its token as <code className="font-mono">Authorization: Bearer …</code>.
-          The install config comes with the token in <span className="font-medium">Connect your agent</span>.
+          The install config comes with the token in <span className="font-medium">Connect agent</span>.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
@@ -404,154 +406,6 @@ function McpGatewayCard() {
           </p>
         </div>
       </CardContent>
-    </Card>
-  )
-}
-
-function ConnectAgentCard({ onConnect }: { onConnect: (agent: Agent) => void }) {
-  const [scopes, setScopes] = useState<Scope[]>([
-    SCOPES.TICKETS_READ,
-    SCOPES.TICKETS_WRITE,
-    SCOPES.COMMENTS_WRITE,
-  ])
-  const [name, setName] = useState("")
-  const [token, setToken] = useState<string>()
-  const [install, setInstall] = useState<McpInstallLinks>()
-  const [pending, setPending] = useState(false)
-  const account = useAuthUser()
-
-  function toggle(scope: Scope, on: boolean) {
-    setScopes((current) => (on ? [...current, scope] : current.filter((s) => s !== scope)))
-  }
-
-  async function generate() {
-    const agentName = name.trim()
-    if (!account || !agentName || pending) return
-    const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
-    setPending(true)
-    try {
-      const connected = await connectAgent({
-        name: agentName,
-        ownerId: account._id,
-        username: account.auth_username,
-        scopes: ordered,
-        connection: AGENT_CONNECTION.MCP,
-      })
-      setToken(connected.secret)
-      setInstall(connected.install)
-      onConnect(connected.agent)
-      setName("")
-    } catch (error) {
-      toast.error(error instanceof ConnectAgentError ? error.message : "Couldn't connect that agent")
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function copy() {
-    if (!token) return
-    try {
-      await navigator.clipboard.writeText(token)
-      toast.success("Token copied", { description: "Paste it into your agent's MCP config." })
-    } catch {
-      toast.error("Couldn't copy", { description: "Select the token and copy it by hand." })
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Connect your agent</CardTitle>
-        <CardDescription>
-          Bring your own agent. Pick what it may do, then paste the token into its MCP config.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <fieldset className="flex flex-col gap-3">
-          <legend className="mb-3 font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            1 · Scopes
-          </legend>
-          {SCOPE_OPTIONS.map(({ scope, label, hint }) => (
-            <div key={scope} className="flex items-center gap-2.5">
-              <Checkbox
-                id={`scope-${scope}`}
-                aria-describedby={hint ? `scope-${scope}-hint` : undefined}
-                checked={scopes.includes(scope)}
-                onCheckedChange={(on) => toggle(scope, on === true)}
-              />
-              <div className="flex flex-1 flex-col gap-0.5">
-                <Label htmlFor={`scope-${scope}`} className="font-normal">
-                  {label}
-                </Label>
-                {hint ? (
-                  <p id={`scope-${scope}-hint`} className="text-xs text-muted-foreground">
-                    {hint}
-                  </p>
-                ) : null}
-              </div>
-              <code className="font-mono text-xs text-muted-foreground">{scope}</code>
-            </div>
-          ))}
-        </fieldset>
-
-        <div className="flex flex-col gap-2">
-          <Label
-            htmlFor="agent-name"
-            className="font-mono text-xs font-normal tracking-widest text-muted-foreground uppercase"
-          >
-            2 · Name it
-          </Label>
-          <Input
-            id="agent-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={account ? `e.g. ${account.name}'s Claude Code` : "e.g. your agent"}
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-            3 · Token
-          </span>
-          {token ? (
-            <div className="flex flex-col gap-3 duration-300 animate-in fade-in">
-              <div className="flex items-center gap-2 rounded-lg bg-foreground p-3 text-background">
-                <code className="min-w-0 flex-1 font-mono text-xs break-all">{token}</code>
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  className="shrink-0 text-background hover:bg-background/15 hover:text-background"
-                  onClick={copy}
-                  aria-label="Copy token"
-                >
-                  <CopyIcon aria-hidden="true" />
-                </Button>
-              </div>
-              {install ? <McpInstallActions install={install} /> : null}
-              <Alert>
-                <AlertTriangleIcon aria-hidden="true" />
-                <AlertTitle>This token is shown once</AlertTitle>
-                <AlertDescription>
-                  Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
-                </AlertDescription>
-              </Alert>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed p-3 font-mono text-xs text-muted-foreground">
-              Your token appears here once.
-            </div>
-          )}
-        </div>
-      </CardContent>
-      <CardFooter className="flex flex-col items-stretch gap-2">
-        <Button onClick={generate} disabled={!account || !name.trim() || scopes.length === 0 || pending}>
-          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
-          {pending ? "Connecting…" : "Generate token"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Expires after {DEFAULT_TOKEN_EXPIRY_HOURS} h. Set in Organization.
-        </p>
-      </CardFooter>
     </Card>
   )
 }

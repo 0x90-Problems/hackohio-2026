@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
-  AlertTriangleIcon,
-  ArrowRightIcon,
   BookOpenIcon,
   BotIcon,
   ClockIcon,
@@ -17,7 +15,6 @@ import { toast } from "sonner"
 import {
   AGENT_CONNECTION,
   DEFAULT_TOKEN_EXPIRY_HOURS,
-  SCOPES,
   TOKEN_PREFIX,
   type Scope,
 } from "@/shared/names"
@@ -27,7 +24,6 @@ import { loadSite } from "@/lib/site-db"
 import { withKeyUsage } from "@/lib/agent-usage"
 import {
   ConnectAgentError,
-  connectAgent,
   listBoardAgents,
   listBoardUsers,
   revokeAgentAccess,
@@ -36,10 +32,11 @@ import { canDeleteAgent } from "@/lib/delete-agent"
 import { timeAgo } from "@/lib/format"
 import { boardApiPublicUrl, curlExample, onlyConnection } from "@/lib/rest-api"
 import { REST_ENDPOINTS, type RestMethod } from "@/lib/rest-endpoints"
-import { SCOPE_OPTIONS, maskToken } from "@/lib/tokens"
+import { maskToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
+import { CreateKeyWizard } from "@/components/api/create-key-wizard"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,7 +48,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogClose,
@@ -62,8 +58,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 // Neutral styles only: no red, blue or purple for HTTP methods.
@@ -114,6 +108,7 @@ export function ApiView() {
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
   const [newKeyName, setNewKeyName] = useState<string>()
+  const [expiryHours, setExpiryHours] = useState(DEFAULT_TOKEN_EXPIRY_HOURS)
   const baseUrl = boardApiPublicUrl()
 
   useEffect(() => {
@@ -128,6 +123,7 @@ export function ApiView() {
     Promise.all([loadSite(), listBoardAgents().catch(() => [])])
       .then(([site, live]) => {
         if (cancelled) return
+        if (site.organization?.token_expiry_hours) setExpiryHours(site.organization.token_expiry_hours)
         // Saved keys never update last_used_at; the board API knows the real last use and expiry.
         // Only API-key agents count: an MCP agent lives on the Agents page.
         const apiKeyAgents = onlyConnection(live, AGENT_CONNECTION.API_KEY, AGENT_CONNECTION.MCP)
@@ -347,8 +343,9 @@ export function ApiView() {
             </ul>
           </CardContent>
           <CardFooter className="flex flex-col items-stretch gap-2">
-            <CreateKeyDialog
+            <CreateKeyWizard
               baseUrl={baseUrl}
+              expiryHours={expiryHours}
               onCreate={(key) => {
                 // The board API already stored it; don't save it again.
                 setKeys((current) => [key, ...current])
@@ -397,159 +394,5 @@ function RevokeKeyDialog({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (key:
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function CreateKeyDialog({ baseUrl, onCreate }: { baseUrl: string; onCreate: (key: ApiKey) => void }) {
-  const account = useAuthUser()
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [scopes, setScopes] = useState<Scope[]>([SCOPES.TICKETS_READ])
-  const [secret, setSecret] = useState<string>()
-  const [pending, setPending] = useState(false)
-
-  function reset(nextOpen: boolean) {
-    setOpen(nextOpen)
-    if (!nextOpen) {
-      setName("")
-      setScopes([SCOPES.TICKETS_READ])
-      setSecret(undefined)
-      setPending(false)
-    }
-  }
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault()
-    if (!account || !name.trim() || scopes.length === 0 || pending) return
-    const ordered = SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
-    setPending(true)
-    try {
-      const connected = await connectAgent({
-        name: name.trim(),
-        ownerId: account._id,
-        username: account.auth_username,
-        scopes: ordered,
-        connection: AGENT_CONNECTION.API_KEY,
-      })
-      setSecret(connected.secret)
-      onCreate({
-        id: connected.agent._id,
-        name: connected.agent.name,
-        owner_id: connected.agent.owner_id,
-        token_prefix: connected.secret.slice(0, 10),
-        last_used_at: null,
-        scopes: connected.agent.scopes,
-      })
-    } catch (error) {
-      toast.error(error instanceof ConnectAgentError ? error.message : "Couldn't create the key")
-    } finally {
-      setPending(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={reset}>
-      <DialogTrigger asChild>
-        <Button className="w-full">
-          <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
-          Create API key
-        </Button>
-      </DialogTrigger>
-      <DialogContent className={secret ? "sm:max-w-lg" : undefined}>
-        {secret ? (
-          <IssuedKey secret={secret} baseUrl={baseUrl} />
-        ) : (
-          <form onSubmit={create} className="flex flex-col gap-4">
-            <DialogHeader>
-              <DialogTitle>Create API key</DialogTitle>
-              <DialogDescription>Pick a name and what the key may do.</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="key-name">Name</Label>
-              <Input
-                id="key-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Nightly report script"
-                autoFocus
-                required
-              />
-            </div>
-            <fieldset className="flex flex-col gap-3">
-              <legend className="mb-2 text-sm font-medium">Scopes</legend>
-              {SCOPE_OPTIONS.map(({ scope, label, hint }) => (
-                <div key={scope} className="flex items-center gap-2.5">
-                  <Checkbox
-                    id={`key-scope-${scope}`}
-                    aria-describedby={hint ? `key-scope-${scope}-hint` : undefined}
-                    checked={scopes.includes(scope)}
-                    onCheckedChange={(on) =>
-                      setScopes((cur) =>
-                        on === true ? [...cur, scope] : cur.filter((s) => s !== scope)
-                      )
-                    }
-                  />
-                  <div className="flex flex-1 flex-col gap-0.5">
-                    <Label htmlFor={`key-scope-${scope}`} className="font-normal">
-                      {label}
-                    </Label>
-                    {hint ? (
-                      <p id={`key-scope-${scope}-hint`} className="text-xs text-muted-foreground">
-                        {hint}
-                      </p>
-                    ) : null}
-                  </div>
-                  <code className="font-mono text-xs text-muted-foreground">{scope}</code>
-                </div>
-              ))}
-            </fieldset>
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button type="button" variant="outline">
-                  Cancel
-                </Button>
-              </DialogClose>
-              <Button type="submit" disabled={!name.trim() || scopes.length === 0 || pending}>
-                {pending ? "Creating…" : "Create API key"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function IssuedKey({ secret, baseUrl }: { secret: string; baseUrl: string }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <DialogHeader>
-        <DialogTitle>Your new API key</DialogTitle>
-        <DialogDescription>Copy the key now, then store it as a secret in your script or CI.</DialogDescription>
-      </DialogHeader>
-      <CodeLine text={secret} what="API key" />
-      <Alert>
-        <AlertTriangleIcon aria-hidden="true" />
-        <AlertTitle>This key is shown once</AlertTitle>
-        <AlertDescription>
-          Copy it now. We only keep a scrambled version, so we can&apos;t show it again.
-        </AlertDescription>
-      </Alert>
-      <div className="flex flex-col gap-2">
-        <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Try it</span>
-        <CodeLine text={curlExample(baseUrl)} what="curl example" />
-      </div>
-      <DialogFooter>
-        <Button variant="outline" asChild>
-          <Link href="/agents">
-            <ArrowRightIcon data-icon="inline-start" aria-hidden="true" />
-            For an AI agent, use Agents (MCP)
-          </Link>
-        </Button>
-        <DialogClose asChild>
-          <Button variant="outline">Done</Button>
-        </DialogClose>
-      </DialogFooter>
-    </div>
   )
 }

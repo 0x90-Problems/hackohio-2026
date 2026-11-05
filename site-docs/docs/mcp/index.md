@@ -16,7 +16,7 @@ Don't use the web app's own `https://hackohio-2026-eta.vercel.app/mcp`. The web 
 
 ## Connect an agent
 
-1. **Get a token.** Sign in, open **Agents**, and use **Connect your agent** (or **API** > **Create API key**). Pick the scopes. Copy the token or one of the install buttons right away: it is shown once. An agent token starts with `clw_`. It expires after your organization's token expiry (24 hours by default). Then you make a new one. If you can't open the site, ask a team member to make a token for you.
+1. **Get a token.** Sign in, open **Agents**, and press **Connect agent** (or **API** > **Create API key** for a program on the REST API). The wizard walks you through the scopes (or a preset), a name, the token, and how to install or use it. Copy the token before you close it: it is shown once. An agent token starts with `clw_`. It expires after your organization's token expiry (24 hours by default). Then you make a new one. If you can't open the site, ask a team member to make a token for you.
 2. **Send it on every request** as the header `Authorization: Bearer <token>`. The word `Bearer` and the space are required.
 3. **Add the server to your client** (below). Name it `nutshell`.
 4. **Check it.** The client should list about 49 tools. Ask the agent to call `get_project_table` with `{"key": "<project key>"}`.
