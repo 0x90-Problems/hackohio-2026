@@ -16,8 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-// The top bar's org and team picker (NEXT_PUBLIC_MULTI_ORG). Orgs first, then the active org's
-// teams (only that org's; no other org's team names are ever listed), then Create organization.
+// The top bar's org and team picker (NEXT_PUBLIC_MULTI_ORG), beside the user menu. Orgs first, then
+// the active org's teams (only that org's; no other org's team names are ever listed), then Create organization.
 // The choice is per browser (lib/org-choice.ts).
 export function OrgSwitcher() {
   const state = useOrgs()
@@ -25,19 +25,28 @@ export function OrgSwitcher() {
 
   if (state.status !== "ready" || !state.org) return null
   const { orgs, org, team, choice } = state
+  const current = team ? `${org.name} / ${team.name}` : org.name
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="max-w-64 gap-1.5" aria-label={ORG_TEXT.SWITCHER_LABEL}>
+          {/* Compact, beside the user menu: org over team, truncated (full names on hover), icon only on phones. */}
+          <Button
+            variant="ghost"
+            className="h-10 min-w-0 max-w-56 shrink gap-2 rounded-lg px-2"
+            aria-label={`${ORG_TEXT.SWITCHER_LABEL}: ${current}`}
+            title={current}
+          >
             <Building2Icon aria-hidden="true" />
-            <span className="truncate font-medium">{org.name}</span>
-            {team ? <span className="hidden truncate text-muted-foreground sm:inline">/ {team.name}</span> : null}
+            <span className="hidden min-w-0 flex-col items-start text-left leading-tight sm:flex">
+              <span className="max-w-full truncate text-sm font-medium">{org.name}</span>
+              {team ? <span className="max-w-full truncate text-xs font-normal text-muted-foreground">{team.name}</span> : null}
+            </span>
             <ChevronsUpDownIcon className="text-muted-foreground" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="text-xs text-muted-foreground">{ORG_TEXT.ORGS_HEADING}</DropdownMenuLabel>
           {orgs.map((row) => (
             <DropdownMenuItem
