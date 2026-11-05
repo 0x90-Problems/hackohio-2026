@@ -66,3 +66,15 @@ function base64Url(value: string) {
     .replace(/\//g, "_")
     .replace(/=+$/g, "")
 }
+
+/** A test call to the gateway with the token from an env var: it lists the tools the token may use. */
+export function mcpTestCall(url = mcpPublicUrl(), envVar = "NUTSHELL_MCP_TOKEN"): string {
+  const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+  return [
+    `curl -s ${url}`,
+    `-H "Authorization: Bearer $${envVar}"`,
+    `-H "Content-Type: application/json"`,
+    `-H "Accept: application/json, text/event-stream"`,
+    `-d '${body}'`,
+  ].join(" ")
+}

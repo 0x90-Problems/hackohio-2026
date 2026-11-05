@@ -13,14 +13,15 @@ test("names.json lists the same scopes as names.ts", () => {
 test("whiteboard pictures are offered with a warning and start unticked", () => {
   assert.equal(SCOPES.WHITEBOARD_VIEW, "whiteboard:view")
   const tokens = read("./tokens.ts")
-  const offer = /scope: SCOPES\.WHITEBOARD_VIEW,\s*label: "See whiteboard pictures",\s*(?:\/\/[^\n]*\s*)?hint: "([^"]+)"/.exec(tokens)
+  const offer = /scope: SCOPES\.WHITEBOARD_VIEW,\s*label: "See whiteboard pictures",[^}]*?hint: "([^"]+)"/.exec(tokens)
   assert.ok(offer, "tokens.ts offers whiteboard:view with a hint")
   assert.match(offer[1], /Off by default/)
-  for (const view of ["../components/agents/agents-view.tsx", "../components/api/api-view.tsx"]) {
+  // NSB-66: both wizards start from their own defaults, never with pictures ticked.
+  for (const view of ["../components/agents/connect-agent-wizard.tsx", "../components/api/create-key-wizard.tsx"]) {
     const source = read(view)
-    const defaults = /useState<Scope\[\]>\(\[([^\]]*)\]\)/.exec(source)
+    const defaults = /defaultScopes=\{\[([^\]]*)\]\}/.exec(source)
     assert.ok(defaults, view)
     assert.doesNotMatch(defaults[1], /WHITEBOARD_VIEW/, view)
-    assert.match(source, /aria-describedby=\{hint \?/, view)
   }
+  assert.match(read("../components/connect/token-wizard.tsx"), /aria-describedby=\{hint \? hintId/)
 })

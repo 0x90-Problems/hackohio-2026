@@ -18,7 +18,7 @@ MCP is for AI agents (Claude Code, Cursor, and other MCP clients). Everything ab
 
 The MCP URL is the AWS gateway, `https://gisecl2xck.execute-api.us-east-1.amazonaws.com/mcp`. It speaks streamable HTTP (JSON-RPC over `POST`). Don't use the site's own `https://hackohio-2026-eta.vercel.app/mcp`: the site is behind Vercel protection, so a client outside the team gets `401 Protected deployment` there, whatever token it sends.
 
-1. Get a token. Sign in, open **Agents**, and use **Connect your agent**. Pick the scopes and copy the token or one of the install buttons right away: it is shown once. An agent token starts with `clw_`. It expires after your organization's token expiry (24 hours by default), and then you make a new one. If you can't open the site, ask a team member to make a token for you.
+1. Get a token. Sign in, open **Agents**, and press **Connect agent**. The wizard walks you through the scopes (or a preset), a name, the token, and the install config. Copy the token or the config before you close it: it is shown once. An agent token starts with `clw_`. It expires after your organization's token expiry (24 hours by default), and then you make a new one. If you can't open the site, ask a team member to make a token for you.
 2. Send it on every request as the header `Authorization: Bearer <token>`. The word `Bearer` and the space are required.
 3. Add the server to your client (below). The server name is `nutshell`.
 4. Check it. The client should list about 49 tools. Ask the agent to call `get_project_table` with `{"key": "<project key>"}`.

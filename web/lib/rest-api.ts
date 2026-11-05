@@ -35,3 +35,8 @@ export function onlyConnection<T extends { connection?: string | null }>(
 ): T[] {
   return rows.filter((row) => (row.connection || missing) === wanted)
 }
+
+/** A test call that prints only the HTTP status: 200 means the key works. */
+export function restTestCall(baseUrl: string, envVar = "NUTSHELL_API_KEY"): string {
+  return `curl -s -o /dev/null -w "%{http_code}\\n" ${baseUrl}/tickets -H "Authorization: Bearer $${envVar}"`
+}
