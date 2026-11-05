@@ -1,6 +1,7 @@
 import { AGENT_CONNECTION, type AgentConnection, type Scope } from "@/shared/names"
 import { readAgentUsage, type AgentUsage } from "@/lib/agent-usage"
 import { clearSession, readSession } from "@/lib/board-auth"
+import { boardContextHeaders } from "@/lib/team-choice"
 import { parseCleanup, parseDeletedAgent, type AgentCleanup, type DeletedAgent } from "@/lib/delete-agent"
 import { mcpLinksFromApi, type McpInstallLinks } from "@/lib/mcp-install"
 import type { Agent } from "@/lib/types"
@@ -47,6 +48,7 @@ async function requestLiveAgent(
       method: "POST",
       headers: {
         accept: "application/json",
+        ...boardContextHeaders(),
         authorization: `Bearer ${secret}`,
         "content-type": "application/json",
       },
@@ -116,7 +118,7 @@ export async function listBoardUsers(): Promise<{ _id: string; name: string }[]>
   const session = readSession()
   if (!session) return []
   const response = await fetch("/api/users", {
-    headers: { accept: "application/json", authorization: `Bearer ${session.secret}` },
+    headers: { accept: "application/json", ...boardContextHeaders(), authorization: `Bearer ${session.secret}` },
   })
   if (!response.ok) return []
   const body = (await response.json()) as unknown
@@ -136,7 +138,7 @@ export async function listBoardAgents(): Promise<LiveAgent[]> {
   const session = readSession()
   if (!session) throw new ConnectAgentError("Sign in before loading agents")
   const response = await fetch("/api/agents", {
-    headers: { accept: "application/json", authorization: `Bearer ${session.secret}` },
+    headers: { accept: "application/json", ...boardContextHeaders(), authorization: `Bearer ${session.secret}` },
   })
   if (!response.ok) throw new ConnectAgentError(staleSession(await errorMessage(response)))
   const body = (await response.json()) as unknown
@@ -163,7 +165,7 @@ export async function revokeAgentAccess(agentId: string): Promise<void> {
   if (!session) throw new ConnectAgentError("Sign in before revoking a key")
   const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/revoke`, {
     method: "POST",
-    headers: { accept: "application/json", authorization: `Bearer ${session.secret}` },
+    headers: { accept: "application/json", ...boardContextHeaders(), authorization: `Bearer ${session.secret}` },
   })
   if (!response.ok) throw new ConnectAgentError(staleSession(await errorMessage(response)))
 }
@@ -202,7 +204,7 @@ async function sendDelete(path: string, secret: string): Promise<Response> {
   try {
     return await fetch(path, {
       method: "DELETE",
-      headers: { accept: "application/json", authorization: `Bearer ${secret}` },
+      headers: { accept: "application/json", ...boardContextHeaders(), authorization: `Bearer ${secret}` },
     })
   } catch {
     throw new ConnectAgentError("The board API could not be reached")

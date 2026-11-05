@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { proxyBoard } from "@/lib/board-proxy"
+import { copyContextHeaders, proxyBoard } from "@/lib/board-proxy"
 import { AGENT_CONNECTION } from "@/shared/names"
 
 export const dynamic = "force-dynamic"
@@ -37,6 +37,7 @@ async function boardJson(request: Request, path: string, init?: { method?: strin
   const authorization = request.headers.get("authorization")
   if (authorization) headers.set("authorization", authorization)
   if (init?.body !== undefined) headers.set("content-type", "application/json")
+  copyContextHeaders(request.headers, headers)
   const upstream = await proxyBoard(
     new Request(request.url, {
       method: init?.method ?? "GET",

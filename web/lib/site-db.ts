@@ -3,6 +3,7 @@
 import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
+import { boardContextHeaders } from "@/lib/team-choice"
 import { reviveValue } from "@/lib/local-store"
 
 export type SiteOrganization = {
@@ -34,6 +35,7 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
   const session = readSession()
   return {
     ...(extra ?? {}),
+    ...boardContextHeaders(),
     ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
   }
 }

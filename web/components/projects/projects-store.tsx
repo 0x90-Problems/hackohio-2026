@@ -21,6 +21,7 @@ import {
 } from "@/lib/mock-data"
 import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectArchived, saveProjectColumns, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
+import { boardContextHeaders } from "@/lib/team-choice"
 import { readStorage } from "@/lib/local-store"
 import {
   DEFAULT_CATEGORIES,
@@ -476,6 +477,7 @@ function useProjectsState() {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        ...boardContextHeaders(),
         ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
       },
       // Create on the board API first; it assigns the key. Reserving a key and then

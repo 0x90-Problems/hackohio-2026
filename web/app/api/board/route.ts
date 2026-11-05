@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-import { proxyBoard } from "@/lib/board-proxy"
+import { copyContextHeaders, proxyBoard } from "@/lib/board-proxy"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -52,11 +52,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: { code: "invalid_input", message: "Body must be JSON" } }, { status: 400 })
   }
 
-  const headers = {
+  const headers = new Headers({
     accept: "application/json",
     authorization,
     "content-type": "application/json",
-  }
+  })
+  // The active team or org (NEXT_PUBLIC_MULTI_ORG), so the board writes to the right one.
+  copyContextHeaders(request.headers, headers)
 
   // Rebuild Request so proxyBoard can read the body we already consumed.
   const forward = (path: string, method: string, payload?: unknown) =>

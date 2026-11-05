@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { afterSignInPath } from "@/lib/pending-invite"
 
 export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter()
@@ -53,7 +54,7 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     try {
       if (signup) await signUp({ username, password, name, email })
       else await signIn({ username, password })
-      router.push("/")
+      router.push(afterSignInPath())
       router.refresh()
     } catch (caught) {
       setError(caught instanceof AuthApiError ? caught.message : "Could not reach the sign-in service.")

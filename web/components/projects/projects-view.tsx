@@ -12,6 +12,8 @@ import { useAuthUser } from "@/components/auth/auth-gate"
 import { TEAM } from "@/lib/mock-data"
 import { loadSite } from "@/lib/site-db"
 import { activeTeam, chooseTeam } from "@/lib/team-choice"
+import { multiOrgOn } from "@/lib/org-choice"
+import { useOrgs } from "@/lib/use-orgs"
 import { onNoTeam } from "@/lib/no-team"
 import { NoTeamNotice } from "@/components/no-team"
 import { CATEGORY_COLORS } from "@/lib/categories"
@@ -58,6 +60,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 
 // Like a GitHub org's repo list: one card per project, each opening its board.
+const multiOrg = multiOrgOn()
+
 export function ProjectsView() {
   const { projects } = useProjects()
   const router = useRouter()
@@ -86,13 +90,19 @@ export function ProjectsView() {
   const teams = [...new Set([...myTeams, ...projects.map((p) => p.team)])].filter(Boolean)
   // Someone on no team gets no fallback team name (ours), only what they can actually see.
   const fallback = noTeam ? "" : TEAM
-  const team = teams.includes(chosen) ? chosen : teams.includes(account?.team ?? "") ? (account?.team ?? fallback) : (teams[0] ?? fallback)
+  // With several orgs, the top bar's switcher picks the team (by id); this page follows it.
+  const orgs = useOrgs(multiOrg)
+  const orgTeam = orgs.status === "ready" ? orgs.team?.name : undefined
+  const team = orgTeam ?? (teams.includes(chosen) ? chosen : teams.includes(account?.team ?? "") ? (account?.team ?? fallback) : (teams[0] ?? fallback))
   const setTeam = (next: string) => {
     setChosen(next)
     chooseTeam(next) // the same choice as the switcher in Folders, Whiteboards and Chat
   }
-  const shown = projects.filter((p) => p.team === team && !p.archived)
-  const archived = projects.filter((p) => p.team === team && p.archived)
+  // A project's team may be stored by name or, in an org-scoped board, by team id.
+  const orgTeamId = orgs.status === "ready" ? orgs.team?.team_id : undefined
+  const onTeam = (p: { team: string }) => p.team === team || (orgTeamId !== undefined && p.team === orgTeamId)
+  const shown = projects.filter((p) => onTeam(p) && !p.archived)
+  const archived = projects.filter((p) => onTeam(p) && p.archived)
 
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
@@ -107,7 +117,7 @@ export function ProjectsView() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {teams.length > 1 && (
+          {!multiOrg && teams.length > 1 && (
             <Select value={team} onValueChange={setTeam}>
               <SelectTrigger aria-label="Team">
                 <SelectValue />

@@ -25,6 +25,8 @@ import { attentionCount, chatApi } from "@/lib/chat-api"
 import { foldersApi } from "@/lib/folders-api"
 import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
 import { Logo } from "@/components/logo"
+import { OrgSwitcher } from "@/components/org/org-switcher"
+import { multiOrgOn } from "@/lib/org-choice"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { Button } from "@/components/ui/button"
@@ -229,6 +231,9 @@ export function AppHeader() {
         <Link href="/" className="text-foreground">
           <Logo />
         </Link>
+
+        {/* Several orgs: the org and team you're working in, above the pages' team switchers. */}
+        {multiOrgOn() ? <OrgSwitcher /> : null}
 
         {/* Center: main navigation (hidden on small screens; use the launcher there) */}
         <NavigationMenu viewport={false} className="mx-auto hidden xl:flex">
