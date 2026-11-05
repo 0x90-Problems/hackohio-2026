@@ -4,8 +4,10 @@ import { useEffect, useSyncExternalStore } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { readSession, subscribeAuth, type AuthSession, type AuthUser } from "@/lib/board-auth"
+import { multiOrgOn } from "@/lib/org-choice"
 
-const PUBLIC_PATHS = ["/login", "/signup"]
+// The invite page explains itself to someone signed out (NEXT_PUBLIC_MULTI_ORG only).
+const PUBLIC_PATHS = multiOrgOn() ? ["/login", "/signup", "/invite"] : ["/login", "/signup"]
 
 const SERVER_AUTH = { ready: false, session: null as AuthSession | null }
 

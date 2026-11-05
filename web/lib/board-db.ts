@@ -3,6 +3,7 @@
 import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
+import { boardContextHeaders } from "@/lib/team-choice"
 import { mergeBoardRecords } from "@/lib/board-merge"
 import type { Agent, Category, Comment, Event, Project, Ticket } from "@/lib/types"
 
@@ -20,6 +21,7 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
   const session = readSession()
   return {
     ...(extra ?? {}),
+    ...boardContextHeaders(),
     ...(session?.secret ? { authorization: `Bearer ${session.secret}` } : {}),
   }
 }

@@ -5,6 +5,7 @@ import "./globals.css"
 import { AppHeader } from "@/components/app-header"
 import { AuthGate } from "@/components/auth/auth-gate"
 import { ChatDock } from "@/components/assistant/chat-dock"
+import { OrgGate } from "@/components/org/org-onboarding"
 import { ProfileDialogProvider } from "@/components/profile/profile-dialog"
 import { ProjectsProvider } from "@/components/projects/projects-store"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -66,7 +67,8 @@ export default function RootLayout({
                   the chat assistant) survive moving between pages */}
               <ProjectsProvider>
                 <ProfileDialogProvider>
-                  {children}
+                  {/* NEXT_PUBLIC_MULTI_ORG: someone in no org gets onboarding. Off: children as is. */}
+                  <OrgGate>{children}</OrgGate>
                   <ChatDock />
                 </ProfileDialogProvider>
               </ProjectsProvider>

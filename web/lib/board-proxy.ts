@@ -1,3 +1,5 @@
+import { ORG_HEADERS } from "@/shared/names"
+
 // Forwards an authenticated board request to BOARD_API_URL.
 // When the API is not configured, the client can fall back to a local token.
 
@@ -24,8 +26,7 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   const idempotency = request.headers.get("idempotency-key")
   if (idempotency && idempotency.length <= 100) headers.set("idempotency-key", idempotency)
   // Which of your teams you're working in; each service checks you're on it.
-  const team = request.headers.get("x-nutshell-team")
-  if (team && team.length <= 300) headers.set("x-nutshell-team", team)
+  copyContextHeaders(request.headers, headers)
   const forwarded = request.headers.get("x-forwarded-for")
   if (forwarded) headers.set("x-forwarded-for", forwarded)
   const shadow = request.headers.get("x-nutshell-mcp-path")
@@ -48,7 +49,20 @@ export async function proxyBoard(request: Request, path: string, origin?: URL | 
   if (responseType) responseHeaders.set("content-type", responseType)
   const retryAfter = upstream.headers.get("retry-after")
   if (retryAfter) responseHeaders.set("retry-after", retryAfter)
-  return new Response(await upstream.text(), { status: upstream.status, headers: responseHeaders })
+  // 204 (leave, remove, revoke) can't carry a body, not even an empty one.
+  const empty = upstream.status === 204 || upstream.status === 205 || upstream.status === 304
+  return new Response(empty ? null : await upstream.text(), { status: upstream.status, headers: responseHeaders })
+}
+
+/**
+ * Which of your teams you're working in (x-nutshell-team), or which org before a team is picked
+ * (x-nutshell-org, NEXT_PUBLIC_MULTI_ORG only). Each service checks you're actually in it.
+ */
+export function copyContextHeaders(from: Headers, to: Headers): void {
+  for (const name of [ORG_HEADERS.TEAM, ORG_HEADERS.ORG]) {
+    const value = from.get(name)
+    if (value && value.length <= 300) to.set(name, value)
+  }
 }
 
 /** AWS board HTTP API — preferred while the Vercel board host is still 503. */

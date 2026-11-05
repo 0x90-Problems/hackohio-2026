@@ -223,3 +223,147 @@ export const MCP_TOOLS = {
   WB_VIEW_REGION: "wb_view_region",
 } as const;
 export type McpTool = (typeof MCP_TOOLS)[keyof typeof MCP_TOOLS];
+
+// ---------- Multiple organizations (behind NEXT_PUBLIC_MULTI_ORG) ----------
+// Codes and headers match the board API's org contract; TEXT is what the web app shows.
+export const ORG_HEADERS = {
+  TEAM: "x-nutshell-team", // the active team (and so its org)
+  ORG: "x-nutshell-org",   // the active org, when no team is picked
+} as const;
+
+export const ORG_ROLES = {
+  ADMIN: "admin",
+  MEMBER: "member",
+} as const;
+export type OrgMemberRole = (typeof ORG_ROLES)[keyof typeof ORG_ROLES];
+
+export const INVITE_STATUS = {
+  PENDING: "pending",
+  ACCEPTED: "accepted",
+  REVOKED: "revoked",
+  EXPIRED: "expired",
+} as const;
+export type InviteStatus = (typeof INVITE_STATUS)[keyof typeof INVITE_STATUS];
+
+export const ORG_ERRORS = {
+  LAST_ADMIN: "last_admin",
+  RATE_LIMITED: "rate_limited",
+  INVITE_INVALID: "invite_invalid",
+  EMAIL_MISMATCH: "email_mismatch",
+  CODE_INVALID: "code_invalid",
+  NOT_A_MEMBER: "not_a_member",
+  NOT_CONFIGURED: "not_configured",
+} as const;
+
+export const ORG_DEFAULT_TEAM = "General";
+export const INVITE_TOKEN_PREFIX = "nsi_";
+export const INVITE_EXPIRY_DAYS = { MIN: 1, MAX: 14, DEFAULT: 7 } as const;
+
+export const ORG_TEXT = {
+  SWITCHER_LABEL: "Organization and team",
+  ORGS_HEADING: "Organizations",
+  TEAMS_HEADING: "Teams",
+  CREATE: "Create organization",
+  CREATE_TITLE: "Create an organization",
+  CREATE_HINT: "You'll be its admin. It starts with a General team, and you go straight to its board.",
+  NAME_LABEL: "Organization name",
+  NAME_HINT: "1 to 60 characters.",
+  CREATING: "Creating…",
+  CREATE_FAILED: "Couldn't create the organization",
+  RATE_LIMITED: "You've created as many organizations as you can today. Try again tomorrow.",
+  ROLE_LABELS: { admin: "Admin", member: "Member" },
+  // Organization page
+  SETTINGS_TITLE: "Organization",
+  SAVE: "Save",
+  SAVED: "Organization saved",
+  MEMBERS_TITLE: "Members",
+  MEMBERS_HINT: "People in this organization. Emails are never shown here.",
+  REMOVE: "Remove",
+  REMOVE_CONFIRM: "Remove from the organization?",
+  REMOVE_HINT: "They lose access to this organization's teams, boards, folders and chat. Their name stays on what they did.",
+  INVITES_TITLE: "Invites",
+  INVITES_HINT: "Invite someone by email. We never say whether an address already has an account.",
+  INVITE_EMAIL_LABEL: "Email address",
+  INVITE_ROLE_LABEL: "Role",
+  INVITE_EXPIRY_LABEL: "Expires after",
+  SEND_INVITE: "Send invite",
+  SENDING: "Sending…",
+  INVITE_SENT: "Invite sent",
+  INVITE_SENT_HINT: "If that address can get mail, an invite is on its way.",
+  INVITE_LIMIT: "That's as many invites as this organization can send today. Try again tomorrow.",
+  LINK_TITLE: "Invite link",
+  LINK_HINT: "Send this link to them yourself. It works once, and only for 24 hours. It isn't shown again.",
+  COPY_LINK: "Copy link",
+  LINK_COPIED: "Link copied",
+  RESEND: "Resend",
+  RESENT: "Invite sent again. The old link no longer works.",
+  REVOKE: "Revoke",
+  REVOKED: "Invite revoked",
+  NO_INVITES: "No invites yet.",
+  NOT_JOINED: "Not joined yet",
+  INVITE_STATES: { pending: "Invited · pending", accepted: "Joined", revoked: "Revoked", expired: "Expired" },
+  ADMIN_ONLY: "Only an organization admin or a team manager can invite people.",
+  MANAGER_INVITE_HINT: "As a team manager you can invite members. An admin sends them the link (with Resend) and can see every invite.",
+  NOT_CONFIGURED: "Invites aren't set up on this site yet. Ask an admin.",
+  EMAIL_NOT_CONFIGURED: "Email checks aren't set up yet. Ask the person who invited you for a new link.",
+  CHANGED_ELSEWHERE: "That invite changed in the meantime. The list is up to date now.",
+  // Accept page
+  ACCEPT_TITLE: "You're invited",
+  ACCEPT_SIGN_IN: "Sign in or create an account to see this invite.",
+  SIGN_IN: "Sign in",
+  SIGN_UP: "Create an account",
+  INVITE_INVALID: "This invite link isn't valid. It may have expired or been used already. Ask for a new one.",
+  INVITE_MISSING: "Open the link from your invite to join an organization.",
+  JOIN: "Join",
+  JOINING: "Joining…",
+  JOINED: "You're in",
+  PICK_TEAM: "Pick a team to start in",
+  GO_TO_BOARD: "Go to the board",
+  // Email check (email mode only)
+  VERIFY_TITLE: "Check your email address",
+  VERIFY_HINT: "This invite is for a verified email address. Enter yours and we'll send a 6-digit code.",
+  VERIFY_SEND: "Send code",
+  VERIFY_SENT: "If that address works, a code is on its way.",
+  VERIFY_CODE_LABEL: "6-digit code",
+  VERIFY_CHECK: "Verify",
+  VERIFY_WRONG: "That code didn't work. Check it and try again.",
+  VERIFIED: "Email verified",
+  // Onboarding (signed in, in no organization)
+  ONBOARD_TITLE: "You're not in an organization yet",
+  ONBOARD_HINT: "Create one to get started, or wait for an admin to invite you.",
+  ONBOARD_WAIT_TITLE: "Wait for an invite",
+  ONBOARD_WAIT_HINT: "When an admin invites you, open the link in the invite to join.",
+  ONBOARD_INVITES: "Invites waiting for you",
+  ONBOARD_INVITE_OPEN: "Open the link in your invite email to join.",
+  ONBOARD_NO_INVITES: "No invites for your verified email yet.",
+  // Leaving, on the profile page
+  LEAVE_TITLE: "Leave organization",
+  LEAVE_HINT: "You lose access to its teams, boards, folders and chat. An admin can invite you back.",
+  LEAVE: "Leave",
+  LEAVE_CONFIRM: "Leave this organization?",
+  LEFT: "You left the organization",
+  LAST_ADMIN: "You're this organization's only admin, so you can't leave it. Invite another admin first.",
+  LAST_ADMIN_REMOVE: "That's the organization's only admin, so they can't be removed.",
+  CANCEL: "Cancel",
+  CURRENT: "Current",
+  EXPIRES: "Expires",
+  NAME_COLUMN: "Name",
+  TOKEN_EXPIRY_LABEL: "Agent token expiry",
+  TOKEN_EXPIRY_OPTIONS: [
+    { hours: 1, label: "1 hour" },
+    { hours: 8, label: "8 hours" },
+    { hours: 24, label: "24 hours" },
+    { hours: 72, label: "3 days" },
+    { hours: 168, label: "7 days" },
+  ],
+  INVITE_EXPIRY_OPTIONS: [
+    { days: 1, label: "1 day" },
+    { days: 3, label: "3 days" },
+    { days: 7, label: "7 days" },
+    { days: 14, label: "14 days" },
+  ],
+  COPY_FAILED: "Couldn't copy. Select the link and copy it yourself.",
+  LOAD_FAILED: "Couldn't load your organizations",
+  SAVE_FAILED: "Couldn't save the organization",
+  ACTION_FAILED: "That didn't work. Try again.",
+} as const;
