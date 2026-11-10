@@ -44,6 +44,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ExternalLinkIcon, HistoryIcon } from "@/components/icons"
 import { commitUrl } from "@/lib/commit-links"
 import { EmptyState } from "@/components/illustrations"
+import { MarkdownView } from "@/components/markdown-view"
 
 const CONNECTION_LABELS = {
   [AGENT_CONNECTION.MCP]: "MCP",
@@ -435,7 +436,7 @@ function TicketDetail({
                       v{versionForComment(withCommentEvents(events, comments), comment) ?? "–"} · {absoluteTime(comment.created_at)}
                     </span>
                   </div>
-                  <p className="text-sm">{comment.body}</p>
+                  <MarkdownView markdown={comment.body} compact />
                 </li>
               )
             })}
@@ -450,7 +451,7 @@ function TicketDetail({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment()
               }}
-              placeholder="Write a comment. Agents on this ticket get notified."
+              placeholder="Write a comment. Markdown works: **bold**, `code`, lists, links. Agents on this ticket get notified."
             />
             <Button
               variant="outline"

@@ -19,9 +19,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
 import { ExpandableImage } from "@/components/files/image-viewer"
 import { IMAGE_TYPES } from "@/components/files/thumbnail"
+import { MarkdownView } from "@/components/markdown-view"
 import { downloadFile, openFileInNewTab } from "@/lib/file-links"
 import { absoluteTime } from "@/lib/format"
 import { type Folder, FoldersError, foldersApi, type Version } from "@/lib/folders-api"
+import { isMarkdownFile } from "@/lib/markdown-file"
 
 export function nodeSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`
@@ -228,7 +230,8 @@ const PREVIEW_TEXT_TYPES = ["text/plain", "text/markdown", "text/csv", "applicat
 function FilePreview({ node }: { node: Folder }) {
   const type = node.content_type ?? ""
   const isImage = IMAGE_TYPES.includes(type)
-  const isText = PREVIEW_TEXT_TYPES.includes(type)
+  const isMarkdown = isMarkdownFile(node)
+  const isText = isMarkdown || PREVIEW_TEXT_TYPES.includes(type)
   const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -267,9 +270,15 @@ function FilePreview({ node }: { node: Folder }) {
   if (text === null) return <Skeleton className="h-40 w-full" />
   return (
     <div className="flex flex-col gap-1">
-      <pre className="max-h-[40dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
-        {text.body || <span className="text-muted-foreground">This file is empty.</span>}
-      </pre>
+      {isMarkdown && text.body ? (
+        <div className="max-h-[40dvh] overflow-auto rounded-lg border bg-muted/30 p-3">
+          <MarkdownView markdown={text.body} compact />
+        </div>
+      ) : (
+        <pre className="max-h-[40dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
+          {text.body || <span className="text-muted-foreground">This file is empty.</span>}
+        </pre>
+      )}
       {text.truncated && <p className="text-xs text-muted-foreground">Showing the first 256 KB.</p>}
     </div>
   )
@@ -512,9 +521,9 @@ export function NoteDialog({
             {tooBig && <p className="text-sm text-destructive">A document can be at most 256 KB.</p>}
           </div>
         ) : (
-          // Shown as text: note bodies are user content, never rendered as HTML.
-          <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/30 p-4 text-sm break-words whitespace-pre-wrap">
-            {body || <span className="text-muted-foreground">This document is empty.</span>}
+          // Formatted through the editor's schema (components/markdown-view.tsx), never as raw HTML.
+          <div className="max-h-96 overflow-y-auto rounded-lg border bg-muted/30 p-4">
+            {body.trim() ? <MarkdownView markdown={body} compact /> : <span className="text-sm text-muted-foreground">This document is empty.</span>}
           </div>
         )}
         {node && !editing && (
