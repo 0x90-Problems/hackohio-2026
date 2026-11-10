@@ -51,6 +51,8 @@ import { cn } from "@/lib/utils"
 import { type Crumb, type Folder, FoldersError, foldersApi, ROOT, type Workspace } from "@/lib/folders-api"
 import { FilePanel, NoteDialog, nodeSize } from "@/components/files/file-panels"
 import { ExplorerView } from "@/components/files/explorer"
+import { canEdit, dropHighlight, SelectBox, type Selection, SelectionBar, useNodeDrag } from "@/components/files/selection"
+import { MOVE_CONCURRENCY, moveSummary, rangeIds, settleLimited } from "@/lib/files-move"
 import { TeamSwitcher } from "@/components/team-switcher"
 import { NoTeamNotice } from "@/components/no-team"
 import { isNoTeamError } from "@/lib/no-team"
@@ -67,7 +69,7 @@ type Dialogs =
   | { kind: "document" }
   | { kind: "file"; node: Folder }
   | { kind: "rename"; folder: Folder }
-  | { kind: "move"; folder: Folder }
+  | { kind: "move"; nodes: Folder[] }
   | { kind: "trash"; folder: Folder }
   | null
 
@@ -75,8 +77,6 @@ function explain(error: unknown) {
   if (error instanceof FoldersError) return error.message
   return "Something went wrong. Try again."
 }
-
-const canEdit = (role?: Folder["role"]) => role === "editor" || role === "manager"
 
 const MODE_KEY = "nutshell.files.mode"
 
@@ -147,8 +147,16 @@ export function FilesView() {
   const [message, setMessage] = useState("")
   const [dialog, setDialog] = useState<Dialogs>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-
-
+  // Ticked items, and the last one clicked for shift-click ranges. Both reset with the folder.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const [selectionFor, setSelectionFor] = useState(viewKey)
+  const [moving, setMoving] = useState(false)
+  if (selectionFor !== viewKey) {
+    setSelectionFor(viewKey)
+    setSelected(new Set())
+    setAnchor(null)
+  }
 
   const go = useCallback(
     (next: { folder?: string; view?: "trash"; mode?: "grid" | "explorer" }) => {
@@ -200,7 +208,7 @@ export function FilesView() {
             <PencilIcon aria-hidden="true" />
             Rename
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setDialog({ kind: "move", folder })}>
+          <DropdownMenuItem onSelect={() => setDialog({ kind: "move", nodes: [folder] })}>
             <ArrowRightIcon aria-hidden="true" />
             Move
           </DropdownMenuItem>
@@ -245,11 +253,15 @@ export function FilesView() {
     reload.current = load
   }, [load])
 
-  async function uploadNew(file: File) {
+  // Into the folder being viewed, or another one when a file is dropped onto it.
+  async function uploadNew(file: File, into?: { id: string; name: string }) {
     const toastId = toast.loading(`Uploading ${file.name}…`)
     try {
-      await foldersApi.upload(file, { parentId: folderId }, (status) => toast.loading(`${status} ${file.name}…`, { id: toastId }))
-      toast.success(`Added ${file.name}`, { id: toastId, description: "It passed the security scan." })
+      await foldersApi.upload(file, { parentId: into?.id ?? folderId }, (status) => toast.loading(`${status} ${file.name}…`, { id: toastId }))
+      toast.success(into && into.id !== folderId ? `Added ${file.name} to ${into.name}` : `Added ${file.name}`, {
+        id: toastId,
+        description: "It passed the security scan.",
+      })
       await load()
     } catch (error) {
       toast.error(`Couldn't add ${file.name}`, { id: toastId, description: explain(error) })
@@ -304,6 +316,80 @@ export function FilesView() {
       if (stale) await load()
     }
   }
+
+  // One request per item (there's no batch move), a few at a time, then one toast for them all.
+  // Anything that didn't move stays ticked, so it can be tried again.
+  async function moveMany(nodes: Folder[], target: string, label: string) {
+    if (nodes.length === 0) return
+    setMoving(true)
+    const toastId = toast.loading(nodes.length === 1 ? `Moving ${nodes[0].name}…` : `Moving ${nodes.length} items…`)
+    const results = await settleLimited(nodes, MOVE_CONCURRENCY, (node) => foldersApi.move(node, target))
+    const failed = nodes.filter((_, index) => !results[index].ok)
+    const failures = results.flatMap((result, index) =>
+      result.ok
+        ? []
+        : [
+            {
+              name: nodes[index].name,
+              // A 409: someone changed it since the list loaded. The refresh below picks up their change.
+              reason:
+                result.error instanceof FoldersError && result.error.code === "rev_conflict"
+                  ? "Someone changed it first. Try again."
+                  : explain(result.error),
+            },
+          ]
+    )
+    const summary = moveSummary(
+      nodes.map((node) => node.name),
+      failures,
+      label
+    )
+    if (summary.ok) toast.success(summary.title, { id: toastId })
+    else toast.error(summary.title, { id: toastId, description: summary.description })
+    setSelected(new Set(failed.map((node) => node.id)))
+    setMoving(false)
+    setDialog(null)
+    await load()
+  }
+
+  const movable = (node: Folder) => !showTrash && canEdit(node.role)
+  const selectable = items.filter(movable)
+  const picked = selectable.filter((node) => selected.has(node.id))
+  const selection: Selection | undefined = showTrash
+    ? undefined
+    : {
+        has: (id) => selected.has(id),
+        can: movable,
+        count: picked.length,
+        selectable: selectable.length,
+        all: picked.length === 0 ? false : picked.length === selectable.length ? true : "indeterminate",
+        toggleAll: () => setSelected(picked.length === selectable.length ? new Set() : new Set(selectable.map((node) => node.id))),
+        toggle: (node, shift) => {
+          const on = !selected.has(node.id)
+          // Shift-click sets the whole range to what this item is changing to.
+          const ids = shift ? rangeIds(selectable.map((each) => each.id), anchor, node.id) : [node.id]
+          setSelected((current) => {
+            const next = new Set(current)
+            for (const id of ids) {
+              if (on) next.add(id)
+              else next.delete(id)
+            }
+            return next
+          })
+          setAnchor(node.id)
+        },
+      }
+
+  const drag = useNodeDrag({
+    parentId: folderId,
+    dragged: (node) => (selected.has(node.id) ? picked : [node]),
+    canUploadHere: !showTrash && canEdit(role),
+    onMove: (nodes, target) => void moveMany(nodes, target.id, target.name),
+    onUpload: (files, target) => files.forEach((file) => void uploadNew(file, target)),
+  })
+  // Only the page's own folder list moves things; the trash only restores.
+  const dnd = showTrash ? undefined : drag
+  const rootLabel = workspace?.team_name ?? "All folders"
 
   const emptyText = showTrash ? "The trash is empty." : canEdit(role) ? "Nothing here yet. Create or upload something to get started." : "Nothing here yet."
 
@@ -391,7 +477,13 @@ export function FilesView() {
                 <BreadcrumbPage>All folders</BreadcrumbPage>
               ) : (
                 <BreadcrumbLink asChild>
-                  <Link href="/files">All folders</Link>
+                  <Link
+                    href="/files"
+                    className={cn("rounded-sm px-1", drag.overId === ROOT && dropHighlight)}
+                    {...drag.target({ id: ROOT, name: rootLabel, ancestors: [] })}
+                  >
+                    All folders
+                  </Link>
                 </BreadcrumbLink>
               )}
             </BreadcrumbItem>
@@ -403,7 +495,13 @@ export function FilesView() {
                     <BreadcrumbPage>{crumb.name}</BreadcrumbPage>
                   ) : (
                     <BreadcrumbLink asChild>
-                      <Link href={`/files?folder=${encodeURIComponent(crumb.id)}`}>{crumb.name}</Link>
+                      <Link
+                        href={`/files?folder=${encodeURIComponent(crumb.id)}`}
+                        className={cn("rounded-sm px-1", drag.overId === crumb.id && dropHighlight)}
+                        {...drag.target({ id: crumb.id, name: crumb.name, ancestors: [ROOT, ...crumbs.slice(0, index).map((above) => above.id)] })}
+                      >
+                        {crumb.name}
+                      </Link>
                     </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>
@@ -412,6 +510,31 @@ export function FilesView() {
           </BreadcrumbList>
         </Breadcrumb>
       )}
+
+      {showPage && selection && (selection.count > 0 || (mode === "grid" && phase === "ready" && selection.selectable > 0)) && (
+        <div className="flex min-h-9 flex-wrap items-center gap-3">
+          {/* The explorer has its select-all in the table header. */}
+          {mode === "grid" && selection.selectable > 0 && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <SelectBox label="Select all" checked={selection.all} onToggle={() => selection.toggleAll()} />
+              Select all
+            </label>
+          )}
+          {selection.count > 0 && (
+            <SelectionBar
+              count={selection.count}
+              busy={moving}
+              onMove={() => setDialog({ kind: "move", nodes: picked })}
+              onClear={() => setSelected(new Set())}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Where drag and drop is described for screen readers. */}
+      <p className="sr-only" aria-live="polite">
+        {drag.announcement}
+      </p>
 
       {phase === "loading" && mode === "grid" && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading folders">
@@ -446,82 +569,121 @@ export function FilesView() {
       )}
 
       {phase === "ready" && items.length === 0 && mode === "grid" && (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">{emptyText}</div>
+        <div
+          className={cn("rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground", drag.overId === folderId && dropHighlight)}
+          {...(dnd ? dnd.target({ id: folderId, name: crumbs.at(-1)?.name ?? rootLabel, ancestors: [], role }, { filesOnly: true }) : {})}
+        >
+          {emptyText}
+        </div>
       )}
 
       {(phase === "ready" || phase === "loading") && mode === "explorer" && (
-        <ExplorerView
-          items={items}
-          loading={phase === "loading"}
-          emptyText={emptyText}
-          folderId={folderId}
-          crumbs={crumbs}
-          rootLabel={workspace?.team_name ?? "All folders"}
-          showTrash={showTrash}
-          onOpenFolder={(id) => go({ folder: id })}
-          onOpen={openNode}
-          actions={actionsFor}
-        />
+        // Files dragged in from the computer upload into the folder being viewed.
+        <div
+          className={cn("rounded-xl", drag.overId === folderId && "ring-2 ring-ring")}
+          {...(dnd ? dnd.target({ id: folderId, name: crumbs.at(-1)?.name ?? rootLabel, ancestors: [], role }, { filesOnly: true }) : {})}
+        >
+          <ExplorerView
+            items={items}
+            loading={phase === "loading"}
+            emptyText={emptyText}
+            folderId={folderId}
+            crumbs={crumbs}
+            rootLabel={rootLabel}
+            showTrash={showTrash}
+            onOpenFolder={(id) => go({ folder: id })}
+            onOpen={openNode}
+            actions={actionsFor}
+            selection={selection}
+            drag={dnd}
+          />
+        </div>
       )}
 
       {phase === "ready" && items.length > 0 && mode === "grid" && (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((folder) => (
-            <li
-              key={folder.id}
-              className="group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-shadow hover:-translate-y-0.5 hover:shadow-md motion-safe:transition-transform motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200"
-            >
-              {/* Every card gets one, so a row of cards lines up. */}
-              {!showTrash && <Thumbnail node={folder} variant="card" />}
-              <div className="flex items-start gap-3">
-              {folder.type === "note" ? (
-                <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              ) : folder.type === "whiteboard" ? (
-                <PenToolIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              ) : folder.type === "file" ? (
-                <FileIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              ) : (
-                <FolderIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              )}
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                {showTrash ? (
-                  <span className="truncate font-medium">{folder.name}</span>
-                ) : folder.type !== "folder" ? (
-                  <button
-                    type="button"
-                    onClick={() => openNode(folder)}
-                    className="truncate text-left font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
-                  >
-                    {folder.name}
-                  </button>
-                ) : (
-                  <Link
-                    href={`/files?folder=${encodeURIComponent(folder.id)}`}
-                    className="truncate font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
-                  >
-                    {folder.name}
-                  </Link>
+        <ul
+          className={cn("grid gap-3 rounded-xl sm:grid-cols-2 lg:grid-cols-3", drag.overId === folderId && "ring-2 ring-ring ring-offset-4 ring-offset-background")}
+          {...(dnd ? dnd.target({ id: folderId, name: crumbs.at(-1)?.name ?? rootLabel, ancestors: [], role }, { filesOnly: true }) : {})}
+        >
+          {items.map((folder) => {
+            const checked = selection?.has(folder.id) ?? false
+            const target =
+              dnd && folder.type === "folder"
+                ? dnd.target({ id: folder.id, name: folder.name, ancestors: [ROOT, ...crumbs.map((crumb) => crumb.id)], role: folder.role })
+                : undefined
+            return (
+              <li
+                key={folder.id}
+                data-selected={checked || undefined}
+                {...(dnd && movable(folder) ? dnd.source(folder) : {})}
+                {...target}
+                className={cn(
+                  "group relative flex flex-col gap-3 rounded-xl border bg-card p-4 transition-shadow hover:-translate-y-0.5 hover:shadow-md motion-safe:transition-transform motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200",
+                  checked && "border-foreground/40 bg-muted/40",
+                  target && drag.overId === folder.id && dropHighlight
                 )}
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  {(showTrash ? folder.deleted_by : folder.created_by) && (
-                    <ActorBadge actor={(showTrash ? folder.deleted_by : folder.created_by)!} interactive={false} />
+              >
+                {/* Every card gets one, so a row of cards lines up. */}
+                {!showTrash && <Thumbnail node={folder} variant="card" />}
+                <div className="flex items-start gap-3">
+                {selection && (
+                  <SelectBox
+                    label={`Select ${folder.name}`}
+                    checked={checked}
+                    disabled={!selection.can(folder)}
+                    onToggle={(shift) => selection.toggle(folder, shift)}
+                    className="relative z-10 mt-1"
+                  />
+                )}
+                {folder.type === "note" ? (
+                  <FileTextIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                ) : folder.type === "whiteboard" ? (
+                  <PenToolIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                ) : folder.type === "file" ? (
+                  <FileIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <FolderIcon className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                )}
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  {showTrash ? (
+                    <span className="truncate font-medium">{folder.name}</span>
+                  ) : folder.type !== "folder" ? (
+                    <button
+                      type="button"
+                      onClick={() => openNode(folder)}
+                      className="truncate text-left font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                    >
+                      {folder.name}
+                    </button>
+                  ) : (
+                    <Link
+                      href={`/files?folder=${encodeURIComponent(folder.id)}`}
+                      className="truncate font-medium after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                    >
+                      {folder.name}
+                    </Link>
                   )}
-                  <span>
-                    {showTrash ? "Trashed" : "Updated"} {ago(showTrash ? folder.deleted_at : folder.updated_at)}
-                  </span>
-                  {folder.type !== "folder" && folder.current_version && (
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    {(showTrash ? folder.deleted_by : folder.created_by) && (
+                      <ActorBadge actor={(showTrash ? folder.deleted_by : folder.created_by)!} interactive={false} />
+                    )}
                     <span>
-                      v{folder.current_version}
-                      {folder.size !== undefined ? ` · ${nodeSize(folder.size)}` : ""}
+                      {showTrash ? "Trashed" : "Updated"} {ago(showTrash ? folder.deleted_at : folder.updated_at)}
                     </span>
-                  )}
-                  {folder.acl_mode === "restricted" && <span className="rounded border px-1">Restricted</span>}
+                    {folder.type !== "folder" && folder.current_version && (
+                      <span>
+                        v{folder.current_version}
+                        {folder.size !== undefined ? ` · ${nodeSize(folder.size)}` : ""}
+                      </span>
+                    )}
+                    {folder.acl_mode === "restricted" && <span className="rounded border px-1">Restricted</span>}
+                  </div>
                 </div>
-              </div>
-              {actionsFor(folder)}
-              </div>
-            </li>
-          ))}
+                {actionsFor(folder)}
+                </div>
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -592,7 +754,13 @@ export function FilesView() {
       )}
 
       {dialog?.kind === "move" && (
-        <MoveDialog folder={dialog.folder} onClose={() => setDialog(null)} onMove={(target, label) => run(() => foldersApi.move(dialog.folder, target), `Moved to ${label}`)} />
+        <MoveDialog
+          nodes={dialog.nodes}
+          onClose={() => setDialog(null)}
+          onMove={(target, label) =>
+            dialog.nodes.length === 1 ? run(() => foldersApi.move(dialog.nodes[0], target), `Moved to ${label}`) : moveMany(dialog.nodes, target, label)
+          }
+        />
       )}
 
       <Dialog open={dialog?.kind === "trash"} onOpenChange={(open) => !open && setDialog(null)}>
@@ -692,14 +860,14 @@ function NameDialog({
   )
 }
 
-// Pick a destination by browsing the tree. The folder being moved (and so its
+// Pick a destination by browsing the tree. The folders being moved (and so their
 // subfolders) can't be chosen; the API also rejects cycles.
 function MoveDialog({
-  folder,
+  nodes,
   onClose,
   onMove,
 }: {
-  folder: Folder
+  nodes: Folder[]
   onClose: () => void
   onMove: (target: string, label: string) => Promise<void>
 }) {
@@ -707,13 +875,15 @@ function MoveDialog({
   const [options, setOptions] = useState<Folder[] | null>(null)
   const current = at.at(-1)?.id ?? ROOT
   const label = at.at(-1)?.name ?? "All folders"
+  const what = nodes.length === 1 ? `“${nodes[0].name}”` : `${nodes.length} items`
+  const movingIds = nodes.map((node) => node.id).join("/")
 
   useEffect(() => {
     let cancelled = false
     foldersApi
       .children(current)
       .then((page) => {
-        if (!cancelled) setOptions(page.items.filter((item) => item.type === "folder" && item.id !== folder.id))
+        if (!cancelled) setOptions(page.items.filter((item) => item.type === "folder" && !movingIds.split("/").includes(item.id)))
       })
       .catch(() => {
         if (!cancelled) setOptions([])
@@ -721,16 +891,16 @@ function MoveDialog({
     return () => {
       cancelled = true
     }
-  }, [current, folder.id])
+  }, [current, movingIds])
 
-  const sameParent = current === (folder.parent_id ?? ROOT)
+  const sameParent = nodes.every((node) => current === (node.parent_id ?? ROOT))
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Move “{folder.name}”</DialogTitle>
-          <DialogDescription>Open a folder, then move “{folder.name}” into it.</DialogDescription>
+          <DialogTitle>Move {what}</DialogTitle>
+          <DialogDescription>Open a folder, then move {what} into it.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-wrap items-center gap-1 text-sm">
           <button type="button" className="hover:underline" onClick={() => setAt([])}>

@@ -7,6 +7,7 @@ import { nodeSize } from "@/components/files/file-panels"
 import { ExpandableImage } from "@/components/files/image-viewer"
 import { IMAGE_TYPES, NodeIcon, Thumbnail } from "@/components/files/thumbnail"
 import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "@/components/icons"
+import { dropHighlight, type NodeDrag, SelectBox, type Selection } from "@/components/files/selection"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { openFileInNewTab } from "@/lib/file-links"
@@ -28,6 +29,8 @@ export function ExplorerView({
   onOpenFolder,
   onOpen,
   actions,
+  selection,
+  drag,
 }: {
   items: Folder[]
   loading: boolean
@@ -39,8 +42,14 @@ export function ExplorerView({
   onOpenFolder: (id: string) => void
   onOpen: (node: Folder) => void
   actions: (node: Folder) => React.ReactNode
+  /** Checkboxes and drag and drop; left out in the trash. */
+  selection?: Selection
+  drag?: NodeDrag
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const cols = selection ? 6 : 5
+  // Everything listed is inside these, so none of them can be moved into a folder shown here.
+  const listedIn = [ROOT, ...crumbs.map((crumb) => crumb.id)]
   const selected = loading ? null : (items.find((item) => item.id === selectedId) ?? null)
 
   const open = (node: Folder) => (node.type === "folder" && !showTrash ? onOpenFolder(node.id) : onOpen(node))
@@ -62,7 +71,8 @@ export function ExplorerView({
               id={ROOT}
               name={rootLabel}
               depth={0}
-              tree={{ folderId, items, loading, openIds: crumbs.map((crumb) => crumb.id), selectedId, onOpenFolder, onPick: pickInTree, onOpen }}
+              tree={{ folderId, items, loading, openIds: crumbs.map((crumb) => crumb.id), selectedId, onOpenFolder, onPick: pickInTree, onOpen, drag }}
+              ancestors={[]}
               initiallyOpen
             />
           </ul>
@@ -75,6 +85,16 @@ export function ExplorerView({
         <table className="w-full text-sm">
           <thead className="sticky top-0 bg-background text-left text-xs text-muted-foreground">
             <tr className="border-b">
+              {selection && (
+                <th className="w-8 py-2 pr-0 pl-3">
+                  <SelectBox
+                    label="Select all"
+                    checked={selection.all}
+                    disabled={loading || selection.selectable === 0}
+                    onToggle={() => selection.toggleAll()}
+                  />
+                </th>
+              )}
               {/* The name takes all the room the other columns don't need. */}
               <th className="w-full px-3 py-2 font-medium">Name</th>
               <th className="hidden px-3 py-2 font-medium whitespace-nowrap sm:table-cell">Version</th>
@@ -89,59 +109,81 @@ export function ExplorerView({
             {loading &&
               Array.from({ length: 4 }, (_, i) => (
                 <tr key={i} className="border-b">
-                  <td colSpan={5} className="px-3 py-2">
+                  <td colSpan={cols} className="px-3 py-2">
                     <Skeleton className="h-8 w-full" />
                   </td>
                 </tr>
               ))}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-muted-foreground">
+                <td colSpan={cols} className="px-3 py-10 text-center text-muted-foreground">
                   {emptyText}
                 </td>
               </tr>
             )}
-            {!loading && items.map((node) => (
-              <tr
-                key={node.id}
-                aria-selected={node.id === selectedId}
-                tabIndex={0}
-                onClick={() => pick(node)}
-                onDoubleClick={() => open(node)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") open(node)
-                  if (event.key === " ") {
-                    event.preventDefault()
-                    setSelectedId(node.id)
-                  }
-                }}
-                className={cn(
-                  "cursor-default border-b last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none",
-                  node.id === selectedId && "bg-muted"
-                )}
-              >
-                <td className="max-w-0 px-3 py-2">
-                  <span className="flex items-center gap-2">
-                    {showTrash ? <NodeIcon node={node} /> : <Thumbnail node={node} variant="row" />}
-                    <span className="truncate font-medium" title={node.name}>
-                      {node.name}
+            {!loading && items.map((node) => {
+              const checked = selection?.has(node.id) ?? false
+              const movable = drag && selection?.can(node)
+              const target = drag && node.type === "folder" ? drag.target({ id: node.id, name: node.name, ancestors: listedIn, role: node.role }) : undefined
+              return (
+                <tr
+                  key={node.id}
+                  // Selected means ticked; the row being previewed is the current one.
+                  aria-selected={selection ? checked : node.id === selectedId}
+                  aria-current={selection && node.id === selectedId ? "true" : undefined}
+                  tabIndex={0}
+                  {...(movable ? drag.source(node) : {})}
+                  {...target}
+                  onClick={() => pick(node)}
+                  onDoubleClick={() => open(node)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") open(node)
+                    if (event.key === " ") {
+                      event.preventDefault()
+                      setSelectedId(node.id)
+                    }
+                  }}
+                  className={cn(
+                    "cursor-default border-b last:border-b-0 hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none",
+                    checked && "bg-muted/60",
+                    node.id === selectedId && "bg-muted",
+                    drag?.overId === node.id && target && dropHighlight
+                  )}
+                >
+                  {selection && (
+                    <td className="w-8 py-2 pr-0 pl-3" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+                      <SelectBox
+                        label={`Select ${node.name}`}
+                        checked={checked}
+                        disabled={!selection.can(node)}
+                        onToggle={(shift) => selection.toggle(node, shift)}
+                      />
+                    </td>
+                  )}
+                  <td className="max-w-0 px-3 py-2">
+                    <span className="flex items-center gap-2">
+                      {showTrash ? <NodeIcon node={node} /> : <Thumbnail node={node} variant="row" />}
+                      <span className="truncate font-medium" title={node.name}>
+                        {node.name}
+                      </span>
                     </span>
-                  </span>
-                </td>
-                <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{node.current_version ? `v${node.current_version}` : ""}</td>
-                <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground sm:table-cell">{node.size !== undefined && node.type !== "folder" ? nodeSize(node.size) : ""}</td>
-                <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
-                  {(showTrash ? node.deleted_at : node.updated_at) ? absoluteTime(new Date((showTrash ? node.deleted_at : node.updated_at)!)) : ""}
-                </td>
-                <td className="px-2 py-1 text-right" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
-                  {actions(node)}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="hidden px-3 py-2 text-muted-foreground sm:table-cell">{node.current_version ? `v${node.current_version}` : ""}</td>
+                  <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground sm:table-cell">{node.size !== undefined && node.type !== "folder" ? nodeSize(node.size) : ""}</td>
+                  <td className="hidden px-3 py-2 whitespace-nowrap text-muted-foreground xl:table-cell">
+                    {(showTrash ? node.deleted_at : node.updated_at) ? absoluteTime(new Date((showTrash ? node.deleted_at : node.updated_at)!)) : ""}
+                  </td>
+                  <td className="px-2 py-1 text-right" onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()}>
+                    {actions(node)}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
         <p className="mt-auto border-t px-3 py-2 text-xs text-muted-foreground">
           Click a folder to go into it · click anything else to preview, double-click to open
+          {selection && " · drag onto a folder to move"}
         </p>
       </div>
 
@@ -165,11 +207,29 @@ type Tree = {
   onOpenFolder: (id: string) => void
   onPick: (node: Folder, parentId: string) => void
   onOpen: (node: Folder) => void
+  drag?: NodeDrag
 }
 
 // A folder in the tree; what's inside loads the first time it's expanded. The folder
 // being viewed uses the list's items, so the two always agree.
-function TreeNode({ id, name, depth, tree, initiallyOpen = false }: { id: string; name: string; depth: number; tree: Tree; initiallyOpen?: boolean }) {
+// It also takes drops; ancestors (the ids above it) keep a folder from being dropped under itself.
+function TreeNode({
+  id,
+  name,
+  depth,
+  tree,
+  ancestors,
+  role,
+  initiallyOpen = false,
+}: {
+  id: string
+  name: string
+  depth: number
+  tree: Tree
+  ancestors: string[]
+  role?: Folder["role"]
+  initiallyOpen?: boolean
+}) {
   const current = id === tree.folderId
   const onPath = current || tree.openIds.includes(id)
   const [expanded, setExpanded] = useState(initiallyOpen || onPath)
@@ -205,7 +265,11 @@ function TreeNode({ id, name, depth, tree, initiallyOpen = false }: { id: string
 
   return (
     <li role="treeitem" aria-expanded={expanded} aria-selected={current}>
-      <div className={cn("flex items-center gap-0.5 rounded-md", current && "bg-muted font-medium")} style={{ paddingLeft: depth * 12 }}>
+      <div
+        className={cn("flex items-center gap-0.5 rounded-md", current && "bg-muted font-medium", tree.drag?.overId === id && dropHighlight)}
+        style={{ paddingLeft: depth * 12 }}
+        {...tree.drag?.target({ id, name, ancestors, role })}
+      >
         <button
           type="button"
           aria-label={expanded ? `Collapse ${name}` : `Expand ${name}`}
@@ -229,7 +293,7 @@ function TreeNode({ id, name, depth, tree, initiallyOpen = false }: { id: string
           {children === null && <Skeleton className="my-1 ml-8 h-5" />}
           {children?.map((child) =>
             child.type === "folder" ? (
-              <TreeNode key={child.id} id={child.id} name={child.name} depth={depth + 1} tree={tree} />
+              <TreeNode key={child.id} id={child.id} name={child.name} depth={depth + 1} tree={tree} ancestors={[...ancestors, id]} role={child.role} />
             ) : (
               <li key={child.id} role="treeitem" aria-selected={child.id === tree.selectedId}>
                 <button
