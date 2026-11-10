@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 
 import { readSession } from "@/lib/board-auth"
 import { createOrgApi, type OrgSummary, type OrgTeam } from "@/lib/org-api"
-import { resolveChoice, sameChoice, type OrgChoice } from "@/lib/org-choice"
+import { multiOrgOn, resolveChoice, sameChoice, type OrgChoice } from "@/lib/org-choice"
 import { activeOrgChoice, chooseOrg } from "@/lib/team-choice"
 
 // The orgs you're in, and which org and team you're working in (NEXT_PUBLIC_MULTI_ORG only).
@@ -78,4 +78,18 @@ export function useOrgs(enabled = true): OrgState {
 export function switchTo(next: OrgChoice, current: OrgChoice | null, path = "/projects") {
   chooseOrg(next)
   window.location.assign(next.org === current?.org ? window.location.pathname : path)
+}
+
+/**
+ * A team's name for showing. With several orgs, services key teams by id (team_…), so the id is
+ * looked up in your orgs; anything else, or an id not found yet, is shown as it came.
+ */
+export function useTeamLabel(team: string): string {
+  const state = useOrgs(multiOrgOn() && team.startsWith("team_"))
+  if (state.status !== "ready") return team
+  for (const org of state.orgs) {
+    const found = org.teams.find((row) => row.team_id === team)
+    if (found) return found.name
+  }
+  return team
 }

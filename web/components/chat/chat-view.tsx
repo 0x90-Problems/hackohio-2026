@@ -46,6 +46,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { MarkdownView } from "@/components/markdown-view"
 import {
   type Channel,
   type ChatMessage,
@@ -59,6 +60,8 @@ import {
 } from "@/lib/chat-api"
 import { type Activity, ChatLive, coalesce } from "@/lib/chat-live"
 import { absoluteTime, timeAgo } from "@/lib/format"
+import { looksLikeMarkdown } from "@/lib/markdown-text"
+import { useTeamLabel } from "@/lib/use-orgs"
 import { isNoTeamError } from "@/lib/no-team"
 import { cn } from "@/lib/utils"
 import { NO_TEAM } from "@/shared/names"
@@ -171,6 +174,7 @@ export function ChatView() {
   const [error, setError] = useState("")
   const [dialog, setDialog] = useState<null | "channel" | "dm" | "browse" | "section">(null)
   const { live, connected } = useChatLive()
+  const teamName = useTeamLabel(ws?.team ?? "")
 
   const go = useCallback(
     (channel: string | null, thread: string | null = null) => {
@@ -253,7 +257,7 @@ export function ChatView() {
           />
         ) : (
           <EmptyState
-            title={`Chat for ${ws.team}`}
+            title={`Chat for ${teamName}`}
             body="Pick a channel on the left, or start a conversation."
             action={
               <Button onClick={() => setDialog("channel")}>
@@ -326,6 +330,7 @@ function Sidebar({
   onDialog: (kind: "channel" | "dm" | "browse" | "section") => void
   className?: string
 }) {
+  const teamName = useTeamLabel(ws.team)
   const text = ws.channels.filter((c) => c.kind === "text")
   const dms = ws.channels.filter((c) => c.kind !== "text")
   const sectionIds = new Set(ws.sections.map((s) => s.id))
@@ -334,7 +339,7 @@ function Sidebar({
   return (
     <aside aria-label="Channels" className={cn("w-full shrink-0 flex-col border-r bg-muted/30 md:w-64", className)}>
       <div className="flex h-12 items-center justify-between gap-2 border-b px-3">
-        <TeamSwitcher className="min-w-0 flex-1" fallback={<h1 className="truncate text-sm font-semibold">{ws.team}</h1>} />
+        <TeamSwitcher className="min-w-0 flex-1" fallback={<h1 className="truncate text-sm font-semibold">{teamName}</h1>} />
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon-sm" aria-label="Browse channels" onClick={() => onDialog("browse")}>
             <SearchIcon aria-hidden="true" />
@@ -720,7 +725,12 @@ function ChannelPane({
 
 const MENTION = /@((?:agent|user)_[A-Za-z0-9_-]+)/g
 
+// Messages with markdown in them are rendered (mentions shown in bold); plain ones keep the mention chips.
 function MessageBody({ text, directory }: { text: string; directory: Map<string, ChatPerson> }) {
+  if (looksLikeMarkdown(text)) {
+    const named = text.replace(MENTION, (_, id: string) => `**@${(directory.get(id)?.name ?? id).replace(/[*_`[\]\\]/g, "")}**`)
+    return <MarkdownView markdown={named} compact lineBreaks />
+  }
   const parts: React.ReactNode[] = []
   let last = 0
   for (const match of text.matchAll(MENTION)) {

@@ -8,6 +8,7 @@ import { TaskItem, TaskList } from "@tiptap/extension-list"
 
 import { PageBreak, PageLink } from "@/components/docs/doc-extensions"
 import { MermaidBlock } from "@/components/docs/mermaid-block"
+import { looksLikeMarkdown, withLineBreaks } from "@/lib/markdown-text"
 import { cn } from "@/lib/utils"
 
 // Markdown shown read-only: comments, document previews, .md files. It goes through the same
@@ -26,8 +27,18 @@ export function markdownExtensions(links: { openOnClick: boolean }) {
   ]
 }
 
-/** `compact` is the comment size: body text at text-sm, headings only a little larger. */
-export function MarkdownView({ markdown, compact = false, className }: { markdown: string; compact?: boolean; className?: string }) {
+/**
+ * `compact` is the comment size: body text at text-sm, headings only a little larger.
+ * `lineBreaks` is for what people type as messages (comments, chat): one Enter is a new line,
+ * and plain text with no markdown in it skips the renderer altogether.
+ */
+export function MarkdownView({ markdown, compact = false, lineBreaks = false, className }: { markdown: string; compact?: boolean; lineBreaks?: boolean; className?: string }) {
+  const plain = lineBreaks && !looksLikeMarkdown(markdown)
+  if (plain) return <p className={cn("break-words whitespace-pre-wrap", compact && "text-sm", className)}>{markdown}</p>
+  return <RenderedMarkdown markdown={lineBreaks ? withLineBreaks(markdown) : markdown} compact={compact} className={className} />
+}
+
+function RenderedMarkdown({ markdown, compact, className }: { markdown: string; compact: boolean; className?: string }) {
   const editor = useEditor({
     immediatelyRender: false,
     editable: false,
