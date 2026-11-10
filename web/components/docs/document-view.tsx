@@ -20,12 +20,14 @@ import { Backlinks, PagePicker } from "@/components/docs/page-picker"
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, LockIcon, PlusIcon, PrinterIcon, WifiIcon, WifiOffIcon } from "@/components/icons"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { colorFor, LiveProvider, type LiveStatus } from "@/lib/docs-live"
 import { mergeLines, missingVersions } from "@/lib/docs-merge"
 import { type Crumb, type Folder, FoldersError, foldersApi } from "@/lib/folders-api"
+import { cleanPageName, nextUntitled } from "@/lib/page-names"
 import { cn } from "@/lib/utils"
 
 const SAVED_CHECK_MS = 30_000
@@ -91,6 +93,9 @@ const linkClickStaysInApp = {
 export function DocumentView({ documentId }: { documentId: string }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  // Bumped when a page is added or renamed, so the tree reloads.
+  const [treeVersion, setTreeVersion] = useState(0)
+  const refreshTree = useCallback(() => setTreeVersion((v) => v + 1), [])
 
   useEffect(() => {
     let cancelled = false
@@ -137,9 +142,9 @@ export function DocumentView({ documentId }: { documentId: string }) {
 
   return (
     <div className="mx-auto flex min-h-[calc(100svh-3.5rem)] max-w-screen-2xl">
-      <PageTree rootId={loaded?.rootId ?? null} currentId={documentId} canEdit={loaded?.canEdit ?? false} />
+      <PageTree rootId={loaded?.rootId ?? null} currentId={documentId} canEdit={loaded?.canEdit ?? false} version={treeVersion} onChange={refreshTree} />
       <main className="min-w-0 flex-1">
-        {loaded ? <Editor key={documentId} loaded={loaded} /> : <EditorSkeleton />}
+        {loaded ? <Editor key={documentId} loaded={loaded} onRenamed={refreshTree} /> : <EditorSkeleton />}
       </main>
     </div>
   )
@@ -147,10 +152,23 @@ export function DocumentView({ documentId }: { documentId: string }) {
 
 // -- page tree ---------------------------------------------------------------------
 
-function PageTree({ rootId, currentId, canEdit }: { rootId: string | null; currentId: string; canEdit: boolean }) {
+const NAME_TRIES = 5
+
+/** The names of every item directly inside a folder or page. */
+async function siblingNames(parentId: string) {
+  const names: string[] = []
+  let cursor: string | null = null
+  do {
+    const page: Awaited<ReturnType<typeof foldersApi.children>> = await foldersApi.children(parentId, cursor)
+    names.push(...page.items.map((item) => item.name))
+    cursor = page.next_cursor
+  } while (cursor)
+  return names
+}
+
+function PageTree({ rootId, currentId, canEdit, version, onChange }: { rootId: string | null; currentId: string; canEdit: boolean; version: number; onChange: () => void }) {
   const router = useRouter()
   const [root, setRoot] = useState<Folder | null>(null)
-  const [version, setVersion] = useState(0)
 
   useEffect(() => {
     if (!rootId) return
@@ -161,11 +179,22 @@ function PageTree({ rootId, currentId, canEdit }: { rootId: string | null; curre
     }
   }, [rootId, version])
 
+  // "Untitled 3" after Untitled 1 and 2; someone adding one at the same moment just bumps the number.
   const addPage = async (parentId: string) => {
     try {
-      const page = await foldersApi.createNote(parentId, `Untitled ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`, "")
-      setVersion((v) => v + 1)
-      router.push(`/docs/${encodeURIComponent(page.id)}`)
+      const names = await siblingNames(parentId)
+      for (let attempt = 1; ; attempt += 1) {
+        const name = nextUntitled(names)
+        try {
+          const page = await foldersApi.createNote(parentId, name, "")
+          onChange()
+          router.push(`/docs/${encodeURIComponent(page.id)}`)
+          return
+        } catch (error) {
+          if (!(error instanceof FoldersError && error.code === "name_taken") || attempt >= NAME_TRIES) throw error
+          names.push(name)
+        }
+      }
     } catch (error) {
       toast.error(explain(error))
     }
@@ -256,7 +285,7 @@ function TreeItem({
 
 // -- editor ----------------------------------------------------------------------
 
-function Editor({ loaded }: { loaded: Loaded }) {
+function Editor({ loaded, onRenamed }: { loaded: Loaded; onRenamed: () => void }) {
   const me = useAuthUser()
   const [status, setStatus] = useState<LiveStatus>("connecting")
   const [readOnly, setReadOnly] = useState(!loaded.canEdit)
@@ -562,7 +591,7 @@ function Editor({ loaded }: { loaded: Loaded }) {
           <span key={crumb.id} className="flex items-center gap-1">
             <ChevronRightIcon className="size-3.5" aria-hidden="true" />
             {crumb.id === note.id ? (
-              <span className="text-foreground">{crumb.name}</span>
+              <span className="text-foreground">{note.name}</span>
             ) : (
               <Link href={crumb.id.startsWith("nte_") ? `/docs/${encodeURIComponent(crumb.id)}` : `/files?folder=${encodeURIComponent(crumb.id)}`} className="hover:underline">
                 {crumb.name}
@@ -572,7 +601,10 @@ function Editor({ loaded }: { loaded: Loaded }) {
         ))}
       </nav>
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold">{note.name}</h1>
+        <PageTitle note={note} canRename={!readOnly} onRenamed={(next) => {
+          setNote((current) => ({ ...current, name: next.name, rev: next.rev }))
+          onRenamed()
+        }} />
         <div className="flex items-center gap-2" aria-live="polite">
           {readOnly ? (
             <Badge variant="outline">
@@ -669,6 +701,71 @@ function Editor({ loaded }: { loaded: Loaded }) {
       {editor && !readOnly ? <PagePicker editor={editor} currentId={note.id} keysRef={pickerKeys} /> : null}
       <Backlinks documentId={note.id} />
     </div>
+  )
+}
+
+// The page's name. Anyone who can edit renames it in place: Enter or leaving the box saves, Escape doesn't.
+function PageTitle({ note, canRename, onRenamed }: { note: Folder; canRename: boolean; onRenamed: (next: Folder) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function commit() {
+    if (draft === null || busy) return
+    const name = cleanPageName(draft)
+    if (!name || name === note.name) return setDraft(null)
+    setBusy(true)
+    try {
+      let next: Folder
+      try {
+        next = await foldersApi.rename(note, name)
+      } catch (error) {
+        // Someone changed the page first (a new version, a move): rename the latest copy once.
+        if (!(error instanceof FoldersError && error.code === "rev_conflict")) throw error
+        next = await foldersApi.rename(await foldersApi.node(note.id), name)
+      }
+      onRenamed(next)
+      setDraft(null)
+    } catch (error) {
+      toast.error(error instanceof FoldersError && error.code === "name_taken" ? `There's already a page called “${name}” here` : explain(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (draft === null) {
+    return canRename ? (
+      <h1 className="min-w-0 flex-1 text-2xl font-semibold">
+        <button
+          type="button"
+          title="Rename this page"
+          onClick={() => setDraft(note.name)}
+          className="block max-w-full truncate rounded-md px-1 -mx-1 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {note.name}
+        </button>
+      </h1>
+    ) : (
+      <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold">{note.name}</h1>
+    )
+  }
+  return (
+    <Input
+      autoFocus
+      aria-label="Page name"
+      value={draft}
+      maxLength={200}
+      disabled={busy}
+      onChange={(event) => setDraft(event.target.value)}
+      onFocus={(event) => event.target.select()}
+      onBlur={() => void commit()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          void commit()
+        } else if (event.key === "Escape") setDraft(null)
+      }}
+      className="h-10 min-w-0 flex-1 text-2xl font-semibold md:text-2xl"
+    />
   )
 }
 
