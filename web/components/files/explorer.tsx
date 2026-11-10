@@ -10,9 +10,11 @@ import { ChevronDownIcon, ChevronRightIcon, FolderIcon } from "@/components/icon
 import { dropHighlight, type NodeDrag, SelectBox, type Selection } from "@/components/files/selection"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { MarkdownView } from "@/components/markdown-view"
 import { openFileInNewTab } from "@/lib/file-links"
 import { absoluteTime } from "@/lib/format"
 import { type Crumb, type Folder, foldersApi, ROOT } from "@/lib/folders-api"
+import { isMarkdownFile } from "@/lib/markdown-file"
 import { cn } from "@/lib/utils"
 
 // Explorer mode: a tree of everything, a list of the current folder, and a preview of the
@@ -325,7 +327,8 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
   const [note, setNote] = useState<string | null>(null)
   const [text, setText] = useState<{ body: string; truncated: boolean } | null>(null)
   const isImage = node.type === "file" && IMAGE_TYPES.includes(node.content_type ?? "")
-  const isText = node.type === "file" && TEXT_TYPES.includes(node.content_type ?? "")
+  const isMarkdown = node.type === "file" && isMarkdownFile(node)
+  const isText = node.type === "file" && (isMarkdown || TEXT_TYPES.includes(node.content_type ?? ""))
   const isPdf = node.type === "file" && node.content_type === "application/pdf"
 
   useEffect(() => {
@@ -370,9 +373,15 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
           <Skeleton className="h-40 w-full" />
         ) : (
           <div className="flex flex-col gap-1">
-            <pre className="max-h-[50dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
-              {text.body || <span className="text-muted-foreground">This file is empty.</span>}
-            </pre>
+            {isMarkdown && text.body ? (
+              <div className="max-h-[50dvh] overflow-auto rounded-lg border bg-muted/30 p-3">
+                <MarkdownView markdown={text.body} compact />
+              </div>
+            ) : (
+              <pre className="max-h-[50dvh] overflow-auto rounded-lg border bg-muted/30 p-3 font-mono text-xs break-words whitespace-pre-wrap">
+                {text.body || <span className="text-muted-foreground">This file is empty.</span>}
+              </pre>
+            )}
             {text.truncated && <p className="text-xs text-muted-foreground">Showing the first 256 KB.</p>}
           </div>
         ))}
@@ -390,9 +399,9 @@ function Preview({ node, showTrash, onOpen }: { node: Folder; showTrash: boolean
         (note === null ? (
           <Skeleton className="h-32 w-full" />
         ) : (
-          // Plain text: note bodies are user content, never rendered as HTML.
-          <div className="max-h-[50dvh] overflow-y-auto rounded-lg border bg-muted/30 p-3 text-xs break-words whitespace-pre-wrap">
-            {note.slice(0, 4000) || <span className="text-muted-foreground">This document is empty.</span>}
+          // Formatted through the editor's schema (components/markdown-view.tsx), never as raw HTML.
+          <div className="max-h-[50dvh] overflow-y-auto rounded-lg border bg-muted/30 p-3">
+            {note.trim() ? <MarkdownView markdown={note.slice(0, 20_000)} compact /> : <span className="text-xs text-muted-foreground">This document is empty.</span>}
           </div>
         ))}
 
