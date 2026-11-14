@@ -5,6 +5,7 @@ import Link from "next/link"
 import type { Comment } from "@/lib/types"
 import { useProjects } from "@/components/projects/projects-store"
 import { timeAgo } from "@/lib/format"
+import { plainSnippet } from "@/lib/markdown-text"
 import { ActorBadge } from "@/components/actor-badge"
 import { commentId, ticketHref } from "@/components/board/ticket-modal"
 import { FeedList, type FeedItem } from "@/components/feed-list"
@@ -67,7 +68,7 @@ function CommentRow({ comment }: { comment: Comment }) {
           on {comment.ticket_key} · {timeAgo(comment.created_at)}
         </span>
       </div>
-      <p className="line-clamp-2 text-sm break-words">{comment.body}</p>
+      <p className="line-clamp-2 text-sm break-words">{plainSnippet(comment.body)}</p>
     </Link>
   )
 }

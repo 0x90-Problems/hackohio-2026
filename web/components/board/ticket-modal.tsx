@@ -213,7 +213,7 @@ function TicketDetail({
   }
 
   return (
-    <div className="grid min-w-0 md:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className={cn("grid min-w-0", ticket.linked_commits?.length && "md:grid-cols-[minmax(0,1fr)_20rem]")}>
       <DialogHeader className="gap-2 border-b p-6 pr-14 md:col-span-2">
         <DialogDescription className="font-mono text-xs">
           {ticket.key}
@@ -436,7 +436,7 @@ function TicketDetail({
                       v{versionForComment(withCommentEvents(events, comments), comment) ?? "–"} · {absoluteTime(comment.created_at)}
                     </span>
                   </div>
-                  <MarkdownView markdown={comment.body} compact />
+                  <MarkdownView markdown={comment.body} compact lineBreaks />
                 </li>
               )
             })}
@@ -466,28 +466,30 @@ function TicketDetail({
         </section>
       </div>
 
-      <aside className="flex min-w-0 flex-col gap-3 border-t bg-muted/20 p-6 md:border-t-0 md:border-l">
-        <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
-          Linked commits
-        </h3>
-        {ticket.linked_commits?.length ? (
+      {/* Only when there's something to show; without commits the details get the full width. */}
+      {ticket.linked_commits?.length ? (
+        <aside className="flex min-w-0 flex-col gap-3 border-t bg-muted/20 p-6 md:border-t-0 md:border-l">
+          <h3 className="font-mono text-xs tracking-widest text-muted-foreground uppercase">
+            Linked commits
+          </h3>
           <ul className="flex flex-col gap-2">
             {ticket.linked_commits.map((commit) => {
               const url = commitUrl(commit)
+              // The message first; the short id (full one on hover) and the line counts under it.
               const row = (
                 <>
-                  <code className="font-mono text-xs font-semibold">
-                    {commit.sha}
-                  </code>
-                  <span className="min-w-0 flex-1 truncate">
-                    {commit.message}
-                  </span>
-                  <span className="flex shrink-0 gap-2 font-mono text-xs">
-                    <span className="text-green-600 dark:text-green-400">
-                      +{commit.added}
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate" title={commit.message}>
+                      {commit.message || "No message"}
                     </span>
-                    <span className="text-red-600 dark:text-red-400">
-                      -{commit.removed}
+                    <span className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+                      <code title={commit.sha}>{commit.sha.slice(0, 7)}</code>
+                      <span className="text-green-600 dark:text-green-400">
+                        +{commit.added}
+                      </span>
+                      <span className="text-red-600 dark:text-red-400">
+                        -{commit.removed}
+                      </span>
                     </span>
                   </span>
                 </>
@@ -524,12 +526,8 @@ function TicketDetail({
               )
             })}
           </ul>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            No commits linked yet.
-          </p>
-        )}
-      </aside>
+        </aside>
+      ) : null}
 
     </div>
   )

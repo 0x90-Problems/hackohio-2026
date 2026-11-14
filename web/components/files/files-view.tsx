@@ -61,6 +61,7 @@ import { Thumbnail } from "@/components/files/thumbnail"
 import { FilesSearch } from "@/components/files/files-search"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
+import { useTeamLabel } from "@/lib/use-orgs"
 
 type Dialogs =
   | { kind: "create" }
@@ -389,7 +390,8 @@ export function FilesView() {
   })
   // Only the page's own folder list moves things; the trash only restores.
   const dnd = showTrash ? undefined : drag
-  const rootLabel = workspace?.team_name ?? "All folders"
+  const teamName = useTeamLabel(workspace?.team_name ?? "")
+  const rootLabel = workspace ? teamName : "All folders"
 
   const emptyText = showTrash ? "The trash is empty." : canEdit(role) ? "Nothing here yet. Create or upload something to get started." : "Nothing here yet."
 
@@ -402,7 +404,7 @@ export function FilesView() {
             Folders
           </h1>
           <p className="text-muted-foreground">
-            {workspace ? `${workspace.team_name}'s shared folders.` : "Your team's shared folders."}
+            {workspace ? `${teamName}'s shared folders.` : "Your team's shared folders."}
           </p>
         </div>
         {showPage && (
