@@ -68,6 +68,7 @@ export {
   Plus as PlusIcon,
   Search as SearchIcon,
   Settings as SettingsIcon,
+  ShieldCheck as ShieldCheckIcon,
   ShieldOff as ShieldOffIcon,
   Sun as SunIcon,
   Tag as TagIcon,

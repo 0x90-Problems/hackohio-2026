@@ -57,6 +57,14 @@ export function describeEvent(
       return `Removed ${event.details?.name ?? "someone"} from the organization`
     case EVENT_ACTIONS.AGENT_DELETED:
       return deletedEventText(event.details, AGENT_CONNECTION.API_KEY)
+    case EVENT_ACTIONS.APPROVAL_REQUESTED:
+      return to ? `Asked to move ${key} to ${categoryName(to, categories)}` : `Asked to close ${key}`
+    case EVENT_ACTIONS.TICKET_APPROVED:
+      return `Approved closing ${key}`
+    case EVENT_ACTIONS.APPROVAL_SENT_BACK: {
+      const reason = event.details?.body
+      return reason ? `Sent ${key} back · ${reason}` : `Sent ${key} back`
+    }
     default:
       // Never render an empty row for an action this app doesn't know yet.
       return `${String(event.action).replaceAll("_", " ")} · ${key}`

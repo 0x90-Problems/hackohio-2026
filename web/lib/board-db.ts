@@ -4,7 +4,8 @@ import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
 import { boardContextHeaders } from "@/lib/team-choice"
-import { mergeBoardRecords } from "@/lib/board-merge"
+import { mergeBoardRecords, ticketFromApi } from "@/lib/board-merge"
+import type { ApprovalMode } from "@/shared/names"
 import type { Agent, Category, Comment, Event, Project, Ticket } from "@/lib/types"
 
 export type BoardRecords = {
@@ -131,6 +132,47 @@ export async function saveProjectColumns(key: string, categories: Category[], mo
   }
 }
 
+// One board call that answers with a ticket. Throws with the board's message.
+async function ticketCall(payload: object, fallback: string): Promise<Ticket> {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(payload),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+  if (!response.ok) throw new Error(body?.error?.message ?? fallback)
+  const ticket = ticketFromApi(body)
+  if (!ticket) throw new Error(fallback)
+  return ticket
+}
+
+export function approveTicketRecord(key: string) {
+  return ticketCall({ kind: "approve", key }, "Could not approve the ticket")
+}
+
+export function sendBackTicketRecord(key: string, reason: string) {
+  return ticketCall({ kind: "sendBack", key, ...(reason ? { reason } : {}) }, "Could not send the ticket back")
+}
+
+/** A move, answered with the ticket as the board kept it (a close may be held for approval). */
+export function saveTicketStatus(ticket: Ticket) {
+  return ticketCall({ kind: "ticket", ticket: ticketPayload(ticket) }, "Could not save to the database")
+}
+
+export async function saveProjectApproval(key: string, approval: ApprovalMode) {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ kind: "projectApproval", key, approval }),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
+    throw new Error(body?.error?.message ?? "Could not save the approval setting")
+  }
+}
+
 export async function removeTicketRecord(key: string) {
   const response = await fetch("/api/board", {
     method: "POST",
@@ -148,6 +190,7 @@ function ticketPayload(ticket: Ticket) {
   delete record.needs_approval
   delete record.approved_by
   delete record.approved_at
+  delete record.approval_request
   return record
 }
 

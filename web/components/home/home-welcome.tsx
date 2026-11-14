@@ -4,7 +4,7 @@ import Link from "next/link"
 
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { useProjects } from "@/components/projects/projects-store"
-import { pendingReviewTickets } from "@/components/home/pending-actions"
+import { waitingOnYou } from "@/components/home/pending-actions"
 import { Button } from "@/components/ui/button"
 
 export function HomeWelcome() {
@@ -13,7 +13,8 @@ export function HomeWelcome() {
   if (!account) return null
 
   const firstName = account.name.trim().split(/\s+/)[0] || account.name
-  const pendingCount = pendingReviewTickets(store.tickets, account._id).length
+  const waiting = waitingOnYou(store.tickets, account)
+  const pendingCount = waiting.approvals.length + waiting.reviews.length
   const commentCount = store.comments.length
   const boardHref = store.projects[0]
     ? `/projects/${store.projects[0].key}/board`

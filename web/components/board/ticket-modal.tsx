@@ -28,6 +28,7 @@ import { listBoardUsers } from "@/lib/connect-agent"
 import { absoluteTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
+import { ApprovalPanel } from "@/components/board/approval-panel"
 import { ChangeHistory, versionForComment, withCommentEvents } from "@/components/board/change-history"
 import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { TagInput } from "@/components/board/tag-input"
@@ -257,6 +258,11 @@ function TicketDetail({
           </select>
           <DeleteCardButton ticketKey={ticket.key} onDelete={onDelete} labeled />
         </div>
+        <ApprovalPanel
+          ticket={ticket}
+          categories={categories}
+          reviewerName={ticket.reviewer_id ? reviewerOptions.find((person) => person._id === ticket.reviewer_id)?.name : undefined}
+        />
       </DialogHeader>
 
       <div className="min-w-0">

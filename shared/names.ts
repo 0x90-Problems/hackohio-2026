@@ -135,8 +135,30 @@ export const EVENT_ACTIONS = {
   PERSON_REMOVED: "person_removed",
   // An agent or API key was deleted for good. ticket_key is "", like person_removed.
   AGENT_DELETED: "agent_deleted",
+  // A close is waiting for a person to approve it (details.to is the column asked for).
+  APPROVAL_REQUESTED: "approval_requested",
+  // Someone approved a waiting close; the ticket moved to details.to.
+  TICKET_APPROVED: "ticket_approved",
+  // Someone sent a waiting close back (details.body is the reason, when given).
+  APPROVAL_SENT_BACK: "approval_sent_back",
 } as const;
 export type EventAction = (typeof EVENT_ACTIONS)[keyof typeof EVENT_ACTIONS];
+
+// ---------- Approval before close (per project) ----------
+// Who needs a person's approval to move a ticket to done. A project without its own
+// setting follows the org rule approve_before_close (on means agents only).
+export const APPROVAL_MODES = {
+  OFF: "off",
+  AGENTS: "agents",
+  EVERYONE: "everyone",
+} as const;
+export type ApprovalMode = (typeof APPROVAL_MODES)[keyof typeof APPROVAL_MODES];
+
+export const APPROVAL_MODE_LABELS: Record<ApprovalMode, string> = {
+  off: "No approval needed",
+  agents: "Agents need approval",
+  everyone: "Everyone needs approval",
+};
 
 // ---------- Database names ----------
 export const DB_NAME = "hackathon";

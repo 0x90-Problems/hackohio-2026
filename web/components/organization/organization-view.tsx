@@ -73,7 +73,7 @@ const EXPIRY_OPTIONS = [
 ]
 
 const RULES = [
-  { id: "approve_before_close", label: "A human must approve before a ticket closes" },
+  { id: "approve_before_close", label: "Agents need a person's approval to close tickets (each project can change this)" },
   { id: "commit_on_move", label: "Agents must link a commit when they move a ticket" },
   { id: "log_agent_actions", label: "Log every agent action" },
 ]
