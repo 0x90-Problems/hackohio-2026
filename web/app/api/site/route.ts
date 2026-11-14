@@ -18,6 +18,8 @@ type SitePostBody = {
   team?: { name: string; rename_from?: string }
   member?: { team: string; user_id: string; remove?: boolean }
   manager?: { team: string; user_id: string; manager: boolean }
+  /** NSB-73: org admins archive, restore or delete a team (by team id when there is one, else name). */
+  teamState?: { team: string; action: "archive" | "restore" | "delete" }
   apiKey?: {
     id?: string
     name: string
@@ -133,7 +135,15 @@ export async function GET(request: Request) {
       const team = asRecord(item)
       const name = typeof team?.name === "string" ? team.name : ""
       const managers = Array.isArray(team?.managers) ? team.managers.filter((id): id is string => typeof id === "string") : []
-      return name ? [{ name, managers, ...(typeof team?.created_by === "string" ? { created_by: team.created_by } : {}) }] : []
+      return name
+        ? [{
+            name,
+            managers,
+            ...(typeof team?.created_by === "string" ? { created_by: team.created_by } : {}),
+            ...(typeof team?.team_id === "string" ? { team_id: team.team_id } : {}),
+            ...(typeof team?.archived_at === "string" ? { archived_at: team.archived_at } : {}),
+          }]
+        : []
     }),
     apiKeys,
     users: userList.flatMap((item) => {
@@ -223,7 +233,8 @@ export async function POST(request: Request) {
 
   // URLs drop a path segment of only dots, encoded or not, so this team's routes can't be
   // reached. Renaming goes in the body, so that still works.
-  const teamInUrl = body.kind === "member" ? body.member?.team : body.kind === "manager" ? body.manager?.team : undefined
+  const teamInUrl =
+    body.kind === "member" ? body.member?.team : body.kind === "manager" ? body.manager?.team : body.kind === "teamState" ? body.teamState?.team : undefined
   if (teamInUrl && /^\.+$/.test(teamInUrl.trim())) {
     return NextResponse.json({ error: { code: "invalid_input", message: "This team's name can't be used. Rename it first, then try again." } }, { status: 400 })
   }
@@ -239,6 +250,15 @@ export async function POST(request: Request) {
   if (body.kind === "manager" && body.manager?.team && body.manager.user_id) {
     const path = `/teams/${encodeURIComponent(body.manager.team)}/managers/${encodeURIComponent(body.manager.user_id)}`
     return relay(await boardJson(request, path, { method: "PUT", body: { manager: body.manager.manager === true } }), "Could not change the team's managers")
+  }
+
+  if (body.kind === "teamState" && body.teamState?.team) {
+    const team = encodeURIComponent(body.teamState.team)
+    const { action } = body.teamState
+    if (action === "delete") return relay(await boardJson(request, `/teams/${team}`, { method: "DELETE" }), "Could not delete the team")
+    if (action === "archive" || action === "restore") {
+      return relay(await boardJson(request, `/teams/${team}/${action}`, { method: "POST" }), `Could not ${action} the team`)
+    }
   }
 
   if (body.kind === "removePerson" && body.user_id) {

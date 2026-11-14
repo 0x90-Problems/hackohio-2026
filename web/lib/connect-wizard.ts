@@ -1,13 +1,15 @@
-// State for the Connect agent and Create API key wizards (NSB-66).
-// Steps: 0 what it may do, 1 name, 2 token shown once, 3 install or use it.
-// Pure so it can be unit tested. The secret lives only here, and closing
-// the wizard throws it away, so it is never shown again.
+// State for the Connect agent and Create API key pages (NSB-66, NSB-68).
+// Steps: 0 what it may do, 1 name, 2 token shown once, 3 install or use it, 4 summary.
+// Pure so it can be unit tested. The secret lives only here, and leaving
+// the page throws it away, so it is never shown again.
 
-export const WIZARD_STEPS = 4
+export const WIZARD_STEPS = 5
 export const SCOPES_STEP = 0
 export const NAME_STEP = 1
 export const TOKEN_STEP = 2
-export const LAST_STEP = 3
+export const USE_STEP = 3
+export const SUMMARY_STEP = 4
+export const LAST_STEP = SUMMARY_STEP
 
 /** What the board handed back once: the secret and anything built from it. */
 export type Issued<X> = { secret: string; issuedAt: number; extra: X }
@@ -56,14 +58,14 @@ export function canAdvance<S extends string, X>(state: WizardState<S, X>): boole
   return state.step < LAST_STEP && state.issued !== null
 }
 
-/** Back is offered before the token exists, and from the last step to the token. */
+/** Back is offered before the token exists, and after it back down to the token. */
 export function canGoBack<S extends string, X>(state: WizardState<S, X>): boolean {
   if (state.pending) return false
   if (state.step === NAME_STEP) return state.issued === null
-  return state.step === LAST_STEP
+  return state.step > TOKEN_STEP
 }
 
-/** Closing with a token on screen that was never copied asks first. */
+/** Leaving with a token on screen that was never copied asks first. */
 export function closeNeedsConfirm<S extends string, X>(state: WizardState<S, X>): boolean {
   return state.issued !== null && !state.copied
 }
@@ -108,7 +110,7 @@ export function wizardReducer<S extends string, X>(
     case "keepOpen":
       return { ...state, confirmingClose: false }
     case "reset":
-      // Closing: the secret and everything built from it are dropped here.
+      // Leaving: the secret and everything built from it are dropped here.
       return initialWizard<S, X>(action.scopes)
   }
 }

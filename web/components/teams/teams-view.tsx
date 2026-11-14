@@ -25,6 +25,8 @@ import {
 } from "@/lib/site-db"
 import { canRemovePerson } from "@/lib/remove-person"
 import { RemovePersonDialog } from "@/components/teams/remove-person-dialog"
+import { ArchiveTeamButton, ArchivedTeams } from "@/components/teams/team-lifecycle"
+import { splitTeams } from "@/lib/team-lifecycle"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { agentCountLabel } from "@/lib/agent-label"
@@ -127,10 +129,11 @@ export function TeamsView() {
 
   const isAdmin = account?.admin === true
   const agents = store.boardAgents.filter((agent) => !agent.revoked)
-  // Your own team first, then alphabetical.
-  const teams = [...(site?.teams ?? [])].sort(
+  // Your own team first, then alphabetical. Archived teams (NSB-73) get their own section.
+  const sorted = [...(site?.teams ?? [])].sort(
     (a, b) => Number(b.name === account?.team) - Number(a.name === account?.team) || a.name.localeCompare(b.name)
   )
+  const { active: teams, archived } = splitTeams(sorted)
   const unassigned = (site?.people ?? []).filter((person) => teamsOf(person).length === 0)
   // Org admins only, never yourself or the last admin. The board enforces it too.
   const removable = (person: Person) => canRemovePerson(person, site?.people ?? [], account?._id, isAdmin)
@@ -164,6 +167,8 @@ export function TeamsView() {
               people={site.people}
               agents={agents}
               canManage={isAdmin || team.managers.includes(account?._id ?? "")}
+              // Archiving needs organizations (a team id); org admins only.
+              canArchive={isAdmin && Boolean(team.team_id)}
               canRemove={removable}
               onRemove={setRemoving}
               onChanged={refresh}
@@ -212,6 +217,14 @@ export function TeamsView() {
           )}
         </div>
       )}
+      {site !== null && (
+        <ArchivedTeams
+          teams={archived}
+          memberCount={(team) => site.people.filter((person) => teamsOf(person).includes(team.name)).length}
+          canAdmin={isAdmin}
+          onChanged={refresh}
+        />
+      )}
       <RemovePersonDialog
         person={removing}
         onOpenChange={(open) => {
@@ -228,6 +241,7 @@ function TeamCard({
   people,
   agents,
   canManage,
+  canArchive,
   canRemove,
   onRemove,
   onChanged,
@@ -236,6 +250,7 @@ function TeamCard({
   people: Person[]
   agents: Agent[]
   canManage: boolean
+  canArchive: boolean
   canRemove: (person: Person) => boolean
   onRemove: (person: Person) => void
   onChanged: () => void
@@ -315,37 +330,40 @@ function TeamCard({
           </ul>
         )}
       </CardContent>
-      {canManage && (
-        <CardFooter>
-          <SearchCombobox
-            label="Add people"
-            searchPlaceholder="Search people…"
-            emptyText="No one else to add."
-            trigger={
-              <Button variant="outline">
-                <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
-                Add people
-              </Button>
-            }
-            groups={[
-              {
-                items: others.map((person) => ({
-                  value: person._id,
-                  keywords: [person.name, person.auth_username, ...teamsOf(person)],
-                  label: (
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{person.name}</span>
-                      <span className="truncate text-xs text-muted-foreground">
-                        {teamsOf(person).length ? `Also on ${teamsOf(person).join(", ")}` : "Not on a team"}
+      {(canManage || canArchive) && (
+        <CardFooter className="flex flex-wrap gap-2">
+          {canManage && (
+            <SearchCombobox
+              label="Add people"
+              searchPlaceholder="Search people…"
+              emptyText="No one else to add."
+              trigger={
+                <Button variant="outline">
+                  <UserPlusIcon data-icon="inline-start" aria-hidden="true" />
+                  Add people
+                </Button>
+              }
+              groups={[
+                {
+                  items: others.map((person) => ({
+                    value: person._id,
+                    keywords: [person.name, person.auth_username, ...teamsOf(person)],
+                    label: (
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate">{person.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {teamsOf(person).length ? `Also on ${teamsOf(person).join(", ")}` : "Not on a team"}
+                        </span>
                       </span>
-                    </span>
-                  ),
-                  onSelect: () =>
-                    void change(() => addTeamMember(team.name, person._id), `Added ${person.name} to ${team.name}`, onChanged),
-                })),
-              },
-            ]}
-          />
+                    ),
+                    onSelect: () =>
+                      void change(() => addTeamMember(team.name, person._id), `Added ${person.name} to ${team.name}`, onChanged),
+                  })),
+                },
+              ]}
+            />
+          )}
+          {canArchive && <ArchiveTeamButton team={team} onArchived={onChanged} />}
         </CardFooter>
       )}
     </Card>

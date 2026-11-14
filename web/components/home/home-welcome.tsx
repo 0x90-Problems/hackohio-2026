@@ -58,7 +58,7 @@ export function HomeWelcome() {
             variant="outline"
             className="border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white"
           >
-            <Link href="/agents">Connect an agent</Link>
+            <Link href="/agents/connect?from=%2F">Connect an agent</Link>
           </Button>
         </div>
       </div>
