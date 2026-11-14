@@ -8,6 +8,7 @@ import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { ChannelSearch } from "@/components/chat/channel-search"
 import { AttachButton, ComposerDrafts, MessageAttachments, useComposerFiles } from "@/components/chat/chat-files"
+import { uploadToChannel } from "@/lib/chat-files"
 import {
   ArchiveIcon,
   ChevronLeftIcon,
@@ -905,9 +906,12 @@ function Composer({
   const key = useRef(newKey())
   const box = useRef<HTMLTextAreaElement>(null)
   // Different files make a different message, so a retry key from before no longer applies.
-  const files = useComposerFiles(channel.id, useCallback(() => {
-    key.current = newKey()
-  }, []))
+  const files = useComposerFiles(
+    useCallback((file: File, onStatus: (status: string) => void) => uploadToChannel(channel.id, file, onStatus), [channel.id]),
+    useCallback(() => {
+      key.current = newKey()
+    }, [])
+  )
   const canSend = (Boolean(text.trim()) || files.ready.length > 0) && !files.busy && !sending
 
   // @ autocomplete: people and agents on the team. Inserted as @<id>; shown as names.

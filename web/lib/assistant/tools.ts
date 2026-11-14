@@ -42,7 +42,7 @@ export type AssistantStore = {
     actor: Actor
   ) => Promise<string>
   moveTicket: (ticketKey: string, to: string, actor: Actor) => void
-  comment: (ticketKey: string, body: string, actor: Actor) => void
+  comment: (ticketKey: string, body: string, options: { actor: Actor }) => void
 }
 
 export type ToolContext = {
@@ -298,7 +298,7 @@ export async function runTool(
       store.comment(
         ticket.key,
         args.body.trim().slice(0, 2000),
-        assistantActor(ctx)
+        { actor: assistantActor(ctx) }
       )
       return {
         result: { commented: ticket.key },
