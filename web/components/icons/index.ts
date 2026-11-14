@@ -22,6 +22,7 @@ export {
   Activity as ActivityIcon,
   Archive as ArchiveIcon,
   AlertTriangle as AlertTriangleIcon,
+  ArrowLeft as ArrowLeftIcon,
   ArrowRight as ArrowRightIcon,
   ArrowUp as ArrowUpIcon,
   BookOpen as BookOpenIcon,

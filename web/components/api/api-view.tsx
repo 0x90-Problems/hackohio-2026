@@ -36,7 +36,7 @@ import { maskToken } from "@/lib/tokens"
 import { cn } from "@/lib/utils"
 import { HumanAvatar } from "@/components/actor-badge"
 import { ScopeBadge } from "@/components/scope-badge"
-import { CreateKeyWizard } from "@/components/api/create-key-wizard"
+import { withReturn } from "@/lib/return-path"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -107,8 +107,6 @@ export function ApiView() {
   const account = useAuthUser()
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
-  const [newKeyName, setNewKeyName] = useState<string>()
-  const [expiryHours, setExpiryHours] = useState(DEFAULT_TOKEN_EXPIRY_HOURS)
   const baseUrl = boardApiPublicUrl()
 
   useEffect(() => {
@@ -123,7 +121,6 @@ export function ApiView() {
     Promise.all([loadSite(), listBoardAgents().catch(() => [])])
       .then(([site, live]) => {
         if (cancelled) return
-        if (site.organization?.token_expiry_hours) setExpiryHours(site.organization.token_expiry_hours)
         // Saved keys never update last_used_at; the board API knows the real last use and expiry.
         // Only API-key agents count: an MCP agent lives on the Agents page.
         const apiKeyAgents = onlyConnection(live, AGENT_CONNECTION.API_KEY, AGENT_CONNECTION.MCP)
@@ -297,10 +294,7 @@ export function ApiView() {
                 return (
                   <li
                     key={(key.id ?? key.token_prefix) + key.name}
-                    className={cn(
-                      "flex flex-col gap-1.5 rounded-lg border p-3",
-                      key.name === newKeyName && "duration-300 animate-in fade-in slide-in-from-top-2"
-                    )}
+                    className="flex flex-col gap-1.5 rounded-lg border p-3"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
@@ -343,15 +337,13 @@ export function ApiView() {
             </ul>
           </CardContent>
           <CardFooter className="flex flex-col items-stretch gap-2">
-            <CreateKeyWizard
-              baseUrl={baseUrl}
-              expiryHours={expiryHours}
-              onCreate={(key) => {
-                // The board API already stored it; don't save it again.
-                setKeys((current) => [key, ...current])
-                setNewKeyName(key.name)
-              }}
-            />
+            {/* A page of its own (NSB-68): room for the key and examples, and Back returns here. */}
+            <Button className="w-full" asChild>
+              <Link href={withReturn("/api/keys/new", "/api")}>
+                <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
+                Create API key
+              </Link>
+            </Button>
             <CleanupInactiveButton
               connection={AGENT_CONNECTION.API_KEY}
               missing={AGENT_CONNECTION.MCP}

@@ -7,23 +7,19 @@ import {
   BotIcon,
   ClockIcon,
   CopyIcon,
+  KeyRoundIcon,
   ShieldOffIcon,
   WifiOffIcon,
 } from "@/components/icons"
 import { toast } from "sonner"
 
-import {
-  ACTOR_TYPES,
-  AGENT_CONNECTION,
-  DEFAULT_TOKEN_EXPIRY_HOURS,
-} from "@/shared/names"
+import { ACTOR_TYPES, AGENT_CONNECTION } from "@/shared/names"
 import type { Agent } from "@/lib/types"
 import { getUser } from "@/lib/mock-data"
 import { agentAccess, type AgentUsage } from "@/lib/agent-usage"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { CleanupInactiveButton, DeleteAgentDialog } from "@/components/agents/delete-agent"
-import { ConnectAgentWizard } from "@/components/agents/connect-agent-wizard"
-import { loadSite } from "@/lib/site-db"
+import { withReturn } from "@/lib/return-path"
 import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
 import { canDeleteAgent } from "@/lib/delete-agent"
@@ -71,22 +67,11 @@ const TOOL_COUNT = TOOL_AREAS.reduce((total, area) => total + area.tools.length,
 export function AgentsView() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [people, setPeople] = useState<{ _id: string; name: string }[]>([])
-  const [newIds, setNewIds] = useState<Set<string>>(new Set())
   // Last use and expiry per agent, derived by the board API from all of its tokens.
   const [usage, setUsage] = useState<Map<string, AgentUsage>>(new Map())
-  // The organization's token expiry, shown in the Connect agent wizard.
-  const [expiryHours, setExpiryHours] = useState(DEFAULT_TOKEN_EXPIRY_HOURS)
 
   useEffect(() => {
     let cancelled = false
-    loadSite()
-      .then((site) => {
-        const hours = site.organization?.token_expiry_hours
-        if (!cancelled && hours) setExpiryHours(hours)
-      })
-      .catch(() => {
-        // Keeps the default expiry.
-      })
     listBoardUsers()
       .then((users) => {
         if (!cancelled) setPeople(users)
@@ -141,12 +126,6 @@ export function AgentsView() {
     setAgents((current) => current.filter((agent) => !gone.has(agent._id)))
   }
 
-  function connect(agent: Agent) {
-    setAgents((current) => [agent, ...current])
-    setNewIds((ids) => new Set(ids).add(agent._id))
-    saveAgent(agent)
-  }
-
   return (
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -171,7 +150,13 @@ export function AgentsView() {
             words={{ one: "agent", many: "agents", otherOne: "API key", otherMany: "API keys", otherPage: "API page" }}
             onDeleted={forget}
           />
-          <ConnectAgentWizard expiryHours={expiryHours} onConnect={connect} />
+          {/* A page of its own (NSB-68): room for the token and config, and Back returns here. */}
+          <Button asChild>
+            <Link href={withReturn("/agents/connect", "/agents")}>
+              <KeyRoundIcon data-icon="inline-start" aria-hidden="true" />
+              Connect agent
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -198,7 +183,6 @@ export function AgentsView() {
                   <AgentRow
                     key={agent._id}
                     agent={agent}
-                    isNew={newIds.has(agent._id)}
                     people={people}
                     usage={usage.get(agent._id)}
                     onRevoke={revoke}
@@ -218,14 +202,12 @@ export function AgentsView() {
 
 function AgentRow({
   agent,
-  isNew,
   people,
   usage,
   onRevoke,
   onDeleted,
 }: {
   agent: Agent
-  isNew: boolean
   people: { _id: string; name: string }[]
   usage?: AgentUsage
   onRevoke: (agent: Agent) => void
@@ -242,12 +224,7 @@ function AgentRow({
   const inactive = access !== "active"
   const deletable = canDeleteAgent(agent.owner_id, account?._id, account?.admin === true)
   return (
-    <TableRow
-      className={cn(
-        inactive && "text-muted-foreground",
-        isNew && "duration-300 animate-in fade-in slide-in-from-top-2"
-      )}
-    >
+    <TableRow className={cn(inactive && "text-muted-foreground")}>
       <TableCell className="pl-4">
         <div className={cn("flex flex-col gap-1", inactive && "opacity-60")}>
           <ActorBadge
