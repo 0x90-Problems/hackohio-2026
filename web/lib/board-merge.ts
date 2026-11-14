@@ -100,6 +100,14 @@ function unionCommits(left: Ticket["linked_commits"], right: Ticket["linked_comm
   return next
 }
 
+function approvalRequestFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): Ticket["approval_request"] {
+  const request = record(value)
+  const by = asActor(request?.by)
+  const to = text(request?.to)
+  if (!request || !by || !to) return undefined
+  return { by: withName(by, users, agents), at: new Date(iso(request.at)), from: text(request.from) ?? "", to }
+}
+
 function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): Ticket | undefined {
   const ticket = record(value)
   const key = text(ticket?.key)
@@ -109,6 +117,8 @@ function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): T
   const tags = Array.isArray(ticket.tags) ? ticket.tags.filter((tag): tag is string => typeof tag === "string") : undefined
   const label = text(ticket.label)
   const fields = stringFields(ticket.fields)
+  const request = approvalRequestFrom(ticket.approval_request, users, agents)
+  const approvedBy = asActor(ticket.approved_by)
   return {
     key,
     project_key: text(ticket.project_key) ?? key.split("-")[0] ?? "",
@@ -124,8 +134,15 @@ function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): T
     ...(text(ticket.description) ? { description: text(ticket.description) } : {}),
     ...(text(ticket.card_color) ? { card_color: text(ticket.card_color) as Ticket["card_color"] } : {}),
     ...(fields ? { fields } : {}),
+    ...(request ? { approval_request: request } : {}),
+    ...(approvedBy ? { approved_by: withName(approvedBy, users, agents), approved_at: new Date(iso(ticket.approved_at)) } : {}),
     created_at: new Date(iso(ticket.created_at)),
   }
+}
+
+/** One ticket from a board API reply (approve, send back), in the board's shape. */
+export function ticketFromApi(value: unknown): Ticket | undefined {
+  return ticketFrom(value, [], [])
 }
 
 function commentFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): Comment | undefined {
@@ -151,7 +168,7 @@ function eventFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): Ev
   const actor = asActor(event?.actor)
   if (!event || !action || !ticketKey || !actor) return undefined
   const details = record(event.details)
-  const detailKeys = new Set(["from", "to", "body", "sha", "title", "status"])
+  const detailKeys = new Set(["from", "to", "body", "sha", "title", "status", "requested_by"])
   const cleanDetails = details
     ? Object.fromEntries(
         Object.entries(details).filter((entry): entry is [string, string] => detailKeys.has(entry[0]) && typeof entry[1] === "string"),
@@ -204,6 +221,7 @@ function projectFrom(value: unknown, team: string, users: NamedUser[], agents: N
     created_by: withName(createdBy, users, agents),
     created_at: new Date(iso(project.created_at, "now")),
     ...(project.archived === true ? { archived: true } : {}),
+    ...(project.approval === "off" || project.approval === "agents" || project.approval === "everyone" ? { approval: project.approval } : {}),
   }
 }
 

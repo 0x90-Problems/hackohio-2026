@@ -52,6 +52,11 @@ export function TicketCard({
       >
         <div className="flex items-center justify-between gap-2 font-mono text-xs text-muted-foreground">
           <span>{ticket.key}</span>
+          {ticket.approval_request && (
+            <Badge variant="outline" className="border-dashed font-sans font-normal">
+              Waiting for approval
+            </Badge>
+          )}
         </div>
         <p className="text-sm leading-snug font-semibold">{ticket.title}</p>
         {!!ticket.tags?.length && (

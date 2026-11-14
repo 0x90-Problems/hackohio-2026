@@ -5,6 +5,7 @@ import type {
   CategoryColor,
   ProjectTemplate,
   AgentConnection,
+  ApprovalMode,
   EventAction,
   Scope,
 } from "@/shared/names"
@@ -78,6 +79,8 @@ export type Project = {
   created_by: Actor
   created_at: Date
   archived?: boolean
+  // Who needs a person's approval to close a ticket. The board always fills it in.
+  approval?: ApprovalMode
 }
 
 // A board column. Tickets point at one through `status` (the category slug).
@@ -106,11 +109,24 @@ export type Ticket = {
   card_color?: CategoryColor
   // Values for the project's table fields. Missing keys render as empty cells.
   fields?: Record<string, string>
+  // Set while a move to done waits for a person to approve it; the ticket stays in its column.
+  approval_request?: ApprovalRequest
+  // Who approved the last close, and when. Cleared when the ticket leaves done.
+  approved_by?: Actor
+  approved_at?: Date
   created_at: Date
 }
 
 /** A Folders file on a comment, pinned to a version (the same shape chat messages use). */
 export type CommentAttachment = { file_id: string; version: number }
+
+export type ApprovalRequest = {
+  by: Actor
+  at: Date
+  // The column it was in when asked, and the one asked for
+  from: string
+  to: string
+}
 
 export type Comment = {
   ticket_key: string

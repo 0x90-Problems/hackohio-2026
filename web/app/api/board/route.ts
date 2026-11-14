@@ -28,6 +28,8 @@ export async function POST(request: Request) {
     key?: string
     team?: string
     archived?: boolean
+    approval?: string
+    reason?: string
     columns?: { slug: string; name: string; color: string }[]
     moveTicketsTo?: string
     projectKey?: string
@@ -85,6 +87,15 @@ export async function POST(request: Request) {
   }
   if (body.kind === "projectArchived" && body.key && typeof body.archived === "boolean") {
     return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { archived: body.archived })
+  }
+  if (body.kind === "projectApproval" && body.key && body.approval) {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { approval: body.approval })
+  }
+  if (body.kind === "approve" && body.key) {
+    return forward(`/tickets/${encodeURIComponent(body.key)}/approve`, "POST", {})
+  }
+  if (body.kind === "sendBack" && body.key) {
+    return forward(`/tickets/${encodeURIComponent(body.key)}/send-back`, "POST", body.reason ? { reason: body.reason } : {})
   }
   if (body.kind === "projectColumns" && body.key && body.columns) {
     return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", {

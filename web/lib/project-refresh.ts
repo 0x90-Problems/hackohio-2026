@@ -18,12 +18,15 @@ function refreshedProject(local: Project, remote: Project): Project {
     local.team === remote.team &&
     Boolean(local.unassigned) === Boolean(remote.unassigned) &&
     Boolean(local.archived) === Boolean(remote.archived) &&
+    local.approval === remote.approval &&
     columnsOf(local) === columnsOf(remote)
   if (same) return local
   const next: Project = { ...local, name: remote.name, team: remote.team, categories: remote.categories }
   delete next.description
   delete next.unassigned
   delete next.archived
+  delete next.approval
+  if (remote.approval) next.approval = remote.approval
   if (remote.description) next.description = remote.description
   if (remote.unassigned) next.unassigned = true
   if (remote.archived) next.archived = true

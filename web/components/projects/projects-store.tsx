@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
 
-import { ACTOR_TYPES, EVENT_ACTIONS } from "@/shared/names"
+import { ACTOR_TYPES, APPROVAL_MODES, EVENT_ACTIONS, TICKET_STATUS, type ApprovalMode } from "@/shared/names"
 import type {
   Actor,
   Agent,
@@ -20,7 +20,23 @@ import {
   CURRENT_USER_ID,
   projectKeyOf,
 } from "@/lib/mock-data"
-import { loadBoard, removeProject, removeTicketRecord, saveComment, saveEvent, saveProject, saveProjectArchived, saveProjectColumns, saveProjectTeam, saveTicket, saveTicketQuiet } from "@/lib/board-db"
+import {
+  approveTicketRecord,
+  loadBoard,
+  removeProject,
+  removeTicketRecord,
+  saveComment,
+  saveEvent,
+  saveProject,
+  saveProjectApproval,
+  saveProjectArchived,
+  saveProjectColumns,
+  saveProjectTeam,
+  saveTicket,
+  saveTicketQuiet,
+  saveTicketStatus,
+  sendBackTicketRecord,
+} from "@/lib/board-db"
 import { readSession } from "@/lib/board-auth"
 import { boardContextHeaders } from "@/lib/team-choice"
 import { readStorage } from "@/lib/local-store"
@@ -57,6 +73,28 @@ function reportDescriptionSave(error: unknown) {
 }
 
 const BOARD_KEY = "buck2.board"
+
+// A waiting close and its approval, as one comparable string (refresh only redraws on a change).
+function approvalStamp(ticket: Ticket) {
+  const request = ticket.approval_request
+  return [
+    request ? `${request.by.id}:${request.at.getTime()}:${request.to}` : "",
+    ticket.approved_by?.id ?? "",
+    ticket.approved_at?.getTime() ?? "",
+  ].join("|")
+}
+
+// The ticket with the board's approval fields (waiting close, who approved) in place of its own.
+function withApprovalOf(ticket: Ticket, source: Ticket): Ticket {
+  const next = { ...ticket }
+  delete next.approval_request
+  delete next.approved_by
+  delete next.approved_at
+  if (source.approval_request) next.approval_request = source.approval_request
+  if (source.approved_by) next.approved_by = source.approved_by
+  if (source.approved_at) next.approved_at = source.approved_at
+  return next
+}
 
 // Older saved projects stored the template id and dropped layout and fields.
 function withTemplateShape(project: Project): Project {
@@ -233,10 +271,11 @@ function useProjectsState() {
               incoming.status === ticket.status &&
               incoming.title === ticket.title &&
               linked.length === (ticket.linked_commits?.length ?? 0) &&
-              createdBy === ticket.created_by
+              createdBy === ticket.created_by &&
+              approvalStamp(incoming) === approvalStamp(ticket)
             if (same) return ticket
             changed = true
-            return { ...ticket, title: incoming.title, status: incoming.status, linked_commits: linked, created_by: createdBy }
+            return withApprovalOf({ ...ticket, title: incoming.title, status: incoming.status, linked_commits: linked, created_by: createdBy }, incoming)
           })
           for (const incoming of remote.tickets) {
             if (gone.current.has(incoming.key) || known.has(incoming.key)) continue
@@ -349,7 +388,91 @@ function useProjectsState() {
       )
     )
     const updated = ticketsRef.current.find((ticket) => ticket.key === ticketKey)
-    if (updated) saveTicket(updated)
+    if (updated) void saveTicketStatus(updated).then((saved) => keepBoardCopy(saved, status), reportSave)
+  }
+
+  // After a move: the board may have held a close for approval instead of making it.
+  function keepBoardCopy(saved: Ticket, asked: string) {
+    setTickets((current) =>
+      current.map((ticket) => (ticket.key === saved.key ? withApprovalOf({ ...ticket, status: saved.status }, saved) : ticket))
+    )
+    if (saved.status !== asked && saved.approval_request?.to === asked) {
+      toast(`${saved.key} is waiting for approval`, {
+        description: "This project wants another member to approve each close.",
+      })
+    }
+  }
+
+  function reportSave(error: unknown) {
+    toast.error("Couldn't save to the database", {
+      description: error instanceof Error ? error.message : undefined,
+    })
+  }
+
+  // A close in a project where everyone needs approval: ask instead of moving.
+  function askToClose(ticket: Ticket, to: string, actor: Actor) {
+    if (ticket.approval_request?.to === to) {
+      toast(`${ticket.key} is already waiting for approval`)
+      return
+    }
+    const asked = { by: actor, at: now(), from: ticket.status, to }
+    setTickets((current) => current.map((item) => (item.key === ticket.key ? { ...item, approval_request: asked } : item)))
+    addEvent({
+      action: EVENT_ACTIONS.APPROVAL_REQUESTED,
+      ticket_key: ticket.key,
+      actor,
+      details: { from: ticket.status, to },
+      created_at: asked.at,
+    })
+    void saveTicketStatus({ ...ticket, status: to }).then((saved) => keepBoardCopy(saved, to), reportSave)
+  }
+
+  // Approve a waiting close. Throws with the board's message, so the modal can show it.
+  async function approveClose(ticketKey: string) {
+    const saved = await approveTicketRecord(ticketKey)
+    setTickets((current) =>
+      current.map((ticket) => (ticket.key === ticketKey ? withApprovalOf({ ...ticket, status: saved.status }, saved) : ticket))
+    )
+    addEvent({
+      action: EVENT_ACTIONS.TICKET_APPROVED,
+      ticket_key: ticketKey,
+      actor: me,
+      details: { to: saved.status },
+      created_at: now(),
+    })
+    toast.success(`Approved ${ticketKey}`, {
+      description: `Moved to ${categoryName(saved.status, categoriesOfTicket(ticketKey))}`,
+    })
+  }
+
+  // Send a waiting close back (or withdraw your own). The ticket stays where it is.
+  async function sendBackClose(ticketKey: string, reason: string) {
+    const saved = await sendBackTicketRecord(ticketKey, reason)
+    setTickets((current) =>
+      current.map((ticket) => (ticket.key === ticketKey ? withApprovalOf({ ...ticket, status: saved.status }, saved) : ticket))
+    )
+    addEvent({
+      action: EVENT_ACTIONS.APPROVAL_SENT_BACK,
+      ticket_key: ticketKey,
+      actor: me,
+      ...(reason ? { details: { body: reason } } : {}),
+      created_at: now(),
+    })
+    toast.success(`Sent ${ticketKey} back`)
+  }
+
+  async function setProjectApproval(key: string, approval: ApprovalMode) {
+    const project = projects.find((item) => item.key === key)
+    if (!project || project.approval === approval) return
+    const setApproval = (value: ApprovalMode | undefined) =>
+      setProjects((current) => current.map((item) => (item.key === key ? { ...item, approval: value } : item)))
+    setApproval(approval)
+    try {
+      await trackedProjectSave(() => saveProjectApproval(key, approval))
+    } catch (error) {
+      setApproval(project.approval)
+      throw error
+    }
   }
 
   // Every tag used on a project's tickets, plus its template's starter tags
@@ -536,6 +659,11 @@ function useProjectsState() {
   function moveTicket(ticketKey: string, to: string, actor: Actor = me) {
     const ticket = ticketsRef.current.find((t) => t.key === ticketKey)
     if (!ticket || ticket.status === to) return
+    const approval = projects.find((project) => project.key === projectKeyOf(ticketKey))?.approval
+    if (to === TICKET_STATUS.DONE && approval === APPROVAL_MODES.EVERYONE) {
+      askToClose(ticket, to, actor)
+      return
+    }
     setStatus(ticketKey, to)
     addEvent({
       action: EVENT_ACTIONS.TICKET_MOVED,
@@ -874,6 +1002,7 @@ function useProjectsState() {
     tagsOf,
     createProject,
     archiveProject,
+    setProjectApproval,
     moveProject,
     deleteProject,
     createTicket,
@@ -885,6 +1014,8 @@ function useProjectsState() {
     setStartDate,
     setTicketDates,
     setReviewer,
+    approveClose,
+    sendBackClose,
     deleteTicket: removeTicket,
     createCategory,
     updateCategory,

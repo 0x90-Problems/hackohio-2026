@@ -21,6 +21,12 @@ function actionWord(action: Event["action"]): string {
       return "deleted"
     case EVENT_ACTIONS.COMMIT_LINKED:
       return "linked"
+    case EVENT_ACTIONS.APPROVAL_REQUESTED:
+      return "asked to close"
+    case EVENT_ACTIONS.TICKET_APPROVED:
+      return "approved"
+    case EVENT_ACTIONS.APPROVAL_SENT_BACK:
+      return "sent back"
     default:
       return "changed"
   }
