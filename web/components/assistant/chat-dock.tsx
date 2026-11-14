@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_PROJECT_KEY } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { cn } from "@/lib/utils"
+import { looksLikeMarkdown } from "@/lib/markdown-text"
 import { ASSISTANT_SUGGESTIONS, offlineReply } from "@/lib/assistant/offline"
 import {
   runTool,
@@ -33,6 +34,27 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+
+// The dock is on every page, so the markdown renderer (the Documents editor, read-only) loads
+// only once the assistant has replied. Until then, and for plain replies, the text shows as is.
+type MarkdownViewType = typeof import("@/components/markdown-view").MarkdownView
+let markdownView: Promise<MarkdownViewType> | null = null
+
+function AssistantText({ text }: { text: string }) {
+  const [View, setView] = useState<MarkdownViewType | null>(null)
+  const wanted = looksLikeMarkdown(text)
+  useEffect(() => {
+    if (!wanted || View) return
+    let live = true
+    markdownView ??= import("@/components/markdown-view").then((module) => module.MarkdownView)
+    markdownView.then((loaded) => live && setView(() => loaded)).catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [wanted, View])
+  if (!wanted || !View) return <p className="break-words whitespace-pre-wrap">{text}</p>
+  return <View markdown={text} compact lineBreaks />
+}
 
 type ChatMessage = {
   id: number
@@ -316,19 +338,24 @@ export function ChatDock() {
                       m.role === "user" ? "items-end" : "items-start"
                     )}
                   >
-                    {(m.text || m.role === "user") && (
-                      <p
-                        className={cn(
-                          "max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
-                          m.role === "user"
-                            ? "bg-foreground text-background"
-                            : "border border-dashed border-muted-foreground/50 bg-muted/60",
-                          m.error && "border-destructive/50 text-destructive"
-                        )}
-                      >
-                        {m.text}
-                      </p>
-                    )}
+                    {(m.text || m.role === "user") &&
+                      (m.role === "assistant" && !m.error ? (
+                        <div className="max-w-[85%] min-w-0 rounded-2xl border border-dashed border-muted-foreground/50 bg-muted/60 px-3 py-2 text-sm">
+                          <AssistantText text={m.text} />
+                        </div>
+                      ) : (
+                        <p
+                          className={cn(
+                            "max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
+                            m.role === "user"
+                              ? "bg-foreground text-background"
+                              : "border border-dashed border-muted-foreground/50 bg-muted/60",
+                            m.error && "border-destructive/50 text-destructive"
+                          )}
+                        >
+                          {m.text}
+                        </p>
+                      ))}
                     {m.role === "assistant" &&
                       !m.text &&
                       m.actions.length === 0 &&

@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 
 import { SearchIcon } from "@/components/icons"
+import { PreviewTokens } from "@/components/markdown-preview"
+import { highlightTokens, previewTokens } from "@/lib/markdown-preview"
+import { looksLikeMarkdown } from "@/lib/markdown-text"
 import { SearchCombobox } from "@/components/search-combobox"
 import { Button } from "@/components/ui/button"
 import { type ChatMessage, ChatError, chatApi } from "@/lib/chat-api"
@@ -13,9 +16,12 @@ const SNIPPET = 90
 
 type Found = { query: string; results: ChatMessage[]; next: string | null; backTo: string | null; error: string }
 
-// Part of the text around the first match, with the match picked out. Text only: a message
-// body is untrusted and is never treated as markup.
+// Part of the text around the first match, with the match picked out. Markdown is shown with its
+// marks (never as HTML: a message body is untrusted); when the match is inside the markup itself,
+// such as a link address, the raw text is shown instead so the match is still visible.
 function Snippet({ text, query }: { text: string; query: string }) {
+  const marked = looksLikeMarkdown(text) ? highlightTokens(previewTokens(text, text.length), query, SNIPPET) : null
+  if (marked) return <PreviewTokens tokens={marked} />
   const at = text.toLowerCase().indexOf(query.trim().toLowerCase())
   if (at < 0) return <>{text.slice(0, SNIPPET)}</>
   const start = Math.max(0, at - 30)
