@@ -23,6 +23,7 @@ export {
   Archive as ArchiveIcon,
   ArchiveRestore as ArchiveRestoreIcon,
   AlertTriangle as AlertTriangleIcon,
+  ArrowLeft as ArrowLeftIcon,
   ArrowRight as ArrowRightIcon,
   ArrowUp as ArrowUpIcon,
   BookOpen as BookOpenIcon,

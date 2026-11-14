@@ -78,6 +78,11 @@ export function orderScopes(scopes: readonly Scope[]): Scope[] {
   return SCOPE_OPTIONS.map((o) => o.scope).filter((s) => scopes.includes(s))
 }
 
+/** A scope's plain-English name, or the scope itself when it isn't one the wizard offers. */
+export function scopeLabel(scope: Scope): string {
+  return SCOPE_OPTIONS.find((o) => o.scope === scope)?.label ?? scope
+}
+
 /** The preset that is exactly this selection, if any. */
 export function matchingPreset(scopes: readonly Scope[]): ScopePresetId | null {
   const chosen = orderScopes(scopes)

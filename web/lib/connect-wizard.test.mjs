@@ -7,7 +7,10 @@ import {
   LAST_STEP,
   NAME_STEP,
   SCOPES_STEP,
+  SUMMARY_STEP,
   TOKEN_STEP,
+  USE_STEP,
+  WIZARD_STEPS,
   canAdvance,
   canGoBack,
   closeNeedsConfirm,
@@ -30,7 +33,7 @@ export async function resolve(specifier, context, next) {
   return next(specifier, context)
 }`),
 )
-const { SCOPE_OPTIONS, SCOPE_PRESETS, matchingPreset, orderScopes, scopeGroups } = await import("./tokens.ts")
+const { SCOPE_OPTIONS, SCOPE_PRESETS, matchingPreset, orderScopes, scopeGroups, scopeLabel } = await import("./tokens.ts")
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8")
 const preset = (id) => SCOPE_PRESETS.find((p) => p.id === id).scopes
@@ -126,10 +129,17 @@ test("steps: Next needs a scope, the name step waits for the token, Back stops a
   state = run(state, { type: "toggleScope", scope: SCOPES.CHAT_WRITE, on: true }, { type: "setName", name: "x" })
   assert.deepEqual(state.scopes, [SCOPES.TICKETS_READ], "issued tokens are locked")
   state = run(state, { type: "next" })
-  assert.equal(state.step, LAST_STEP)
-  state = run(state, { type: "back" })
+  assert.equal(state.step, USE_STEP)
+  state = run(state, { type: "next" })
+  assert.equal(state.step, SUMMARY_STEP)
+  assert.equal(SUMMARY_STEP, LAST_STEP, "the summary is the last step")
+  assert.equal(WIZARD_STEPS, 5)
+  assert.equal(canAdvance(state), false, "nothing after the summary")
+  assert.equal(run(state, { type: "next" }).step, SUMMARY_STEP)
+  state = run(state, { type: "back" }, { type: "back" })
   assert.equal(state.step, TOKEN_STEP)
-  assert.equal(state.issued.secret, "secret-value", "back within the modal still shows it")
+  assert.equal(canGoBack(state), false, "back stops at the token")
+  assert.equal(state.issued.secret, "secret-value", "back within the page still shows it")
 })
 
 test("closing clears the token and everything built from it", () => {
@@ -147,12 +157,16 @@ test("closing clears the token and everything built from it", () => {
   assert.equal(state.copied, false)
   assert.doesNotMatch(JSON.stringify(state), /secret-value/)
 
-  // The component drops it on every close path (Esc, X, outside click, Done).
+  // The page drops it on every way out ("Back to …" and Done both go through close()).
   const source = read("../components/connect/token-wizard.tsx")
   const close = /function close\(\) \{([\s\S]*?)\n  \}/.exec(source)
   assert.ok(close, "token-wizard.tsx has close()")
-  assert.match(close[1], /setOpen\(false\)/)
   assert.match(close[1], /dispatch\(\{ type: "reset"/)
+  assert.match(close[1], /router\.push\(returnTo\)/)
+  // Reloading or closing the tab with an uncopied secret on screen warns first.
+  assert.match(source, /addEventListener\("beforeunload"/)
+  // It is a page now, not a narrow modal.
+  assert.doesNotMatch(source, /@\/components\/ui\/dialog/)
 })
 
 test("closing with an uncopied token asks first; once copied it closes", () => {
@@ -190,12 +204,29 @@ test("test calls read the secret from an env var, never inline", () => {
 test("the API key wizard has no MCP content and both wizards share one component", () => {
   const key = read("../components/api/create-key-wizard.tsx")
   const agent = read("../components/agents/connect-agent-wizard.tsx")
-  for (const source of [key, agent]) assert.match(source, /<TokenWizard</)
+  for (const source of [key, agent]) {
+    assert.match(source, /<TokenWizard</)
+    assert.match(source, /renderSummary=/, "both end on a summary")
+  }
   assert.doesNotMatch(key, /mcp-install|McpInstallActions|MCP gateway|mcpTestCall/)
-  assert.match(key, /\["What it may do", "Name and expiry", "Key", "Use it"\]/)
-  assert.match(agent, /\["What it may do", "Name", "Token", "Install"\]/)
+  assert.match(key, /\["What it may do", "Name and expiry", "Key", "Use it", "Summary"\]/)
+  assert.match(agent, /\["What it may do", "Name", "Token", "Install", "Summary"\]/)
   assert.match(agent, /McpInstallActions/)
   // The old inline forms are gone.
   assert.doesNotMatch(read("../components/agents/agents-view.tsx"), /function ConnectAgentCard/)
   assert.doesNotMatch(read("../components/api/api-view.tsx"), /function CreateKeyDialog/)
+})
+
+test("the entry points open the pages and come back where they started", () => {
+  const agents = read("../components/agents/agents-view.tsx")
+  const api = read("../components/api/api-view.tsx")
+  assert.match(agents, /withReturn\("\/agents\/connect", "\/agents"\)/)
+  assert.match(api, /withReturn\("\/api\/keys\/new", "\/api"\)/)
+  assert.match(read("../app/agents/connect/page.tsx"), /safeReturnPath\(typeof from === "string" \? from : null, "\/agents"\)/)
+  assert.match(read("../app/api/keys/new/page.tsx"), /safeReturnPath\(typeof from === "string" \? from : null, "\/api"\)/)
+})
+
+test("scope labels read as plain words, and unknown scopes show as themselves", () => {
+  assert.equal(scopeLabel(SCOPES.TICKETS_READ), "Read tickets")
+  assert.equal(scopeLabel("made:up"), "made:up")
 })

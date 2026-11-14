@@ -15,7 +15,7 @@ const COLUMNS = [
   {
     heading: "Agents",
     links: [
-      { href: "/agents", label: "Connect an agent" },
+      { href: "/agents/connect", label: "Connect an agent" },
       { href: "/agents#mcp", label: "MCP setup" },
     ],
   },
