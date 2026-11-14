@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { ORG_TEXT } from "@/shared/names"
 import { Building2Icon, CheckIcon, ChevronsUpDownIcon, PlusIcon, UsersIcon } from "@/components/icons"
+import { activeTeams } from "@/lib/org-choice"
 import { switchTo, useOrgs } from "@/lib/use-orgs"
 import { CreateOrgDialog } from "@/components/org/create-org"
 import { Button } from "@/components/ui/button"
@@ -53,7 +54,7 @@ export function OrgSwitcher() {
               key={row.org_id}
               onSelect={() => {
                 if (row.org_id === org.org_id) return
-                switchTo({ org: row.org_id, team: row.default_team_id || row.teams[0]?.team_id || "" }, choice)
+                switchTo({ org: row.org_id, team: row.default_team_id || activeTeams(row.teams)[0]?.team_id || "" }, choice)
               }}
             >
               <Building2Icon aria-hidden="true" />
@@ -61,11 +62,11 @@ export function OrgSwitcher() {
               {row.org_id === org.org_id ? <CheckIcon className="ml-auto" aria-label={ORG_TEXT.CURRENT} /> : null}
             </DropdownMenuItem>
           ))}
-          {org.teams.length > 0 ? (
+          {activeTeams(org.teams).length > 0 ? (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground">{ORG_TEXT.TEAMS_HEADING}</DropdownMenuLabel>
-              {org.teams.map((row) => (
+              {activeTeams(org.teams).map((row) => (
                 <DropdownMenuItem
                   key={row.team_id}
                   onSelect={() => {

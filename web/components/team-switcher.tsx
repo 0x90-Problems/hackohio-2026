@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { ORG_TEXT } from "@/shared/names"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { foldersApi } from "@/lib/folders-api"
-import { multiOrgOn } from "@/lib/org-choice"
+import { activeTeams, multiOrgOn } from "@/lib/org-choice"
 import { chooseTeam } from "@/lib/team-choice"
 import { switchTo, useOrgs } from "@/lib/use-orgs"
 
@@ -56,7 +56,7 @@ function NamedTeamSwitcher({ className, fallback = null }: { className?: string;
 // With several orgs: the active org's teams by id, the same choice as the top bar's switcher.
 function OrgTeamSwitcher({ className, fallback = null }: { className?: string; fallback?: React.ReactNode }) {
   const state = useOrgs()
-  if (state.status !== "ready" || !state.org || !state.team || state.org.teams.length < 2) return fallback
+  if (state.status !== "ready" || !state.org || !state.team || activeTeams(state.org.teams).length < 2) return fallback
   const { org, team, choice } = state
   return (
     <Select value={team.team_id} onValueChange={(next) => switchTo({ org: org.org_id, team: next }, choice)}>
@@ -64,7 +64,7 @@ function OrgTeamSwitcher({ className, fallback = null }: { className?: string; f
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {org.teams.map((row) => (
+        {activeTeams(org.teams).map((row) => (
           <SelectItem key={row.team_id} value={row.team_id}>
             {row.name}
           </SelectItem>

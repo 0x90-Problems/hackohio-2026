@@ -10,6 +10,7 @@ import {
   orgOnlyHeaders,
   readOrgChoice,
   resolveChoice,
+  activeTeams,
   sameChoice,
   writeOrgChoice,
 } from "./org-choice.ts"
@@ -157,10 +158,23 @@ test("resolveChoice keeps a valid choice, and repairs one for an org or team you
   assert.equal(sameChoice(null, { org: "a", team: "" }), false)
 })
 
+test("archived teams are never chosen: a stored or default archived team falls back to an active one", () => {
+  const orgs = [
+    { org_id: "org_aaaaaaaaaaaa", default_team_id: "team_general0001", teams: [{ team_id: "team_general0001", name: "General", archived: true }, { team_id: "team_design00001", name: "Design" }] },
+  ]
+  assert.deepEqual(resolveChoice(orgs, { org: "org_aaaaaaaaaaaa", team: "team_general0001" }), { org: "org_aaaaaaaaaaaa", team: "team_design00001" })
+  assert.deepEqual(resolveChoice(orgs, null), { org: "org_aaaaaaaaaaaa", team: "team_design00001" })
+  assert.deepEqual(activeTeams(orgs[0].teams).map((team) => team.name), ["Design"])
+  // Every team archived: the org with no team picked.
+  const allArchived = [{ org_id: "org_aaaaaaaaaaaa", default_team_id: "", teams: [{ team_id: "team_general0001", archived: true }] }]
+  assert.deepEqual(resolveChoice(allArchived, null), { org: "org_aaaaaaaaaaaa", team: "" })
+})
+
 test("the switcher lists only the active org's teams, then Create organization", () => {
   const switcher = read("../components/org/org-switcher.tsx")
-  assert.match(switcher, /org\.teams\.map/)
-  assert.doesNotMatch(switcher, /orgs\.flatMap|row\.teams\.map/)
+  // Only the active org's teams, and only the ones that aren't archived (NSB-73).
+  assert.match(switcher, /activeTeams\(org\.teams\)\.map/)
+  assert.doesNotMatch(switcher, /orgs\.flatMap|row\.teams\.map|[^(]org\.teams\.map/)
   assert.ok(switcher.indexOf("ORG_TEXT.ORGS_HEADING") < switcher.indexOf("ORG_TEXT.TEAMS_HEADING"))
   assert.ok(switcher.indexOf("ORG_TEXT.TEAMS_HEADING") < switcher.indexOf("{ORG_TEXT.CREATE}"))
 })
@@ -169,6 +183,7 @@ test("/me/orgs rows are parsed to the contract and junk dropped", () => {
   const parsed = parseOrgs([...ORGS, { name: "no id" }, null, "x"])
   assert.equal(parsed.length, 2)
   assert.deepEqual(parsed[1].teams, [{ team_id: "team_side0000001", name: "General" }])
+  assert.deepEqual(parseOrgs([{ org_id: "org_x", teams: [{ team_id: "team_a", name: "A", archived: true }] }])[0].teams, [{ team_id: "team_a", name: "A", archived: true }])
   assert.equal(parseOrgs({}).length, 0)
 })
 
