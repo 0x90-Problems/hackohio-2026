@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { TicketFiles } from "@/components/files/ticket-files"
+import { AttachButton, AttachmentsProvider, ComposerDrafts, MessageAttachments, useComposerFiles } from "@/components/chat/chat-files"
+import { uploadToTicket } from "@/lib/ticket-uploads"
 import { usePathname, useRouter } from "next/navigation"
 
 import { ACTOR_TYPES, AGENT_CONNECTION, EVENT_ACTIONS } from "@/shared/names"
-import type { Category, Comment, Event, Ticket } from "@/lib/types"
+import type { Category, Comment, CommentAttachment, Event, Ticket } from "@/lib/types"
 import {
   CATEGORY_COLORS,
   CATEGORY_COLOR_NAMES,
@@ -52,7 +54,7 @@ const CONNECTION_LABELS = {
 }
 
 export type TicketActions = {
-  onComment: (ticketKey: string, body: string) => void
+  onComment: (ticketKey: string, body: string, attachments?: CommentAttachment[]) => void
   onMove: (ticketKey: string, status: string) => void
   onTagsChange: (ticketKey: string, tags: string[]) => void
   onDescriptionChange: (ticketKey: string, description: string, commit?: boolean) => void
@@ -98,15 +100,18 @@ export function TicketModalFromUrl({
     >
       <DialogContent className="max-h-[90svh] gap-0 overflow-y-auto p-0 sm:max-w-5xl">
         {ticket && (
-          <TicketDetail
-            ticket={ticket}
-            categories={categories}
-            tagSuggestions={tagSuggestions}
-            comments={comments.filter((c) => c.ticket_key === ticket.key)}
-            events={events.filter((e) => e.ticket_key === ticket.key)}
-            newCommentIds={newCommentIds}
-            {...actions}
-          />
+          // Files on comments are looked up in Folders as the viewer, a page of chips at a time.
+          <AttachmentsProvider>
+            <TicketDetail
+              ticket={ticket}
+              categories={categories}
+              tagSuggestions={tagSuggestions}
+              comments={comments.filter((c) => c.ticket_key === ticket.key)}
+              events={events.filter((e) => e.ticket_key === ticket.key)}
+              newCommentIds={newCommentIds}
+              {...actions}
+            />
+          </AttachmentsProvider>
         )}
       </DialogContent>
     </Dialog>
@@ -121,6 +126,8 @@ function ticketKeyFromPath(pathname: string) {
   const match = pathname.match(/\/board\/ticket\/([^/]+)$/)
   return match ? decodeURIComponent(match[1]) : null
 }
+
+const noChange = () => {}
 
 export const commentId = (c: Comment) =>
   `${c.ticket_key}-${c.author.id}-${c.created_at.getTime()}-${c.body.length}`
@@ -206,10 +213,21 @@ function TicketDetail({
     (a, b) => b.created_at.getTime() - a.created_at.getTime()
   )
 
+  // Uploads go to Ticket files/<KEY>/ in Folders; picked files stay where they are.
+  const files = useComposerFiles(
+    useCallback((file: File, onStatus: (status: string) => void) => uploadToTicket(ticket.key, file, onStatus), [ticket.key]),
+    noChange,
+    "comment"
+  )
+  const canPost = Boolean(draft.trim()) && !files.busy
+
   function postComment() {
-    if (!draft.trim()) return
-    onComment(ticket.key, draft.trim())
+    if (!canPost) return
+    // Every file, note and board in Folders has a current version; the board re-checks each one as you.
+    const attachments = files.ready.flatMap((item) => (item.version ? [{ file_id: item.file_id, version: item.version }] : []))
+    onComment(ticket.key, draft.trim(), attachments)
     setDraft("")
+    files.clear()
   }
 
   return (
@@ -437,6 +455,7 @@ function TicketDetail({
                     </span>
                   </div>
                   <MarkdownView markdown={comment.body} compact lineBreaks />
+                  {comment.attachments?.length ? <MessageAttachments attachments={comment.attachments} /> : null}
                 </li>
               )
             })}
@@ -453,15 +472,13 @@ function TicketDetail({
               }}
               placeholder="Write a comment. Markdown works: **bold**, `code`, lists, links. Agents on this ticket get notified."
             />
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-end"
-              disabled={!draft.trim()}
-              onClick={postComment}
-            >
-              Comment
-            </Button>
+            <ComposerDrafts drafts={files.drafts} onRemove={files.remove} className="mb-0" />
+            <div className="flex items-center justify-between gap-2">
+              <AttachButton onUpload={files.upload} onPick={files.pick} chosen={new Set(files.ready.map((file) => file.file_id))} />
+              <Button variant="outline" size="sm" disabled={!canPost} onClick={postComment}>
+                Comment
+              </Button>
+            </div>
           </div>
         </section>
       </div>
