@@ -24,7 +24,8 @@ export type SiteApiKey = {
 
 export type SiteState = {
   organization: SiteOrganization | null
-  teams: { name: string; managers: string[]; created_by?: string }[]
+  /** team_id and archived_at come from the board with organizations on (NSB-73); loadSite revives the date. */
+  teams: { name: string; managers: string[]; created_by?: string; team_id?: string; archived_at?: Date }[]
   apiKeys: SiteApiKey[]
   users: { _id: string; auth_username: string; name: string; role?: string; admin?: boolean; team: string; teams?: string[] }[]
 }
@@ -109,6 +110,19 @@ export async function removalPreview(userId: string): Promise<{ agents: number; 
   } catch {
     return null
   }
+}
+
+// NSB-73: org admins only; the board says why when it refuses (last active team, projects left).
+export function archiveTeam(team: string) {
+  return save({ kind: "teamState", teamState: { team, action: "archive" } })
+}
+
+export function restoreTeam(team: string) {
+  return save({ kind: "teamState", teamState: { team, action: "restore" } })
+}
+
+export function deleteTeam(team: string) {
+  return save({ kind: "teamState", teamState: { team, action: "delete" } })
 }
 
 export function setTeamManager(team: string, userId: string, manager: boolean) {

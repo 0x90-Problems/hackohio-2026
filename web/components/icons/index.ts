@@ -21,6 +21,7 @@ export {
   Undo2 as Undo2Icon,
   Activity as ActivityIcon,
   Archive as ArchiveIcon,
+  ArchiveRestore as ArchiveRestoreIcon,
   AlertTriangle as AlertTriangleIcon,
   ArrowRight as ArrowRightIcon,
   ArrowUp as ArrowUpIcon,

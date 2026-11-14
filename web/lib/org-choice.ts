@@ -60,12 +60,17 @@ export function orgOnlyHeaders(orgId: string): Record<string, string> {
   return orgId ? { [ORG_HEADER]: encodeURIComponent(orgId) } : {}
 }
 
-type OrgTeams = { org_id: string; default_team_id?: string | null; teams: { team_id: string }[] }
+type OrgTeams = { org_id: string; default_team_id?: string | null; teams: { team_id: string; archived?: boolean }[] }
+
+/** Teams you can work in. Archived teams (NSB-73) are read-only and left out of every switcher. */
+export function activeTeams<T extends { archived?: boolean }>(teams: readonly T[]): T[] {
+  return teams.filter((team) => !team.archived)
+}
 
 /**
  * Checks a stored choice against the orgs someone is actually in (GET /me/orgs). A stored org
  * they've left falls back to `hint` (the server's default from /me/membership), then the first
- * org; a team outside the org falls back to the org's default team, then its first.
+ * org; a team outside the org, or one that's archived, falls back to the org's default team, then its first.
  */
 export function resolveChoice(
   orgs: readonly OrgTeams[],
@@ -75,9 +80,10 @@ export function resolveChoice(
   if (orgs.length === 0) return null
   const byId = (id: string | undefined) => (id ? orgs.find((org) => org.org_id === id) : undefined)
   const org = byId(stored?.org) ?? byId(hint?.org) ?? orgs[0]
-  const has = (id: string | null | undefined) => Boolean(id) && org.teams.some((team) => team.team_id === id)
+  const teams = activeTeams(org.teams)
+  const has = (id: string | null | undefined) => Boolean(id) && teams.some((team) => team.team_id === id)
   const wanted = org.org_id === stored?.org ? stored.team : org.org_id === hint?.org ? hint.team : ""
-  const team = has(wanted) ? wanted : has(org.default_team_id) ? (org.default_team_id as string) : (org.teams[0]?.team_id ?? "")
+  const team = has(wanted) ? wanted : has(org.default_team_id) ? (org.default_team_id as string) : (teams[0]?.team_id ?? "")
   return { org: org.org_id, team }
 }
 

@@ -7,7 +7,7 @@
 // context at all. Dependency-free (no imports) so node --test can load it with a stubbed fetch.
 
 export type OrgRole = "admin" | "member"
-export type OrgTeam = { team_id: string; name: string }
+export type OrgTeam = { team_id: string; name: string; archived?: boolean }
 export type OrgSummary = { org_id: string; name: string; role: OrgRole; default_team_id: string; teams: OrgTeam[] }
 export type CreatedOrg = { org_id: string; name: string; team: OrgTeam }
 export type OrgMemberRow = { user_id: string; username: string; name: string; role: OrgRole; teams: string[] }
@@ -58,7 +58,7 @@ const list = <T>(value: unknown, parse: (row: Record<string, unknown>) => T | nu
 
 function parseTeam(row: Record<string, unknown>): OrgTeam | null {
   const team_id = str(row.team_id)
-  return team_id ? { team_id, name: str(row.name) } : null
+  return team_id ? { team_id, name: str(row.name), ...(row.archived === true ? { archived: true } : {}) } : null
 }
 
 export function parseOrgs(value: unknown): OrgSummary[] {
