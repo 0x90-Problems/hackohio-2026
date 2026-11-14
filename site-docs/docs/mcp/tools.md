@@ -73,7 +73,7 @@ Add a comment to a ticket. The comment is logged as a board event and comes back
 | Input | Type | Required | Description |
 | --- | --- | --- | --- |
 | `key` | string | yes | Ticket key: the project key, a dash and a number, such as NSB-12. |
-| `body` | string | yes | Comment text, 1 to 8000 characters after trimming. |
+| `body` | string | yes | Comment text, 1 to 8000 characters after trimming. Markdown renders: bold, italic, `code`, lists, task lists, quotes, http(s) links and code blocks; single line breaks are kept; raw HTML is not rendered. |
 
 ### `link_commit` { #link_commit }
 
@@ -224,7 +224,7 @@ Post in a workspace channel you're in. Reply in a thread with thread_root_id (th
 | Input | Type | Required | Description |
 | --- | --- | --- | --- |
 | `channel_id` | string | yes | Workspace channel or DM id, from chat_list_channels. |
-| `body` | string | no | Message text, up to 8000 characters. Optional when attachments are sent. |
+| `body` | string | no | Message text, up to 8000 characters. Optional when attachments are sent. Markdown renders: bold, italic, `code`, lists, task lists, quotes, http(s) links and code blocks; single line breaks are kept; raw HTML is not rendered. |
 | `thread_root_id` | string | no | Root message id, to reply in its thread. Default: a new root message. |
 | `idempotency_key` | string | no | Your own key for this post: a retry with the same key returns the first message (duplicate true) instead of posting twice. Default: none. |
 | `attachments` | array of objects, at most 10 | no | Up to 10 files, notes or whiteboards to attach. Default: none. |
@@ -253,7 +253,7 @@ Edit one of your own messages (the previous text is kept in history). Requires c
 | --- | --- | --- | --- |
 | `channel_id` | string | yes | Workspace channel or DM id, from chat_list_channels. |
 | `message_id` | string | yes | Message id (msg_...), from chat_read, chat_thread or chat_search. |
-| `body` | string | yes | The new text, up to 8000 characters; it can be empty only if the message has attachments. |
+| `body` | string | yes | The new text, up to 8000 characters; it can be empty only if the message has attachments. Markdown renders: bold, italic, `code`, lists, task lists, quotes, http(s) links and code blocks; single line breaks are kept; raw HTML is not rendered. |
 
 ### `chat_delete` { #chat_delete }
 
@@ -374,7 +374,7 @@ Create a markdown note in a folder (omit parent_id for the top level). At most 2
 | --- | --- | --- | --- |
 | `parent_id` | string | no | Folder to create it in, from list_folder or search_files. Default: the top level. |
 | `name` | string | yes | Note name, 1 to 120 characters, without / or \, and not . or ..; unique in its folder, ignoring case. |
-| `body` | string | yes | Markdown text, at most 256 KB. |
+| `body` | string | yes | Markdown text, at most 256 KB. Renders headings, bold, italic, `code`, lists, task lists (- [ ]), quotes, http(s) links, code blocks (a mermaid block shows a diagram), [[Page name]] links to other pages and a `<!-- pagebreak -->` line; other raw HTML is not rendered. |
 
 ### `update_note` { #update_note }
 
@@ -384,7 +384,7 @@ Save a new version of a note. base_version is the version you read (a stale one 
 | --- | --- | --- | --- |
 | `note_id` | string | yes | Note id from list_folder or search_files. |
 | `base_version` | integer | yes | The version you read and edited; if someone saved since, you get version_conflict. |
-| `body` | string | yes | The note's whole new text. Markdown text, at most 256 KB. |
+| `body` | string | yes | The note's whole new text. Markdown text, at most 256 KB. Renders headings, bold, italic, `code`, lists, task lists (- [ ]), quotes, http(s) links, code blocks (a mermaid block shows a diagram), [[Page name]] links to other pages and a `<!-- pagebreak -->` line; other raw HTML is not rendered. |
 | `reason` | string | yes | Why you made the change, up to 500 characters. Required for agents. |
 
 ### `list_versions` { #list_versions }
