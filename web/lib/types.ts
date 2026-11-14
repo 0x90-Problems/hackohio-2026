@@ -109,10 +109,15 @@ export type Ticket = {
   created_at: Date
 }
 
+/** A Folders file on a comment, pinned to a version (the same shape chat messages use). */
+export type CommentAttachment = { file_id: string; version: number }
+
 export type Comment = {
   ticket_key: string
   author: Actor
   body: string
+  /** Only on comments with files. Names and access come from Folders, per viewer. */
+  attachments?: CommentAttachment[]
   created_at: Date
 }
 

@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       due_date?: string
       project_key?: string
     }
-    comment?: { ticket_key: string; body: string }
+    comment?: { ticket_key: string; body: string; attachments?: { file_id?: unknown; version?: unknown }[] }
     event?: unknown
     agent?: { name: string; scopes?: string[]; connection?: string }
   }
@@ -135,8 +135,13 @@ export async function POST(request: Request) {
     })
   }
   if (body.kind === "comment" && body.comment) {
+    const attachments = Array.isArray(body.comment.attachments) ? body.comment.attachments : []
     return forward(`/tickets/${encodeURIComponent(body.comment.ticket_key)}/comments`, "POST", {
       body: body.comment.body,
+      // Checked again by the board as the caller: only {file_id, version} goes through.
+      ...(attachments.length
+        ? { attachments: attachments.slice(0, 10).map((item) => ({ file_id: item.file_id, version: item.version })) }
+        : {}),
     })
   }
   if (body.kind === "event") {

@@ -1,4 +1,5 @@
 import { DEFAULT_CATEGORIES } from "@/lib/categories"
+import { attachmentsFrom } from "@/lib/comment-files"
 import type { Actor, Agent, Comment, Event, Project, Ticket } from "@/lib/types"
 
 const TEAM = "0x90 Problems"
@@ -133,10 +134,12 @@ function commentFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): 
   const body = typeof comment?.body === "string" ? comment.body : undefined
   const author = asActor(comment?.author)
   if (!comment || !ticketKey || body === undefined || !author) return undefined
+  const attachments = attachmentsFrom(comment.attachments)
   return {
     ticket_key: ticketKey,
     author: withName(author, users, agents),
     body,
+    ...(attachments.length ? { attachments } : {}),
     created_at: new Date(iso(comment.created_at)),
   }
 }

@@ -10,6 +10,7 @@ import type {
   Agent,
   Category,
   Comment,
+  CommentAttachment,
   Event,
   Project,
   Ticket,
@@ -799,9 +800,11 @@ function useProjectsState() {
     toast(`Deleted category ${categoryName(slug, categoriesOf(projectKey))}`)
   }
 
-  function comment(ticketKey: string, body: string, actor: Actor = me) {
+  function comment(ticketKey: string, body: string, options: { actor?: Actor; attachments?: CommentAttachment[] } = {}) {
+    const actor = options.actor ?? me
     const created_at = now()
-    addComment({ ticket_key: ticketKey, author: actor, body, created_at })
+    const attachments = options.attachments?.length ? { attachments: options.attachments } : {}
+    addComment({ ticket_key: ticketKey, author: actor, body, ...attachments, created_at })
     addEvent({
       action: EVENT_ACTIONS.COMMENT_ADDED,
       ticket_key: ticketKey,

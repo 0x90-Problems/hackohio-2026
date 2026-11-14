@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { ChatAttachment } from "@/lib/chat-api"
-import { AttachmentDirectory, uploadToChannel } from "@/lib/chat-files"
+import { AttachmentDirectory } from "@/lib/chat-files"
 import { downloadFile } from "@/lib/file-links"
 import { type Folder, FoldersError, foldersApi, ROOT } from "@/lib/folders-api"
 import { cn } from "@/lib/utils"
@@ -111,8 +111,13 @@ function AttachmentChip({ item }: { item: ChatAttachment }) {
 
 type Draft = { key: string; name: string; status: string | null; attachment?: { file_id: string; version?: number } }
 
-/** What the composer has picked or is uploading. Uploads run one at a time. */
-export function useComposerFiles(channelId: string, onChange: () => void) {
+type Uploader = (file: File, onStatus: (status: string) => void) => Promise<{ file_id: string; version: number; name: string }>
+
+/**
+ * What the composer has picked or is uploading. Uploads run one at a time. uploadFile says where
+ * an upload goes: a channel's folder for chat, the ticket's folder for comments.
+ */
+export function useComposerFiles(uploadFile: Uploader, onChange: () => void, noun = "message") {
   const [drafts, setDrafts] = useState<Draft[]>([])
   const nextKey = useRef(0)
   const newKey = () => `draft-${(nextKey.current += 1)}`
@@ -132,13 +137,13 @@ export function useComposerFiles(channelId: string, onChange: () => void) {
 
   const upload = (files: File[]) => {
     const room = MAX_ATTACHMENTS - drafts.length
-    if (files.length > room) toast.error(`A message can have up to ${MAX_ATTACHMENTS} files`)
+    if (files.length > room) toast.error(`A ${noun} can have up to ${MAX_ATTACHMENTS} files`)
     for (const file of files.slice(0, Math.max(room, 0))) {
       const key = newKey()
       setDrafts((current) => [...current, { key, name: file.name, status: "Waiting" }])
       queue.current = queue.current.then(async () => {
         try {
-          const done = await uploadToChannel(channelId, file, (status) => patch(key, { status }))
+          const done = await uploadFile(file, (status) => patch(key, { status }))
           patch(key, { status: null, name: done.name, attachment: { file_id: done.file_id, version: done.version } })
           onChange()
         } catch (caught) {
@@ -164,10 +169,10 @@ export function useComposerFiles(channelId: string, onChange: () => void) {
   return { drafts, ready, busy: drafts.some((draft) => draft.status !== null), upload, pick, remove, clear: () => setDrafts([]) }
 }
 
-export function ComposerDrafts({ drafts, onRemove }: { drafts: Draft[]; onRemove: (key: string) => void }) {
+export function ComposerDrafts({ drafts, onRemove, className }: { drafts: Draft[]; onRemove: (key: string) => void; className?: string }) {
   if (!drafts.length) return null
   return (
-    <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Files to send">
+    <ul className={cn("mb-2 flex flex-wrap gap-1.5", className)} aria-label="Files to send">
       {drafts.map((draft) => (
         <li key={draft.key} className={cn(chip, "max-w-72")}>
           {draft.status ? <Loader2Icon className="size-3.5 shrink-0 motion-safe:animate-spin" aria-hidden="true" /> : <PaperclipIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}

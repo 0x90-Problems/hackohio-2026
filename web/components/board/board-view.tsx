@@ -607,7 +607,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         comments={store.comments}
         events={activity}
         newCommentIds={store.newCommentIds}
-        onComment={store.comment}
+        onComment={(ticketKey, body, attachments) => store.comment(ticketKey, body, { attachments })}
         onMove={store.moveTicket}
         onTagsChange={store.setTags}
         onDescriptionChange={store.setDescription}
