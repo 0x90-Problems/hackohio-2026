@@ -60,6 +60,7 @@ import {
   principalOf,
 } from "@/lib/chat-api"
 import { type Activity, ChatLive, coalesce } from "@/lib/chat-live"
+import { joinHint } from "@/lib/chat-join-hint"
 import { absoluteTime, timeAgo } from "@/lib/format"
 import { looksLikeMarkdown } from "@/lib/markdown-text"
 import { useTeamLabel } from "@/lib/use-orgs"
@@ -220,6 +221,20 @@ export function ChatView() {
     return map
   }, [ws])
 
+  const join = useCallback(
+    async (channel: Channel) => {
+      try {
+        await chatApi.join(channel.id)
+        await refresh()
+        go(channel.id)
+        toast.success(`Joined #${channel.name}`)
+      } catch (caught) {
+        toast.error(explain(caught))
+      }
+    },
+    [refresh, go]
+  )
+
   if (state === "loading") return <ChatSkeleton />
   if (state === "off") {
     return (
@@ -229,6 +244,9 @@ export function ChatView() {
   if (state === "no_team") return <EmptyState title={NO_TEAM.TITLE} body={NO_TEAM.HINT} />
   if (state === "error" || !ws) return <EmptyState title="Couldn't open chat" body={error} action={<Button onClick={() => void refresh()}>Try again</Button>} />
 
+  // With nothing joined, an empty sidebar would look like the team's channels are gone.
+  const unjoined = ws.channels.some((c) => c.kind === "text") ? null : joinHint(ws.joinable)
+
   return (
     <div className="mx-auto flex h-[calc(100svh-3.5rem)] max-w-screen-2xl">
       <Sidebar
@@ -236,6 +254,7 @@ export function ChatView() {
         selectedId={selectedId}
         onSelect={(id) => go(id)}
         onDialog={setDialog}
+        onJoin={join}
         className={cn(selectedId ? "hidden md:flex" : "flex")}
       />
       <main className={cn("min-w-0 flex-1 flex-col", selectedId ? "flex" : "hidden md:flex")}>
@@ -259,11 +278,14 @@ export function ChatView() {
         ) : (
           <EmptyState
             title={`Chat for ${teamName}`}
-            body="Pick a channel on the left, or start a conversation."
+            body={unjoined ?? "Pick a channel on the left, or start a conversation."}
             action={
-              <Button onClick={() => setDialog("channel")}>
-                <PlusIcon aria-hidden="true" /> New channel
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {unjoined ? <JoinAction joinable={ws.joinable} onJoin={join} onBrowse={() => setDialog("browse")} /> : null}
+                <Button variant={unjoined ? "outline" : "default"} onClick={() => setDialog("channel")}>
+                  <PlusIcon aria-hidden="true" /> New channel
+                </Button>
+              </div>
             }
           />
         )}
@@ -323,15 +345,18 @@ function Sidebar({
   selectedId,
   onSelect,
   onDialog,
+  onJoin,
   className,
 }: {
   ws: ChatWorkspace
   selectedId: string | null
   onSelect: (id: string) => void
   onDialog: (kind: "channel" | "dm" | "browse" | "section") => void
+  onJoin: (channel: Channel) => Promise<void>
   className?: string
 }) {
   const teamName = useTeamLabel(ws.team)
+  const hint = joinHint(ws.joinable)
   const text = ws.channels.filter((c) => c.kind === "text")
   const dms = ws.channels.filter((c) => c.kind !== "text")
   const sectionIds = new Set(ws.sections.map((s) => s.id))
@@ -378,9 +403,55 @@ function Sidebar({
           />
         ))}
         <ChannelGroup title="Channels" channels={loose} selectedId={selectedId} onSelect={onSelect} empty="No channels yet" />
+        {hint ? (
+          <div className="mb-3 flex flex-col items-start gap-2 px-2">
+            <p className="text-xs text-muted-foreground">{hint}</p>
+            <JoinAction joinable={ws.joinable} onJoin={onJoin} onBrowse={() => onDialog("browse")} size="sm" variant="outline" />
+          </div>
+        ) : null}
         <ChannelGroup title="Direct messages" channels={dms} selectedId={selectedId} onSelect={onSelect} empty="No conversations yet" />
       </nav>
     </aside>
+  )
+}
+
+/** One channel to join: join it here. Several: open Browse channels. */
+function JoinAction({
+  joinable,
+  onJoin,
+  onBrowse,
+  size,
+  variant,
+}: {
+  joinable: Channel[]
+  onJoin: (channel: Channel) => Promise<void>
+  onBrowse: () => void
+  size?: "sm"
+  variant?: "outline"
+}) {
+  const [joining, setJoining] = useState(false)
+  if (!joinable.length) return null
+  if (joinable.length > 1) {
+    return (
+      <Button size={size} variant={variant} onClick={onBrowse}>
+        Browse channels
+      </Button>
+    )
+  }
+  const [only] = joinable
+  return (
+    <Button
+      size={size}
+      variant={variant}
+      disabled={joining}
+      className="max-w-full"
+      onClick={() => {
+        setJoining(true)
+        void onJoin(only).finally(() => setJoining(false))
+      }}
+    >
+      <span className="truncate">Join #{only.name}</span>
+    </Button>
   )
 }
 
