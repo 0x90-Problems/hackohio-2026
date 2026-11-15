@@ -55,6 +55,7 @@ import {
   type ProjectTemplate,
 } from "@/lib/templates"
 import { commentId } from "@/components/board/ticket-modal"
+import { mergeServerComments } from "@/lib/comment-echo"
 
 // CLW-05 -> CLW
 export { projectKeyOf }
@@ -144,6 +145,8 @@ function useProjectsState() {
   const [newProjectKeys, setNewProjectKeys] = useState<Set<string>>(new Set())
   // A refresh that began before a project save finished could undo it on screen.
   const projectSaves = useRef({ pending: 0, finished: 0 })
+  // Ticket creates still on their way to the board, so a double click makes one ticket
+  const creates = useRef(new Map<string, Promise<string>>())
   function trackedProjectSave<T>(save: () => Promise<T>) {
     projectSaves.current.pending++
     return save().finally(() => {
@@ -285,12 +288,12 @@ function useProjectsState() {
           return changed ? next : current
         })
         setComments((current) => {
-          const known = new Set(current.map((comment) => `${comment.ticket_key}:${comment.created_at.toISOString()}:${comment.body}`))
           const kept = current.filter((comment) => !gone.current.has(comment.ticket_key))
-          const added = remote.comments.filter(
-            (comment) => !gone.current.has(comment.ticket_key) && !known.has(`${comment.ticket_key}:${comment.created_at.toISOString()}:${comment.body}`),
+          // The board's copy of a comment replaces its local echo, so it shows once.
+          return mergeServerComments(
+            kept.length !== current.length ? kept : current,
+            remote.comments.filter((comment) => !gone.current.has(comment.ticket_key)),
           )
-          return added.length > 0 || kept.length !== current.length ? [...kept, ...added] : current
         })
         setActivity((current) => {
           const known = new Set(current.map(activityKey))
@@ -594,6 +597,26 @@ function useProjectsState() {
         stamp - ticket.created_at.getTime() < 10_000
     )
     if (recent) return recent.key
+    // A second click while the first create is still on its way gets the same ticket.
+    const creating = `${projectKey}:${actor.type}:${actor.id}:${input.title}`
+    const underway = creates.current.get(creating)
+    if (underway) return underway
+    const created = createOnBoard(projectKey, input, actor).finally(() => creates.current.delete(creating))
+    creates.current.set(creating, created)
+    return created
+  }
+
+  async function createOnBoard(
+    projectKey: string,
+    input: {
+      title: string
+      status: string
+      tags: string[]
+      start_date?: string
+      due_date?: string
+    },
+    actor: Actor
+  ) {
     // The create waits on the board API (slow on a cold start), so say so right away.
     const pending = toast.loading("Creating ticket…", { description: input.title })
     const session = readSession()
@@ -640,7 +663,8 @@ function useProjectsState() {
       created_by: actor,
       created_at,
     }
-    setTickets((current) => [ticket, ...current])
+    // A refresh may have brought the new ticket in already.
+    setTickets((current) => (current.some((item) => item.key === key) ? current : [ticket, ...current]))
     setNewTicketKeys((keys) => new Set(keys).add(key))
     // Only if the API put it somewhere else (it shouldn't): move it to the picked column.
     if (body.status !== input.status) saveTicket(ticket)
@@ -932,7 +956,7 @@ function useProjectsState() {
     const actor = options.actor ?? me
     const created_at = now()
     const attachments = options.attachments?.length ? { attachments: options.attachments } : {}
-    addComment({ ticket_key: ticketKey, author: actor, body, ...attachments, created_at })
+    addComment({ ticket_key: ticketKey, author: actor, body, ...attachments, created_at, local: true })
     addEvent({
       action: EVENT_ACTIONS.COMMENT_ADDED,
       ticket_key: ticketKey,

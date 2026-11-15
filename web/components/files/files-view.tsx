@@ -295,7 +295,8 @@ export function FilesView() {
     if (!cursor) return
     try {
       const page = await foldersApi.children(folderId, cursor)
-      setItems((current) => [...current, ...page.items])
+      // A second click on "Load more" brings the same page again; show each item once.
+      setItems((current) => [...current, ...page.items.filter((item) => !current.some((shown) => shown.id === item.id))])
       setCursor(page.next_cursor)
     } catch (error) {
       toast.error("Couldn't load more folders", { description: explain(error) })
