@@ -2,7 +2,7 @@
 // opens for someone signed in who can read the file, and it hands the browser a fresh storage
 // link that lasts a minute. Copying the address and opening it signed out shows the sign-in page.
 //
-// The session lives in this tab's sessionStorage, which a new tab or a download can't send, so
+// The session lives in the browser's storage, which a plain link or a download can't send, so
 // signing in also puts the bearer in an HttpOnly cookie scoped to /api/files (FILE_COOKIE). The
 // cookie grants nothing the bearer doesn't: the files API checks the team and the file's
 // permissions on every request, exactly as it does for the folders proxy.
