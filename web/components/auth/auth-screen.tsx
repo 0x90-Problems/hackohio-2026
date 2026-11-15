@@ -1,14 +1,17 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import { useState, useSyncExternalStore, type FormEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { LockIcon } from "lucide-react"
 
 import {
   AuthApiError,
+  dropSignedOutNotice,
+  readSignedOutNotice,
   signIn,
   signUp,
+  subscribeAuth,
   validateSignIn,
   validateSignUp,
 } from "@/lib/board-auth"
@@ -27,12 +30,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { afterSignInPath } from "@/lib/pending-invite"
+import { signedOutMessage } from "@/lib/session-expiry"
 
 export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const signup = mode === "signup"
+  // Signed out because the session ended: say so, and go back there after signing in.
+  const notice = useSyncExternalStore(subscribeAuth, readSignedOutNotice, () => null)
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -54,7 +60,9 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
     try {
       if (signup) await signUp({ username, password, name, email })
       else await signIn({ username, password })
-      router.push(afterSignInPath())
+      const next = afterSignInPath()
+      router.push(next === "/" && !signup ? (notice?.from ?? "/") : next)
+      dropSignedOutNotice()
       router.refresh()
     } catch (caught) {
       setError(caught instanceof AuthApiError ? caught.message : "Could not reach the sign-in service.")
@@ -94,6 +102,11 @@ export function AuthScreen({ mode }: { mode: "login" | "signup" }) {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            {notice && !signup && !error ? (
+              <Alert>
+                <AlertDescription>{signedOutMessage(notice.reason)}</AlertDescription>
+              </Alert>
+            ) : null}
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>

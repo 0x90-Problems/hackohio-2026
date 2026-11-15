@@ -20,7 +20,8 @@ import {
   UsersIcon,
 } from "@/components/icons"
 
-import { clearSession, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { clearSession, readSessionExpiry, readSessionUser, subscribeAuth } from "@/lib/board-auth"
+import { absoluteTime } from "@/lib/format"
 import { attentionCount, chatApi } from "@/lib/chat-api"
 import { foldersApi } from "@/lib/folders-api"
 import { useWhiteboardEnabled } from "@/lib/whiteboard-api"
@@ -112,6 +113,7 @@ export function AppHeader() {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const sessionUser = useSyncExternalStore(subscribeAuth, readSessionUser, () => null)
+  const sessionEnds = useSyncExternalStore(subscribeAuth, readSessionExpiry, () => null)
   const [foldersOn, setFoldersOn] = useState(false)
   const [chatOn, setChatOn] = useState(false)
   const whiteboardOn = useWhiteboardEnabled()
@@ -278,6 +280,11 @@ export function AppHeader() {
                 <div className="text-xs font-normal text-muted-foreground">
                   {detail}
                 </div>
+                {sessionEnds !== null ? (
+                  <div className="pt-1 text-xs font-normal text-muted-foreground">
+                    Signed in until {absoluteTime(new Date(sessionEnds))}
+                  </div>
+                ) : null}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>

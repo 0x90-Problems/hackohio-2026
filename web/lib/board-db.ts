@@ -2,7 +2,8 @@
 
 import { toast } from "sonner"
 
-import { readSession } from "@/lib/board-auth"
+import { endSession, readSession } from "@/lib/board-auth"
+import { refusedReason } from "@/lib/session-expiry"
 import { boardContextHeaders } from "@/lib/team-choice"
 import { mergeBoardRecords, ticketFromApi } from "@/lib/board-merge"
 import type { ApprovalMode } from "@/shared/names"
@@ -33,9 +34,14 @@ export async function loadBoard(): Promise<BoardRecords> {
   const response = await fetch("/api/board", { cache: "no-store", headers: authHeaders() })
   const body = (await response.json()) as BoardRecords & {
     users?: unknown
-    error?: { message?: string }
+    error?: { code?: string; message?: string }
   }
-  if (!response.ok) throw new Error(body.error?.message ?? "Could not load the board")
+  if (!response.ok) {
+    // The board no longer accepts this sign-in: sign out and say why, instead of failing quietly.
+    const reason = refusedReason(response.status, body.error?.code)
+    if (reason) endSession(reason)
+    throw new Error(body.error?.message ?? "Could not load the board")
+  }
   // Normalize API shapes (columns → categories, project_key, actor names).
   return mergeBoardRecords(
     {
