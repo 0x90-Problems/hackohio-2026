@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
+import { SessionWatch } from "@/components/auth/session-watch"
 import { readSession, subscribeAuth, type AuthSession, type AuthUser } from "@/lib/board-auth"
 import { multiOrgOn } from "@/lib/org-choice"
 
@@ -54,5 +55,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (isPublic) return children
   if (!ready || !session) return null
-  return children
+  return (
+    <>
+      <SessionWatch />
+      {children}
+    </>
+  )
 }

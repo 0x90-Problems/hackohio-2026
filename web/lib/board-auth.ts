@@ -2,6 +2,9 @@
 // Field names and error bodies match the board API:
 // { "error": { "code", "message" } } and a session of { secret, token, mcp, user }.
 
+import { safeReturnPath } from "@/lib/return-path"
+import { expiryOf, type SignedOutReason } from "@/lib/session-expiry"
+
 export type AuthUser = {
   _id: string
   auth_username: string
@@ -31,10 +34,17 @@ export class AuthApiError extends Error {
 
 const SESSION_KEY = "buck2.auth"
 const AUTH_EVENT = "buck2-auth"
+// Why the last session ended and where the person was, shown on the sign-in page. This tab only.
+const NOTICE_KEY = "buck2.signed-out"
+
+export type SignedOutNotice = { reason: SignedOutReason; from: string }
 
 let cachedRaw: string | null = null
 let cachedSession: AuthSession | null = null
 let cachedUser: AuthUser | null = null
+let cachedExpiry: number | null = null
+let noticeRaw: string | null = null
+let cachedNotice: SignedOutNotice | null = null
 
 const USERNAME = /^[a-z][a-z0-9._-]{1,31}$/
 
@@ -98,6 +108,47 @@ export function readSessionUser(): AuthUser | null {
   return cachedUser
 }
 
+/** When this sign-in runs out (ms since the epoch); null if signed out or the board didn't say. */
+export function readSessionExpiry(): number | null {
+  if (typeof window === "undefined") return null
+  const raw = sessionStorage.getItem(SESSION_KEY)
+  if (raw !== cachedRaw) remember(raw)
+  return cachedExpiry
+}
+
+/** Sign out because the session ended, remembering why and where so the sign-in page can say so. */
+export function endSession(reason: SignedOutReason): void {
+  if (typeof window === "undefined" || !sessionStorage.getItem(SESSION_KEY)) return
+  const from = `${window.location.pathname}${window.location.search}`
+  sessionStorage.setItem(NOTICE_KEY, JSON.stringify({ reason, from }))
+  clearSession()
+}
+
+export function readSignedOutNotice(): SignedOutNotice | null {
+  if (typeof window === "undefined") return null
+  const raw = sessionStorage.getItem(NOTICE_KEY)
+  if (raw === noticeRaw) return cachedNotice
+  noticeRaw = raw
+  cachedNotice = null
+  try {
+    const parsed = raw ? (JSON.parse(raw) as { reason?: unknown; from?: unknown }) : null
+    const reason = parsed?.reason
+    if (reason === "expired" || reason === "revoked" || reason === "renew") {
+      // Only a page inside the app, and never back to the sign-in pages themselves.
+      const from = safeReturnPath(typeof parsed?.from === "string" ? parsed.from : null, "/")
+      cachedNotice = { reason, from: /^\/(login|signup)(\/|\?|$)/.test(from) ? "/" : from }
+    }
+  } catch {
+    // unreadable: no notice
+  }
+  return cachedNotice
+}
+
+export function dropSignedOutNotice(): void {
+  sessionStorage.removeItem(NOTICE_KEY)
+  publishAuth()
+}
+
 export function subscribeAuth(onChange: () => void): () => void {
   window.addEventListener(AUTH_EVENT, onChange)
   return () => window.removeEventListener(AUTH_EVENT, onChange)
@@ -144,6 +195,7 @@ async function postAuth(path: "/auth/login" | "/auth/signup", body: unknown): Pr
 
 function remember(raw: string | null): void {
   cachedRaw = raw
+  cachedExpiry = null
   if (!raw) {
     cachedSession = null
     cachedUser = null
@@ -154,6 +206,7 @@ function remember(raw: string | null): void {
     if (isAuthSession(parsed)) {
       cachedSession = parsed
       cachedUser = parsed.user
+      cachedExpiry = expiryOf(parsed)
       return
     }
   } catch {
