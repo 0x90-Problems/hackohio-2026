@@ -245,7 +245,7 @@ function FolderPicker({ open, chosen, onPick, onClose }: { open: boolean; chosen
     if (!listing?.cursor) return
     try {
       const page = await foldersApi.children(folder, listing.cursor)
-      setListing((current) => (current && current.folder === folder ? { folder, items: [...current.items, ...page.items], cursor: page.next_cursor } : current))
+      setListing((current) => (current && current.folder === folder ? { folder, items: [...current.items, ...page.items.filter((item) => !current.items.some((shown) => shown.id === item.id))], cursor: page.next_cursor } : current))
     } catch (caught) {
       toast.error(explain(caught))
     }

@@ -135,6 +135,8 @@ export type Comment = {
   /** Only on comments with files. Names and access come from Folders, per viewer. */
   attachments?: CommentAttachment[]
   created_at: Date
+  // Client only: a local echo shown right away, replaced when the server's copy arrives.
+  local?: boolean
 }
 
 export type Event = {
