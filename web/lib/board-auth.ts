@@ -96,14 +96,14 @@ export function signUp(input: SignUpInput): Promise<AuthSession> {
 
 export function readSession(): AuthSession | null {
   if (typeof window === "undefined") return null
-  const raw = sessionStorage.getItem(SESSION_KEY)
+  const raw = storedSession()
   if (raw !== cachedRaw) remember(raw)
   return cachedSession
 }
 
 export function readSessionUser(): AuthUser | null {
   if (typeof window === "undefined") return null
-  const raw = sessionStorage.getItem(SESSION_KEY)
+  const raw = storedSession()
   if (raw !== cachedRaw) remember(raw)
   return cachedUser
 }
@@ -111,14 +111,14 @@ export function readSessionUser(): AuthUser | null {
 /** When this sign-in runs out (ms since the epoch); null if signed out or the board didn't say. */
 export function readSessionExpiry(): number | null {
   if (typeof window === "undefined") return null
-  const raw = sessionStorage.getItem(SESSION_KEY)
+  const raw = storedSession()
   if (raw !== cachedRaw) remember(raw)
   return cachedExpiry
 }
 
 /** Sign out because the session ended, remembering why and where so the sign-in page can say so. */
 export function endSession(reason: SignedOutReason): void {
-  if (typeof window === "undefined" || !sessionStorage.getItem(SESSION_KEY)) return
+  if (typeof window === "undefined" || !storedSession()) return
   const from = `${window.location.pathname}${window.location.search}`
   sessionStorage.setItem(NOTICE_KEY, JSON.stringify({ reason, from }))
   clearSession()
@@ -150,11 +150,50 @@ export function dropSignedOutNotice(): void {
 }
 
 export function subscribeAuth(onChange: () => void): () => void {
+  watchOtherTabs()
   window.addEventListener(AUTH_EVENT, onChange)
   return () => window.removeEventListener(AUTH_EVENT, onChange)
 }
 
+/**
+ * The sign-in is shared by every tab of this browser (localStorage), so a new tab is already
+ * signed in. One kept by an older version in this tab only (sessionStorage) is moved over.
+ */
+function storedSession(): string | null {
+  const shared = localStorage.getItem(SESSION_KEY)
+  if (shared) return shared
+  const own = sessionStorage.getItem(SESSION_KEY)
+  if (!own) return null
+  localStorage.setItem(SESSION_KEY, own)
+  sessionStorage.removeItem(SESSION_KEY)
+  return own
+}
+
+let watchingTabs = false
+
+// Signing in or out in another tab reaches this one as a storage event.
+function watchOtherTabs(): void {
+  if (watchingTabs || typeof window === "undefined") return
+  watchingTabs = true
+  window.addEventListener("storage", (event) => {
+    if (event.key !== SESSION_KEY || event.storageArea !== localStorage) return
+    // Signed out over there: this tab says why on its own sign-in page, and comes back to its own page.
+    if (event.oldValue && !event.newValue && !sessionStorage.getItem(NOTICE_KEY)) {
+      let ended: number | null = null
+      try {
+        ended = expiryOf(JSON.parse(event.oldValue))
+      } catch {
+        // unreadable: treated as signed out
+      }
+      const reason: SignedOutReason = ended !== null && Date.now() >= ended ? "expired" : "revoked"
+      sessionStorage.setItem(NOTICE_KEY, JSON.stringify({ reason, from: `${window.location.pathname}${window.location.search}` }))
+    }
+    publishAuth()
+  })
+}
+
 export function clearSession(): void {
+  localStorage.removeItem(SESSION_KEY)
   sessionStorage.removeItem(SESSION_KEY)
   // File links check an HttpOnly cookie (lib/file-links.ts); signing out drops it too.
   void fetch("/api/files/session", { method: "DELETE", keepalive: true }).catch(() => undefined)
@@ -187,7 +226,7 @@ async function postAuth(path: "/auth/login" | "/auth/signup", body: unknown): Pr
     throw new AuthApiError("request_failed", "Sign-in returned an unexpected response", response.status)
   }
   const raw = JSON.stringify(parsed)
-  sessionStorage.setItem(SESSION_KEY, raw)
+  localStorage.setItem(SESSION_KEY, raw)
   remember(raw)
   publishAuth()
   return parsed
