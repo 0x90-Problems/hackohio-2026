@@ -40,3 +40,10 @@ next-env.d.ts
 
 # copied from node_modules at build time (scripts/copy-excalidraw-assets.mjs)
 /public/excalidraw-assets/
+
+# Cloudflare build output and local state
+/.open-next/
+/.wrangler/
+/.dev.vars
+/.dev.vars.*
+/.package-lock.cf-build.json

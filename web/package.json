@@ -8,6 +8,9 @@
     "prebuild": "node scripts/copy-excalidraw-assets.mjs",
     "build": "next build",
     "start": "next start",
+    "cf:build": "node scripts/cf-build.mjs",
+    "cf:preview": "node scripts/cf-build.mjs && opennextjs-cloudflare preview",
+    "cf:deploy": "node scripts/cf-build.mjs && opennextjs-cloudflare deploy",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
@@ -33,7 +36,7 @@
     "lucide-react": "1.59.0",
     "mermaid": "11.17.2",
     "motion": "^14.6.0",
-    "next": "16.4.2",
+    "next": "16.4.5",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.8.1",
     "react": "19.3.1",
@@ -45,16 +48,18 @@
     "yjs": "13.6.33"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "1.20.16",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.5",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "4.158.0"
   },
   "overrides": {
     "linkifyjs": "4.3.3",
