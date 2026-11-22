@@ -4,6 +4,7 @@ import { NoTeamBanner } from "@/components/no-team"
 import { PendingActions } from "@/components/home/pending-actions"
 import { PendingFeed } from "@/components/home/pending-feed"
 import { SiteFooter } from "@/components/site-footer"
+import { Suggestions } from "@/components/home/suggestions"
 
 export default function HomePage() {
   return (
@@ -21,6 +22,7 @@ export default function HomePage() {
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
             <div className="flex min-w-0 flex-col gap-6">
+              <Suggestions />
               <PendingActions />
               <PendingFeed />
             </div>
