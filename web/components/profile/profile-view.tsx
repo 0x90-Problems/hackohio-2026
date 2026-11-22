@@ -45,9 +45,12 @@ const DAYS = ["", "Mon", "", "Wed", "", "Fri", ""]
 export function ProfileView({
   userId,
   compact = false,
+  nameAction,
 }: {
   userId: string
   compact?: boolean
+  /** Shown right after the name, such as the popup's message button. */
+  nameAction?: React.ReactNode
 }) {
   const account = useAuthUser()
   const { activity, tickets, comments, boardAgents } = useProjects()
@@ -125,6 +128,7 @@ export function ProfileView({
                 (you)
               </span>
             )}
+            {nameAction && <span className="ml-2 inline-flex align-middle">{nameAction}</span>}
           </h1>
           <p className="truncate text-sm text-muted-foreground">
             {[user.auth_username && `@${user.auth_username}`, user.team]

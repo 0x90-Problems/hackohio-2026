@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { keepPresent, suggestionHref, suggestionLinkLabel, toggleAll, toggleId } from "./suggestion-links.ts"
+import { keepPresent, outsideLink, suggestionHref, suggestionLinkLabel, toggleAll, toggleId } from "./suggestion-links.ts"
 
 test("each kind of target opens the right page", () => {
   assert.equal(suggestionHref({ kind: "ticket", ref: "NSB-12" }), "/projects/NSB/board/ticket/NSB-12")
@@ -18,6 +18,18 @@ test("anything that isn't an in-app page never becomes a link", () => {
   }
   assert.equal(suggestionHref({ kind: "ticket", ref: "nsb-1" }), null)
   assert.equal(suggestionHref({ kind: "file", ref: "../etc" }), null)
+})
+
+test("an outside link opens only if it's https with no user name or password, and names its site", () => {
+  assert.deepEqual(outsideLink({ kind: "url", ref: "https://www.github.com/0x90-Problems" }), { href: "https://www.github.com/0x90-Problems", host: "github.com" })
+  for (const ref of ["http://example.com", "javascript:alert(1)", "https://user:pw@example.com", "https://good.example@evil.example", "nonsense"]) {
+    assert.equal(outsideLink({ kind: "url", ref }), null, ref)
+  }
+  assert.equal(outsideLink({ kind: "page", ref: "/x" }), null)
+  // A look-alike domain shows as xn--, not as the letters it imitates.
+  assert.match(outsideLink({ kind: "url", ref: "https://gіthub.com" }).host, /^xn--/)
+  // An outside link is never treated as an in-app page.
+  assert.equal(suggestionHref({ kind: "url", ref: "https://example.com" }), null)
 })
 
 test("the open button says what it opens", () => {
