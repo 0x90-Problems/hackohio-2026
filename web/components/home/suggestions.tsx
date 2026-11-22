@@ -5,6 +5,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 
 import { ActorBadge } from "@/components/actor-badge"
+import { ExternalLinkIcon } from "@/components/icons"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { MarkdownView } from "@/components/markdown-view"
 import { Button } from "@/components/ui/button"
@@ -13,7 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 import { timeAgo } from "@/lib/format"
-import { keepPresent, suggestionHref, suggestionLinkLabel, toggleAll, toggleId } from "@/lib/suggestion-links"
+import { keepPresent, outsideLink, suggestionHref, suggestionLinkLabel, toggleAll, toggleId } from "@/lib/suggestion-links"
 import { type Suggestion, suggestionsApi } from "@/lib/suggestions-api"
 
 const REFRESH_MS = 60_000
@@ -145,6 +146,7 @@ export function Suggestions() {
                     <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
                       <ActorBadge actor={item.actor} interactive={false} className="text-xs text-foreground" />
                       <span>· {timeAgo(new Date(item.created_at))}</span>
+                      {outsideLink(item.target) && <span>· links to {outsideLink(item.target)!.host}</span>}
                     </span>
                   </button>
                   <Button size="sm" variant="ghost" disabled={busy} onClick={() => void dismiss([item._id])} aria-label={`Dismiss: ${item.title}`}>
@@ -170,6 +172,15 @@ export function Suggestions() {
                   </span>
                 </DialogDescription>
               </DialogHeader>
+              {outsideLink(viewing.target) && (
+                <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                  Opens <span className="font-medium">{outsideLink(viewing.target)!.host}</span> in a new tab. That&apos;s outside
+                  NutShell; check it&apos;s a site you expect.
+                  <span className="mt-1 block truncate font-mono text-xs text-muted-foreground" title={outsideLink(viewing.target)!.href}>
+                    {outsideLink(viewing.target)!.href}
+                  </span>
+                </p>
+              )}
               {viewing.body ? (
                 <MarkdownView markdown={viewing.body} compact lineBreaks className="max-h-[50svh] overflow-y-auto" />
               ) : (
@@ -188,6 +199,15 @@ export function Suggestions() {
                       <Link href={suggestionHref(viewing.target)!} onClick={() => setViewing(null)}>
                         {suggestionLinkLabel(viewing.target)}
                       </Link>
+                    </Button>
+                  )}
+                  {outsideLink(viewing.target) && (
+                    // Outside NutShell: a new tab, and the site isn't told where you came from.
+                    <Button asChild variant="outline">
+                      <a href={outsideLink(viewing.target)!.href} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">
+                        Open link
+                        <ExternalLinkIcon aria-hidden="true" />
+                      </a>
                     </Button>
                   )}
                 </div>

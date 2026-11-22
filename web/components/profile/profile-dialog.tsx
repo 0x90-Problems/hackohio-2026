@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { MessagesSquareIcon } from "@/components/icons"
 import { ProfileView } from "@/components/profile/profile-view"
+import { useBoardDirectory } from "@/lib/use-board-directory"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -68,6 +69,8 @@ export function ProfileDialogProvider({
   }
 
   const self = userId !== null && userId === account?._id
+  // Their name, for the message button's label.
+  const name = useBoardDirectory().people.find((person) => person._id === userId)?.name ?? "them"
 
   return (
     <OpenProfileContext.Provider value={open}>
@@ -81,23 +84,32 @@ export function ProfileDialogProvider({
           <DialogDescription className="sr-only">
             Activity and agents for this person
           </DialogDescription>
-          {userId && <ProfileView userId={userId} compact />}
-          {userId && (self || chatOn) && (
-            <div className="flex flex-wrap gap-2">
-              {!self && chatOn && (
-                <Button disabled={opening} onClick={() => void message(userId)}>
-                  <MessagesSquareIcon aria-hidden="true" />
-                  {opening ? "Opening…" : "Message"}
-                </Button>
-              )}
-              {self && (
-                <Button asChild variant="outline">
-                  <Link href="/profile" onClick={() => setUserId(null)}>
-                    Open your full profile
-                  </Link>
-                </Button>
-              )}
-            </div>
+          {userId && (
+            <ProfileView
+              userId={userId}
+              compact
+              nameAction={
+                !self && chatOn ? (
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    disabled={opening}
+                    onClick={() => void message(userId)}
+                    aria-label={`Message ${name}`}
+                    title={`Message ${name}`}
+                  >
+                    <MessagesSquareIcon aria-hidden="true" />
+                  </Button>
+                ) : null
+              }
+            />
+          )}
+          {self && (
+            <Button asChild variant="outline" className="self-start">
+              <Link href="/profile" onClick={() => setUserId(null)}>
+                Open your full profile
+              </Link>
+            </Button>
           )}
         </DialogContent>
       </Dialog>
