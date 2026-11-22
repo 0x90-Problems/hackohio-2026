@@ -1,0 +1,16 @@
+{
+  // Cloudflare hosting for the web app (NSB-84). Served at nutshell.<account>.workers.dev and kept
+  // private with Cloudflare Access. Settings and keys are Worker secrets, never in this file.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nutshell",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true }
+}
