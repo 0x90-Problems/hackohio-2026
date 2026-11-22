@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
@@ -26,6 +26,7 @@ import { LiveActivity } from "@/components/board/live-activity"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
+import { useDragScroll } from "@/components/board/use-drag-scroll"
 import {
   defaultProjectView,
   filterProjectTickets,
@@ -108,6 +109,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   // Column a card is being dragged over, and the card being dragged
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [dragging, setDragging] = useState<string | null>(null)
+  // Dragging a card near an edge scrolls the columns (and the page) toward it.
+  const columnsArea = useRef<HTMLDivElement>(null)
+  useDragScroll(columnsArea)
   const [activityVisible, setActivityVisible] = useState(true)
 
   if (!project) {
@@ -314,6 +318,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
 
         {/* Kanban columns exist only on the board view. A table project does not mount them. */}
         {view === "board" && (
+        <div ref={columnsArea}>
         <ScrollArea className="w-full pb-3">
           <LayoutGroup id={projectKey}>
             <div className="flex gap-4">
@@ -541,6 +546,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           </LayoutGroup>
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
+        </div>
         )}
       </div>
 

@@ -248,7 +248,7 @@ export function ChatView() {
   const unjoined = ws.channels.some((c) => c.kind === "text") ? null : joinHint(ws.joinable)
 
   return (
-    <div className="mx-auto flex h-[calc(100svh-3.5rem)] max-w-screen-2xl">
+    <div className="flex h-[calc(100svh-3.5rem)] w-full">
       <Sidebar
         ws={ws}
         selectedId={selectedId}
@@ -363,7 +363,7 @@ function Sidebar({
   const loose = text.filter((c) => !c.section_id || !sectionIds.has(c.section_id))
 
   return (
-    <aside aria-label="Channels" className={cn("w-full shrink-0 flex-col border-r bg-muted/30 md:w-64", className)}>
+    <aside aria-label="Channels" className={cn("w-full shrink-0 flex-col border-r bg-muted/30 md:w-64 xl:w-72", className)}>
       <div className="flex h-12 items-center justify-between gap-2 border-b px-3">
         <TeamSwitcher className="min-w-0 flex-1" fallback={<h1 className="truncate text-sm font-semibold">{teamName}</h1>} />
         <div className="flex items-center gap-0.5">
@@ -1571,7 +1571,7 @@ function MessagesSkeleton({ rows = 6 }: { rows?: number }) {
 
 function ChatSkeleton() {
   return (
-    <div className="mx-auto flex h-[calc(100svh-3.5rem)] max-w-screen-2xl">
+    <div className="flex h-[calc(100svh-3.5rem)] w-full">
       <div className="hidden w-64 flex-col gap-2 border-r p-3 md:flex">
         {Array.from({ length: 8 }, (_, i) => (
           <Skeleton key={i} className="h-6 w-full" />

@@ -79,7 +79,7 @@ export function BoardsView() {
       </div>
 
       {view.kind === "loading" && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading whiteboards">
+        <div className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading whiteboards">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
@@ -108,7 +108,7 @@ export function BoardsView() {
       )}
 
       {view.kind === "ready" && view.boards.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {view.boards.map((board) => (
             <BoardCard key={board.id} board={board} />
           ))}

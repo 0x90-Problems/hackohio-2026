@@ -260,7 +260,7 @@ function TeamCard({
   const activeAgents = agents.filter((agent) => members.some((member) => member._id === agent.owner_id))
 
   return (
-    <Card className="motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
+    <Card className="h-full motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2 text-lg">
           <UsersIcon className="size-4" aria-hidden="true" />
