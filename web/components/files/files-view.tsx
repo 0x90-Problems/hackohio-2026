@@ -540,7 +540,7 @@ export function FilesView() {
       </p>
 
       {phase === "loading" && mode === "grid" && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading folders">
+        <div className="grid auto-rows-fr gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Loading folders">
           {Array.from({ length: 6 }, (_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
@@ -605,7 +605,7 @@ export function FilesView() {
 
       {phase === "ready" && items.length > 0 && mode === "grid" && (
         <ul
-          className={cn("grid gap-3 rounded-xl sm:grid-cols-2 lg:grid-cols-3", drag.overId === folderId && "ring-2 ring-ring ring-offset-4 ring-offset-background")}
+          className={cn("grid auto-rows-fr gap-3 rounded-xl sm:grid-cols-2 lg:grid-cols-3", drag.overId === folderId && "ring-2 ring-ring ring-offset-4 ring-offset-background")}
           {...(dnd ? dnd.target({ id: folderId, name: crumbs.at(-1)?.name ?? rootLabel, ancestors: [], role }, { filesOnly: true }) : {})}
         >
           {items.map((folder) => {

@@ -164,7 +164,8 @@ export function ProjectsView() {
 
       {noTeam && <NoTeamNotice />}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Every row as tall as the tallest card, so all project cards are one size */}
+      <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <AnimatePresence initial={true}>
           {shown.map((project, index) => (
             <ProjectCard key={project.key} project={project} index={index} />
@@ -205,10 +206,11 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
       }}
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.99 }}
+      className="h-full"
     >
       <Link
         href={`/projects/${project.key}/board`}
-        className="block rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        className="block h-full rounded-xl focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
       >
         <Card className="h-full transition-shadow duration-200 hover:shadow-lg">
           <CardHeader>
@@ -222,12 +224,12 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
                   : `created ${timeAgo(project.created_at)} ago`}
               </span>
             </div>
-            <CardTitle className="text-lg">{project.name}</CardTitle>
+            <CardTitle className="truncate text-lg" title={project.name}>{project.name}</CardTitle>
             {project.description && (
-              <CardDescription>{project.description}</CardDescription>
+              <CardDescription className="line-clamp-2" title={project.description}>{project.description}</CardDescription>
             )}
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+          <CardContent className="flex flex-1 flex-col gap-3">
             {/* One segment per column, sized by how many tickets it has */}
             <div className="flex h-2 overflow-hidden rounded-full bg-muted">
               {tickets.length > 0 &&
@@ -264,7 +266,7 @@ function ProjectCard({ project, index }: { project: Project; index: number }) {
               ))}
             </div>
           </CardContent>
-          <CardFooter className="justify-between text-sm text-muted-foreground">
+          <CardFooter className="mt-auto justify-between text-sm text-muted-foreground">
             <span>
               {done} of {tickets.length} done
             </span>
