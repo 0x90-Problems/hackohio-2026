@@ -19,11 +19,18 @@ import { getUser } from "@/lib/mock-data"
 import { agentAccess, type AgentUsage } from "@/lib/agent-usage"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { CleanupInactiveButton, DeleteAgentDialog } from "@/components/agents/delete-agent"
+import { ReissueTokenDialog } from "@/components/agents/reissue-token"
 import { withReturn } from "@/lib/return-path"
 import { mergeAgentRecords, visibleAgentName } from "@/lib/agent-label"
 import { loadBoard, saveAgent } from "@/lib/board-db"
 import { canDeleteAgent } from "@/lib/delete-agent"
-import { ConnectAgentError, listBoardAgents, listBoardUsers, revokeAgentAccess } from "@/lib/connect-agent"
+import {
+  ConnectAgentError,
+  listBoardAgents,
+  listBoardUsers,
+  revokeAgentAccess,
+  type ReissuedToken,
+} from "@/lib/connect-agent"
 import { timeAgo } from "@/lib/format"
 import { mcpPublicUrl } from "@/lib/mcp-install"
 import { groupTools, type McpToolCatalog } from "@/lib/mcp-tools"
@@ -120,6 +127,18 @@ export function AgentsView() {
     toast.success(`Revoked ${visibleAgentName(agent.name, agent._id)}`, { description: "Its token stopped working." })
   }
 
+  // A new token: same agent, so the row comes back to life in place.
+  function reissued(issued: ReissuedToken) {
+    const next = issued.agent
+    setAgents((current) => current.map((a) => (a._id === next._id ? next : a)))
+    setUsage((current) => {
+      const map = new Map(current)
+      map.set(next._id, { last_used_at: current.get(next._id)?.last_used_at ?? null, expired: false })
+      return map
+    })
+    saveAgent(next)
+  }
+
   // Deleted on the board: drop the rows. Their history keeps the stored names.
   function forget(agentIds: string[]) {
     const gone = new Set(agentIds)
@@ -186,6 +205,7 @@ export function AgentsView() {
                     people={people}
                     usage={usage.get(agent._id)}
                     onRevoke={revoke}
+                    onReissued={reissued}
                     onDeleted={(id) => forget([id])}
                   />
                 ))}
@@ -205,12 +225,14 @@ function AgentRow({
   people,
   usage,
   onRevoke,
+  onReissued,
   onDeleted,
 }: {
   agent: Agent
   people: { _id: string; name: string }[]
   usage?: AgentUsage
   onRevoke: (agent: Agent) => void
+  onReissued: (issued: ReissuedToken) => void
   onDeleted: (agentId: string) => void
 }) {
   const account = useAuthUser()
@@ -223,6 +245,9 @@ function AgentRow({
   const access = agentAccess(agent, usage)
   const inactive = access !== "active"
   const deletable = canDeleteAgent(agent.owner_id, account?._id, account?.admin === true)
+  // Only the owner: the token acts for them.
+  const mine = account?._id === agent.owner_id
+  const name = visibleAgentName(agent.name, agent._id)
   return (
     <TableRow className={cn(inactive && "text-muted-foreground")}>
       <TableCell className="pl-4">
@@ -259,15 +284,23 @@ function AgentRow({
               <ClockIcon className="size-3" aria-hidden="true" />
               Expired
             </Badge>
-          ) : account?._id === agent.owner_id ? (
-            <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />
-          ) : (
+          ) : mine ? null : (
             <span className="text-sm text-muted-foreground">Active</span>
           )}
+          {mine && (
+            <ReissueTokenDialog
+              agent={agent}
+              name={name}
+              kind="agent"
+              mode={access === "expired" ? "reissue" : "reset"}
+              onIssued={onReissued}
+            />
+          )}
+          {mine && access === "active" && <RevokeDialog agent={agent} ownerName={ownerName} onRevoke={onRevoke} />}
           {deletable && (
             <DeleteAgentDialog
               agentId={agent._id}
-              name={visibleAgentName(agent.name, agent._id)}
+              name={name}
               kind="agent"
               ownerName={ownerName}
               onDeleted={onDeleted}
@@ -304,7 +337,7 @@ function RevokeDialog({
           </DialogTitle>
           <DialogDescription>
             Its token stops working right away. Anything it&apos;s doing now will fail.
-            To use this agent again, generate a new token.
+            To use this agent again, reset its token.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
