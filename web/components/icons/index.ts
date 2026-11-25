@@ -78,6 +78,7 @@ export {
   Users as UsersIcon,
   Wifi as WifiIcon,
   WifiOff as WifiOffIcon,
+  LayoutTemplate as LayoutTemplateIcon,
   X as XIcon,
   XCircle as XCircleIcon,
 } from "lucide-react"

@@ -1,4 +1,5 @@
 import { DEFAULT_CATEGORIES } from "@/lib/categories"
+import { checkBlock } from "@/lib/a2ui-block"
 import { attachmentsFrom } from "@/lib/comment-files"
 import type { Actor, Agent, Comment, Event, Project, Ticket } from "@/lib/types"
 
@@ -152,11 +153,19 @@ function commentFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): 
   const author = asActor(comment?.author)
   if (!comment || !ticketKey || body === undefined || !author) return undefined
   const attachments = attachmentsFrom(comment.attachments)
+  // A block the checker refuses is dropped; the text still shows.
+  let ui: Comment["ui"]
+  try {
+    ui = comment.ui === undefined ? undefined : checkBlock(comment.ui)
+  } catch {
+    ui = undefined
+  }
   return {
     ticket_key: ticketKey,
     author: withName(author, users, agents),
     body,
     ...(attachments.length ? { attachments } : {}),
+    ...(ui ? { ui } : {}),
     created_at: new Date(iso(comment.created_at)),
   }
 }
