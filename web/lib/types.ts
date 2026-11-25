@@ -1,3 +1,4 @@
+import type { A2uiBlock } from "@/lib/a2ui-block"
 // Shapes of the documents in each collection. Field names match docs/schema.md
 // exactly, so the same types work for mock data now and MongoDB later.
 import type {
@@ -134,6 +135,8 @@ export type Comment = {
   body: string
   /** Only on comments with files. Names and access come from Folders, per viewer. */
   attachments?: CommentAttachment[]
+  /** An A2UI block shown under the text (NSB-90). Checked again before it renders. */
+  ui?: A2uiBlock
   created_at: Date
   // Client only: a local echo shown right away, replaced when the server's copy arrives.
   local?: boolean

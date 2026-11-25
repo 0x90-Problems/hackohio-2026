@@ -55,6 +55,7 @@ import {
   type ProjectTemplate,
 } from "@/lib/templates"
 import { commentId } from "@/components/board/ticket-modal"
+import type { A2uiBlock } from "@/lib/a2ui-block"
 import { mergeServerComments } from "@/lib/comment-echo"
 
 // CLW-05 -> CLW
@@ -952,11 +953,12 @@ function useProjectsState() {
     toast(`Deleted category ${categoryName(slug, categoriesOf(projectKey))}`)
   }
 
-  function comment(ticketKey: string, body: string, options: { actor?: Actor; attachments?: CommentAttachment[] } = {}) {
+  function comment(ticketKey: string, body: string, options: { actor?: Actor; attachments?: CommentAttachment[]; ui?: A2uiBlock } = {}) {
     const actor = options.actor ?? me
     const created_at = now()
     const attachments = options.attachments?.length ? { attachments: options.attachments } : {}
-    addComment({ ticket_key: ticketKey, author: actor, body, ...attachments, created_at, local: true })
+    const ui = options.ui ? { ui: options.ui } : {}
+    addComment({ ticket_key: ticketKey, author: actor, body, ...attachments, ...ui, created_at, local: true })
     addEvent({
       action: EVENT_ACTIONS.COMMENT_ADDED,
       ticket_key: ticketKey,

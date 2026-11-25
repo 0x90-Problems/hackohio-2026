@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       due_date?: string
       project_key?: string
     }
-    comment?: { ticket_key: string; body: string; attachments?: { file_id?: unknown; version?: unknown }[] }
+    comment?: { ticket_key: string; body: string; attachments?: { file_id?: unknown; version?: unknown }[]; ui?: unknown }
     event?: unknown
     agent?: { name: string; scopes?: string[]; connection?: string }
   }
@@ -153,6 +153,8 @@ export async function POST(request: Request) {
       ...(attachments.length
         ? { attachments: attachments.slice(0, 10).map((item) => ({ file_id: item.file_id, version: item.version })) }
         : {}),
+      // An A2UI block (NSB-90): the board checks it as the caller and refuses a bad one.
+      ...(body.comment.ui !== undefined ? { ui: body.comment.ui } : {}),
     })
   }
   if (body.kind === "event") {

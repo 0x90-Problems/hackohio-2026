@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import { TicketFiles } from "@/components/files/ticket-files"
 import { AttachButton, AttachmentsProvider, ComposerDrafts, MessageAttachments, useComposerFiles } from "@/components/chat/chat-files"
+import { A2uiBlockView } from "@/components/a2ui/a2ui-block-view"
+import { BlockDraft, BlockEditorButton } from "@/components/a2ui/block-editor"
+import type { A2uiBlock } from "@/lib/a2ui-block"
 import { uploadToTicket } from "@/lib/ticket-uploads"
 import { usePathname, useRouter } from "next/navigation"
 
@@ -55,7 +58,7 @@ const CONNECTION_LABELS = {
 }
 
 export type TicketActions = {
-  onComment: (ticketKey: string, body: string, attachments?: CommentAttachment[]) => void
+  onComment: (ticketKey: string, body: string, attachments?: CommentAttachment[], ui?: A2uiBlock) => void
   onMove: (ticketKey: string, status: string) => void
   onTagsChange: (ticketKey: string, tags: string[]) => void
   onDescriptionChange: (ticketKey: string, description: string, commit?: boolean) => void
@@ -221,13 +224,16 @@ function TicketDetail({
     "comment"
   )
   const canPost = Boolean(draft.trim()) && !files.busy
+  // An A2UI block to send with the comment (NSB-90), made in the block editor.
+  const [block, setBlock] = useState<A2uiBlock | null>(null)
 
   function postComment() {
     if (!canPost) return
     // Every file, note and board in Folders has a current version; the board re-checks each one as you.
     const attachments = files.ready.flatMap((item) => (item.version ? [{ file_id: item.file_id, version: item.version }] : []))
-    onComment(ticket.key, draft.trim(), attachments)
+    onComment(ticket.key, draft.trim(), attachments, block ?? undefined)
     setDraft("")
+    setBlock(null)
     files.clear()
   }
 
@@ -461,6 +467,7 @@ function TicketDetail({
                     </span>
                   </div>
                   <MarkdownView markdown={comment.body} compact lineBreaks />
+                  {comment.ui ? <A2uiBlockView block={comment.ui} className="mt-2" /> : null}
                   {comment.attachments?.length ? <MessageAttachments attachments={comment.attachments} /> : null}
                 </li>
               )
@@ -479,8 +486,12 @@ function TicketDetail({
               placeholder="Write a comment. Markdown works: **bold**, `code`, lists, links. Agents on this ticket get notified."
             />
             <ComposerDrafts drafts={files.drafts} onRemove={files.remove} className="mb-0" />
+            {block ? <BlockDraft block={block} onEdit={setBlock} onRemove={() => setBlock(null)} /> : null}
             <div className="flex items-center justify-between gap-2">
-              <AttachButton onUpload={files.upload} onPick={files.pick} chosen={new Set(files.ready.map((file) => file.file_id))} />
+              <div className="flex items-center gap-1">
+                <AttachButton onUpload={files.upload} onPick={files.pick} chosen={new Set(files.ready.map((file) => file.file_id))} />
+                <BlockEditorButton block={block} onSave={setBlock} />
+              </div>
               <Button variant="outline" size="sm" disabled={!canPost} onClick={postComment}>
                 Comment
               </Button>

@@ -17,6 +17,8 @@
     "test": "node --test lib/*.test.mjs"
   },
   "dependencies": {
+    "@a2ui/react": "0.15.0",
+    "@a2ui/web_core": "0.15.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1156.0",
     "@excalidraw/excalidraw": "0.18.1",
     "@iconify-icons/simple-icons": "2.0.7",
@@ -63,6 +65,7 @@
   },
   "overrides": {
     "linkifyjs": "4.3.3",
-    "prosemirror-view": "1.42.7"
+    "prosemirror-view": "1.42.7",
+    "@a2ui/markdown-it": "0.2.2"
   }
 }
