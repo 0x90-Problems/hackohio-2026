@@ -6,7 +6,7 @@ import { toast } from "sonner"
 
 import { nodeSize } from "@/components/files/file-panels"
 import { FilesSearch } from "@/components/files/files-search"
-import { NodeIcon } from "@/components/files/thumbnail"
+import { IMAGE_TYPES, NodeIcon } from "@/components/files/thumbnail"
 import { CheckIcon, ChevronLeftIcon, Loader2Icon, LockIcon, PaperclipIcon, RefreshCwIcon, XIcon } from "@/components/icons"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -38,11 +38,78 @@ export function MessageAttachments({ attachments }: { attachments: ChatAttachmen
   return (
     <ul className="flex flex-wrap gap-1.5 pt-1" aria-label="Attached files">
       {attachments.map((item) => (
-        <li key={`${item.file_id}@${item.version}`} className="max-w-full">
+        <li key={`${item.file_id}@${item.version}`} className="flex max-w-full flex-col items-start gap-1.5">
+          <ImagePreview item={item} />
           <AttachmentChip item={item} />
         </li>
       ))}
     </ul>
+  )
+}
+
+// Images up to this size show inline; bigger ones keep just the chip.
+const PREVIEW_MAX_BYTES = 10 * 1024 * 1024
+
+/**
+ * An attached image, shown in the message (Dylan: "image attachments in chat should render the
+ * image"). Only once Files says this viewer may open it, from a short-lived link for that exact
+ * version, inline. A link that expires before it loads gets one fresh link, then the preview steps
+ * aside and the chip stays. Clicking opens it full size.
+ */
+function ImagePreview({ item }: { item: ChatAttachment }) {
+  const directory = useContext(DirectoryContext)
+  if (!directory) throw new Error("ImagePreview needs an AttachmentsProvider")
+  useSyncExternalStore(directory.subscribe, directory.snapshot, () => 0)
+  const state = directory.get(item)
+  const file = state.status === "ready" ? state.file : null
+  const isImage = Boolean(file?.available && file.type === "file" && IMAGE_TYPES.includes(file.content_type ?? "") && (file.size ?? 0) <= PREVIEW_MAX_BYTES)
+  const [link, setLink] = useState<{ key: string; url: string } | null>(null)
+  const [tries, setTries] = useState(0)
+  const [gone, setGone] = useState(false)
+  const [open, setOpen] = useState(false)
+  const key = `${item.file_id}@${item.version}#${tries}`
+
+  useEffect(() => {
+    if (!isImage || gone) return
+    let cancelled = false
+    foldersApi
+      .link(item.file_id, item.version, true)
+      .then((result) => !cancelled && setLink({ key, url: result.url }))
+      .catch(() => !cancelled && setGone(true))
+    return () => {
+      cancelled = true
+    }
+  }, [isImage, gone, item.file_id, item.version, key])
+
+  if (!isImage || gone) return null
+  const url = link?.key === key ? link.url : null
+  const failed = () => (tries === 0 ? setTries(1) : setGone(true))
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="overflow-hidden rounded-lg border bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        aria-label={`Open ${file?.name ?? "image"}`}
+      >
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- short-lived file link, not a static asset
+          <img src={url} alt={file?.name ?? ""} loading="lazy" onError={failed} className="block max-h-64 max-w-[min(24rem,100%)] object-contain" />
+        ) : (
+          <span className="block h-40 w-56 animate-pulse bg-muted" aria-hidden="true" />
+        )}
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-[min(90vw,64rem)] p-2 sm:max-w-[min(90vw,64rem)]">
+          <DialogTitle className="sr-only">{file?.name ?? "Image"}</DialogTitle>
+          <DialogDescription className="sr-only">The attached image, full size</DialogDescription>
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element -- short-lived file link, not a static asset
+            <img src={url} alt={file?.name ?? ""} onError={failed} className="max-h-[85svh] w-full rounded-md object-contain" />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
