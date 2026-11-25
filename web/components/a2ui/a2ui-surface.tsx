@@ -38,14 +38,17 @@ let nextSurface = 0
 
 export default function A2uiBlockSurface({ block }: { block: A2uiBlock }) {
   const [surfaceId] = useState(() => `comment-block-${(nextSurface += 1)}`)
+  // Rebuilt only when the block's content changes, not on every redraw: a rebuild resets the block,
+  // so an open pop-up would close and the block would flicker on each board refresh.
+  const content = JSON.stringify(block.components)
   const processor = useMemo(() => {
     const processor = new MessageProcessor([commentCatalog()])
     processor.processMessages([
       { version: "v0.9", createSurface: { surfaceId, catalogId: CATALOG_ID } },
-      { version: "v0.9", updateComponents: { surfaceId, components: block.components } },
+      { version: "v0.9", updateComponents: { surfaceId, components: JSON.parse(content) } },
     ] as never)
     return processor
-  }, [block, surfaceId])
+  }, [content, surfaceId])
   const [surface, setSurface] = useState(() => processor.model.surfacesMap.get(surfaceId) ?? null)
 
   useEffect(() => {
