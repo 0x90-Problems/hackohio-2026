@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Component, type ReactNode } from "react"
+import { Component, useMemo, type ReactNode } from "react"
 
 import { Skeleton } from "@/components/ui/skeleton"
 import { checkBlock, type A2uiBlock } from "@/lib/a2ui-block"
@@ -32,12 +32,16 @@ function BlockNotice({ text }: { text: string }) {
  * the way in, and this keeps an old or tampered copy from reaching the renderer.
  */
 export function A2uiBlockView({ block, className }: { block: unknown; className?: string }) {
-  let checked: A2uiBlock
-  try {
-    checked = checkBlock(block)
-  } catch {
-    return <BlockNotice text="This block can't be shown." />
-  }
+  // Checked once per content, so redraws hand the renderer the same block and it keeps its state.
+  const json = JSON.stringify(block ?? null)
+  const checked = useMemo<A2uiBlock | null>(() => {
+    try {
+      return checkBlock(JSON.parse(json))
+    } catch {
+      return null
+    }
+  }, [json])
+  if (!checked) return <BlockNotice text="This block can't be shown." />
   return (
     <div className={["nutshell-a2ui", className].filter(Boolean).join(" ")}>
       <BlockBoundary>
