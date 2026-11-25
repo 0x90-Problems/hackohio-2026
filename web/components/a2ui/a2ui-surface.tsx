@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react"
 import { A2uiSurface, MarkdownComponentContext, type MarkdownComponentProps } from "@a2ui/react/v0_9"
 import { Catalog, MessageProcessor, basicCatalog, injectBasicCatalogStyles } from "@a2ui/web_core/v0_9"
 
+import { NutshellIcon } from "@/components/a2ui/nutshell-icon"
 import { NutshellModal } from "@/components/a2ui/nutshell-modal"
 import { MarkdownView } from "@/components/markdown-view"
 import { ALLOWED_COMPONENTS, type A2uiBlock } from "@/lib/a2ui-block"
@@ -18,10 +19,11 @@ let catalog: Catalog<never> | null = null
 function commentCatalog() {
   if (catalog) return catalog
   injectBasicCatalogStyles()
-  // The allowed basic components, with Modal drawn as a NutShell dialog.
+  // The allowed basic components, with Modal drawn as a NutShell dialog and Icon with NutShell's icons.
   const components = [
-    ...[...basicCatalog.components.values()].filter((item) => ALLOWED_COMPONENTS.includes(item.name) && item.name !== "Modal"),
+    ...[...basicCatalog.components.values()].filter((item) => ALLOWED_COMPONENTS.includes(item.name) && item.name !== "Modal" && item.name !== "Icon"),
     NutshellModal,
+    NutshellIcon,
   ]
   // Only openUrl: the one thing a button may do besides opening a pop-up.
   const functions = [...basicCatalog.functions.values()].filter((fn) => fn.name === "openUrl")
