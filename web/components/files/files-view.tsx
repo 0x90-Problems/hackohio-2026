@@ -392,7 +392,8 @@ export function FilesView() {
   // Only the page's own folder list moves things; the trash only restores.
   const dnd = showTrash ? undefined : drag
   const teamName = useTeamLabel(workspace?.team_name ?? "")
-  const rootLabel = workspace ? teamName : "All folders"
+  // The top folder reads "Shared files": a team named like the app ("NutShell") looked like a product label.
+  const rootLabel = workspace ? "Shared files" : "All folders"
 
   const emptyText = showTrash ? "The trash is empty." : canEdit(role) ? "Nothing here yet. Create or upload something to get started." : "Nothing here yet."
 
@@ -405,7 +406,7 @@ export function FilesView() {
             Folders
           </h1>
           <p className="text-muted-foreground">
-            {workspace ? `${teamName}'s shared folders.` : "Your team's shared folders."}
+            {workspace ? `Shared files for the ${teamName} team.` : "Your team's shared folders."}
           </p>
         </div>
         {showPage && (
