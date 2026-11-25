@@ -106,8 +106,8 @@ export function ConnectAgentWizard({ returnTo, returnLabel }: { returnTo: string
           <StepSection title="Client config (shown once)">
             <CopyBlock text={issued.extra.json} what="MCP config" multiline onCopied={markCopied} />
             <p className="text-sm text-muted-foreground">
-              It holds the token. Once you leave this page it can&apos;t be shown again: revoke the agent and
-              connect a new one instead.
+              It holds the token. Once you leave this page it can&apos;t be shown again: reset the agent&apos;s
+              token on the Agents page instead.
             </p>
           </StepSection>
         </>

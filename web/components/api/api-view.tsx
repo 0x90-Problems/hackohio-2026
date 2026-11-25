@@ -27,7 +27,9 @@ import {
   listBoardAgents,
   listBoardUsers,
   revokeAgentAccess,
+  type ReissuedToken,
 } from "@/lib/connect-agent"
+import { ReissueTokenDialog } from "@/components/agents/reissue-token"
 import { canDeleteAgent } from "@/lib/delete-agent"
 import { timeAgo } from "@/lib/format"
 import { boardApiPublicUrl, curlExample, onlyConnection } from "@/lib/rest-api"
@@ -147,6 +149,13 @@ export function ApiView() {
     }
     setKeys((current) => current.filter((k) => k !== key))
     toast.success(`Revoked ${key.name}`, { description: "Requests with this key now get 401." })
+  }
+
+  // Same key, new secret: it shows the new prefix and works again.
+  function reissued(key: ApiKey, issued: ReissuedToken) {
+    const next = { ...key, token_prefix: issued.tokenPrefix || key.token_prefix, scopes: issued.agent.scopes, expired: false }
+    setKeys((current) => current.map((k) => (k === key ? next : k)))
+    toast.success(`New key for ${key.name}`, { description: "Update your scripts and CI secrets with it." })
   }
 
   // Deleted on the board: drop the rows.
@@ -321,7 +330,23 @@ export function ApiView() {
                     </div>
                     {key.id && deletable ? (
                       <div className="flex justify-end gap-2">
-                        {mine && <RevokeKeyDialog apiKey={key} onRevoke={revoke} />}
+                        {mine && (
+                          <ReissueTokenDialog
+                            agent={{
+                              _id: key.id,
+                              name: key.name,
+                              owner_id: key.owner_id,
+                              connection: AGENT_CONNECTION.API_KEY,
+                              scopes: key.scopes,
+                              revoked: false,
+                            }}
+                            name={key.name}
+                            kind="key"
+                            mode={key.expired ? "reissue" : "reset"}
+                            onIssued={(issued) => reissued(key, issued)}
+                          />
+                        )}
+                        {mine && !key.expired && <RevokeKeyDialog apiKey={key} onRevoke={revoke} />}
                         <DeleteAgentDialog
                           agentId={key.id}
                           name={key.name}

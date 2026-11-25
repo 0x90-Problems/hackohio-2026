@@ -170,6 +170,52 @@ export async function revokeAgentAccess(agentId: string): Promise<void> {
   if (!response.ok) throw new ConnectAgentError(staleSession(await errorMessage(response)))
 }
 
+export type ReissuedToken = ConnectedAgent & { tokenPrefix: string; expiresAt: Date | null }
+
+/**
+ * A new token for your own agent or API key: same name, scopes and history. Reset also stops
+ * every old token and brings back a revoked agent; without it, other live tokens keep working.
+ */
+export async function reissueAgentToken(agent: Agent, reset: boolean): Promise<ReissuedToken> {
+  const session = readSession()
+  if (!session) throw new ConnectAgentError("Sign in before making a new token")
+  let response: Response
+  try {
+    response = await fetch(`/api/agents/${encodeURIComponent(agent._id)}/reissue`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        ...boardContextHeaders(),
+        authorization: `Bearer ${session.secret}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ reset }),
+    })
+  } catch {
+    throw new ConnectAgentError("The board API could not be reached")
+  }
+  if (response.status === 404) {
+    const message = await errorMessage(response, "")
+    // An older board answers "No route for POST …": reissuing isn't live there yet.
+    throw new ConnectAgentError(message.startsWith("No route") ? "The board API can't reissue tokens yet" : "That agent was not found")
+  }
+  if (response.status === 403) throw new ConnectAgentError("Only its owner can make it a new token")
+  if (!response.ok) throw new ConnectAgentError(staleSession(await errorMessage(response, "Couldn't make a new token")))
+  const body = (await response.json().catch(() => null)) as { token?: { token_prefix?: unknown; expires_at?: unknown; scopes?: unknown } } | null
+  const connected = parseConnected(body, { ownerId: agent.owner_id, scopes: agent.scopes, connection: agent.connection })
+  if (!connected) throw new ConnectAgentError("The board API returned an unexpected response")
+  const token = body?.token
+  const expires = typeof token?.expires_at === "string" ? new Date(token.expires_at) : null
+  // The board leaves off any scope the owner has lost since.
+  const scopes = Array.isArray(token?.scopes) ? (token.scopes.filter((scope) => typeof scope === "string") as Scope[]) : agent.scopes
+  return {
+    ...connected,
+    agent: { ...connected.agent, scopes },
+    tokenPrefix: typeof token?.token_prefix === "string" ? token.token_prefix : "",
+    expiresAt: expires && !Number.isNaN(expires.getTime()) ? expires : null,
+  }
+}
+
 /**
  * Deletes an agent or API key for good (owner or org admin). Its tokens stop working; its
  * history stays. Null means it was already gone, so the caller can drop it from the list.
