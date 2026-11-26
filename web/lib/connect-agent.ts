@@ -114,7 +114,10 @@ function parseConnected(
   }
 }
 
-export async function listBoardUsers(): Promise<{ _id: string; name: string }[]> {
+/** A person in the board's directory. team/teams are their teams in the current organization. */
+export type BoardPerson = { _id: string; name: string; team?: string; teams?: string[] }
+
+export async function listBoardUsers(): Promise<BoardPerson[]> {
   const session = readSession()
   if (!session) return []
   const response = await fetch("/api/users", {
@@ -125,9 +128,15 @@ export async function listBoardUsers(): Promise<{ _id: string; name: string }[]>
   if (!Array.isArray(body)) return []
   return body.flatMap((item) => {
     if (item === null || typeof item !== "object") return []
-    const user = item as { _id?: unknown; name?: unknown }
+    const user = item as { _id?: unknown; name?: unknown; team?: unknown; teams?: unknown }
     if (typeof user._id !== "string" || typeof user.name !== "string" || !user.name) return []
-    return [{ _id: user._id, name: user.name }]
+    const teams = Array.isArray(user.teams) ? user.teams.filter((team): team is string => typeof team === "string" && team !== "") : undefined
+    return [{
+      _id: user._id,
+      name: user.name,
+      ...(typeof user.team === "string" ? { team: user.team } : {}),
+      ...(teams ? { teams } : {}),
+    }]
   })
 }
 

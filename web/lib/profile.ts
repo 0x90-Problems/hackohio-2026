@@ -13,20 +13,30 @@ export type ProfileUser = {
   auth_username?: string
   role?: string
   team?: string
+  /** Their teams in the current organization, from the board's directory. */
+  teams?: string[]
 }
 
-// The signed-in account is the freshest copy of its own details, then the
-// live directory, then the demo data
+// The signed-in account is the freshest copy of its own name and username; the live directory
+// says which teams someone is on in this organization. The account's own team is the one it
+// signed in with, which can be another organization's (NSB-98), so it's never shown.
 export function findUser(
   id: string,
   account: AuthUser | null,
-  people: { _id: string; name: string }[] = []
+  people: { _id: string; name: string; team?: string; teams?: string[] }[] = []
 ): ProfileUser | null {
-  if (account && account._id === id) return account
-  const demo = getUser(id)
   const live = people.find((p) => p._id === id)
-  if (live) return { ...demo, ...live }
+  const orgTeams = { team: live?.team ?? "", teams: live?.teams ?? (live?.team ? [live.team] : []) }
+  if (account && account._id === id) return { ...account, ...orgTeams }
+  const demo = getUser(id)
+  if (live) return { ...demo, ...live, ...orgTeams }
   return demo ?? null
+}
+
+/** "Design, Platform": someone's teams in this organization, or "" when they're on none. */
+export function teamsLabel(user: ProfileUser): string {
+  const teams = user.teams?.length ? user.teams : user.team ? [user.team] : []
+  return teams.join(", ")
 }
 
 // Live agents first; demo agents fill in any the directory doesn't list
