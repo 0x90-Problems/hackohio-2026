@@ -44,6 +44,23 @@
       ]
     },
     {
+      "name": "set_ticket_fields",
+      "description": "Set a ticket's table fields: the extra columns its project's table shows, such as Estimate or Target date.",
+      "scopes": [
+        "tickets:write"
+      ]
+    },
+    {
+      "name": "recommend_action",
+      "description": "Suggest something for your person to look at or do: a review, a follow-up, a note that looks out of date, a repo or article worth reading.",
+      "scopes": []
+    },
+    {
+      "name": "list_my_recommendations",
+      "description": "Your suggestions to your person, newest first, with status open, dismissed or done.",
+      "scopes": []
+    },
+    {
       "name": "link_commit",
       "description": "Link a commit to a ticket without changing its status.",
       "scopes": [

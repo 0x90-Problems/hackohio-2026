@@ -6,6 +6,7 @@ import { endSession, readSession } from "@/lib/board-auth"
 import { refusedReason } from "@/lib/session-expiry"
 import { boardContextHeaders } from "@/lib/team-choice"
 import { mergeBoardRecords, ticketFromApi } from "@/lib/board-merge"
+import { fieldDefsOf } from "@/lib/table-fields"
 import type { ApprovalMode } from "@/shared/names"
 import type { Agent, Category, Comment, Event, Project, Ticket } from "@/lib/types"
 
@@ -118,6 +119,29 @@ export async function saveProjectArchived(key: string, archived: boolean) {
     const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
     throw new Error(body?.error?.message ?? "Could not save the project")
   }
+}
+
+async function boardCall<T>(payload: object, fallback: string): Promise<T> {
+  const response = await fetch("/api/board", {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(payload),
+  }).catch(() => null)
+  if (!response) throw new Error("Couldn't reach the board. Check your connection and try again.")
+  const body = (await response.json().catch(() => null)) as (T & { error?: { message?: string } }) | null
+  if (!response.ok) throw new Error(body?.error?.message ?? fallback)
+  return body as T
+}
+
+// The whole list in order; fields without an id are new. Returns the list as the board stored it.
+export async function saveProjectFields(key: string, fields: { id?: string; name: string; type: string; options?: string[] }[]) {
+  const saved = await boardCall<{ field_defs?: unknown }>({ kind: "projectFields", key, fields }, "Could not save the fields")
+  return fieldDefsOf({ field_defs: saved.field_defs })
+}
+
+// Values by field id; "" clears one.
+export async function saveTicketFields(key: string, values: Record<string, string>) {
+  await boardCall<object>({ kind: "ticketFields", key, fields: values }, "Could not save the field")
 }
 
 export async function saveProjectColumns(key: string, categories: Category[], moveTicketsTo?: string) {

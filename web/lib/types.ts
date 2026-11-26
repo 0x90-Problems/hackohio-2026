@@ -1,3 +1,4 @@
+import type { FieldDef } from "@/lib/table-fields"
 import type { A2uiBlock } from "@/lib/a2ui-block"
 // Shapes of the documents in each collection. Field names match docs/schema.md
 // exactly, so the same types work for mock data now and MongoDB later.
@@ -71,8 +72,10 @@ export type Project = {
   unassigned?: boolean
   template?: ProjectTemplate
   layout?: ProjectLayout
-  // Extra columns on a table layout, such as Iteration or Estimate
+  // Extra columns on a table layout, such as Iteration or Estimate (names; field_defs has types)
   fields?: string[]
+  // The table's fields with their types (lib/table-fields.ts). Filled in by the board.
+  field_defs?: FieldDef[]
   // The board's columns, in order
   categories: Category[]
   // Tags the template suggests before any ticket uses them
@@ -108,8 +111,8 @@ export type Ticket = {
   due_date?: string
   description?: string
   card_color?: CategoryColor
-  // Values for the project's table fields. Missing keys render as empty cells.
-  fields?: Record<string, string>
+  // Values for the project's table fields, by field id. Missing keys render as empty cells.
+  field_values?: Record<string, string>
   // Set while a move to done waits for a person to approve it; the ticket stays in its column.
   approval_request?: ApprovalRequest
   // Who approved the last close, and when. Cleared when the ticket leaves done.

@@ -1,5 +1,6 @@
 import { DEFAULT_CATEGORIES } from "@/lib/categories"
 import { checkBlock } from "@/lib/a2ui-block"
+import { fieldDefsOf } from "@/lib/table-fields"
 import { attachmentsFrom } from "@/lib/comment-files"
 import type { Actor, Agent, Comment, Event, Project, Ticket } from "@/lib/types"
 
@@ -117,7 +118,7 @@ function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): T
   if (!ticket || !key || !title || !createdBy || ticket.deleted_at) return undefined
   const tags = Array.isArray(ticket.tags) ? ticket.tags.filter((tag): tag is string => typeof tag === "string") : undefined
   const label = text(ticket.label)
-  const fields = stringFields(ticket.fields)
+  const fieldValues = stringFields(ticket.field_values)
   const request = approvalRequestFrom(ticket.approval_request, users, agents)
   const approvedBy = asActor(ticket.approved_by)
   return {
@@ -134,7 +135,7 @@ function ticketFrom(value: unknown, users: NamedUser[], agents: NamedAgent[]): T
     ...(text(ticket.due_date) ? { due_date: text(ticket.due_date) } : {}),
     ...(text(ticket.description) ? { description: text(ticket.description) } : {}),
     ...(text(ticket.card_color) ? { card_color: text(ticket.card_color) as Ticket["card_color"] } : {}),
-    ...(fields ? { fields } : {}),
+    ...(fieldValues ? { field_values: fieldValues } : {}),
     ...(request ? { approval_request: request } : {}),
     ...(approvedBy ? { approved_by: withName(approvedBy, users, agents), approved_at: new Date(iso(ticket.approved_at)) } : {}),
     created_at: new Date(iso(ticket.created_at)),
@@ -225,6 +226,7 @@ function projectFrom(value: unknown, team: string, users: NamedUser[], agents: N
     ...(text(project.template) ? { template: text(project.template) as Project["template"] } : {}),
     layout: project.layout === "table" || project.layout === "roadmap" || project.layout === "board" ? project.layout : "board",
     fields: Array.isArray(project.fields) ? project.fields.filter((field): field is string => typeof field === "string") : [],
+    ...(Array.isArray(project.field_defs) ? { field_defs: fieldDefsOf({ field_defs: project.field_defs }) } : {}),
     categories: categoriesFrom(project.categories ?? project.columns),
     ...(Array.isArray(project.starter_tags) ? { starter_tags: project.starter_tags.filter((tag): tag is string => typeof tag === "string") } : {}),
     created_by: withName(createdBy, users, agents),

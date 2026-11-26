@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import type { Category, ProjectLayout, Ticket, User } from "@/lib/types"
+import type { Category, ProjectLayout, Ticket } from "@/lib/types"
+import type { FieldDef } from "@/lib/table-fields"
+import type { FieldDraft, Person } from "@/components/board/table-fields"
 import { TicketOwnerBadge } from "@/components/actor-badge"
 import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { TableView } from "@/components/board/table-view"
@@ -65,12 +67,14 @@ export function ProjectViews({
   onDatesChange,
   onMoveCategory,
   onDelete,
+  onFieldsChange,
+  onFieldValue,
 }: {
   tickets: Ticket[]
   categories: Category[]
-  fields: string[]
+  fields: FieldDef[]
   layout?: ProjectLayout
-  owners: User[]
+  owners: Person[]
   view: ProjectView
   onViewChange: (view: ProjectView) => void
   filters: ProjectFilters
@@ -80,6 +84,8 @@ export function ProjectViews({
   onDatesChange: (ticketKey: string, start: string, due: string) => void
   onMoveCategory: (slug: string, toIndex: number) => void
   onDelete: (ticketKey: string) => void
+  onFieldsChange?: (fields: FieldDraft[]) => Promise<boolean>
+  onFieldValue?: (ticketKey: string, field: FieldDef, value: string) => void
 }) {
   const filteredTickets = filterProjectTickets(tickets, filters)
   const options = projectViewOptions(layout)
@@ -152,9 +158,12 @@ export function ProjectViews({
           tickets={filteredTickets}
           categories={categories}
           fields={fields}
+          users={owners}
           onOpenTicket={onOpenTicket}
           onMoveCategory={onMoveCategory}
           onDelete={onDelete}
+          onFieldsChange={onFieldsChange}
+          onFieldValue={onFieldValue}
         />
       )}
       {view === "timeline" && (

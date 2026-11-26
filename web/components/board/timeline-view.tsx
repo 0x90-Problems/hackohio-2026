@@ -257,7 +257,8 @@ export function TimelineView({
                 const { ticket } = span
                 const left = offset(span.start)
                 const width = Math.max(dayWidth, (daysBetween(span.start, span.end) + 1) * dayWidth)
-                const milestone = ticket.fields?.Milestone
+                // The roadmap template's Milestone field (its id while it keeps that name).
+                const milestone = ticket.field_values?.f_milestone
                 const dated = span.kind === "range"
                 const label =
                   span.kind === "range"

@@ -1,3 +1,4 @@
+import { fieldDefsOf, type FieldDef } from "@/lib/table-fields"
 import type { ProjectTemplate as ProjectTemplateId } from "@/shared/names"
 import type { Category, ProjectLayout } from "@/lib/types"
 import catalog from "@/lib/project-templates.json"
@@ -79,6 +80,12 @@ export function resolvedProjectLayout(project: {
   if (project.layout === "table" || template?.layout === "table") return "table"
   if (project.layout === "roadmap" || template?.layout === "roadmap") return "roadmap"
   return "board"
+}
+
+/** A project's table fields with their types: the board's list, else typed from the names. */
+export function resolvedFieldDefs(project: { field_defs?: FieldDef[]; fields?: string[]; template?: string }): FieldDef[] {
+  if (project.field_defs) return fieldDefsOf({ field_defs: project.field_defs })
+  return fieldDefsOf({ fields: resolvedProjectFields(project) })
 }
 
 export function resolvedProjectFields(project: {

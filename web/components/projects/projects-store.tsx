@@ -1,5 +1,6 @@
 "use client"
 
+import { parseFieldDefs, type FieldDef } from "@/lib/table-fields"
 import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { MotionConfig } from "motion/react"
 import { toast } from "sonner"
@@ -31,6 +32,8 @@ import {
   saveProjectApproval,
   saveProjectArchived,
   saveProjectColumns,
+  saveProjectFields,
+  saveTicketFields,
   saveProjectTeam,
   saveTicket,
   saveTicketQuiet,
@@ -49,6 +52,7 @@ import {
 import { eventId } from "@/lib/format"
 import { refreshedProjects } from "@/lib/project-refresh"
 import {
+  resolvedFieldDefs,
   resolvedProjectFields,
   resolvedProjectLayout,
   templateCategories,
@@ -888,6 +892,53 @@ function useProjectsState() {
     })
   }
 
+  // A project's table fields, the whole list in order (fields without an id are new). Checked
+  // here with the board's own rules first, so a bad list never leaves the page.
+  async function setProjectFields(projectKey: string, raw: { id?: string; name: string; type: string; options?: string[] }[]) {
+    const project = projects.find((item) => item.key === projectKey)
+    if (!project) return false
+    const before = resolvedFieldDefs(project)
+    let next: FieldDef[]
+    try {
+      next = parseFieldDefs(raw, before)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't change the fields")
+      return false
+    }
+    const apply = (defs: FieldDef[]) =>
+      setProjects((all) => all.map((item) => (item.key === projectKey ? { ...item, field_defs: defs, fields: defs.map((field) => field.name) } : item)))
+    apply(next)
+    try {
+      apply(await saveProjectFields(projectKey, raw))
+      return true
+    } catch (error) {
+      apply(before)
+      toast.error("Couldn't save the fields", { description: error instanceof Error ? error.message : undefined })
+      return false
+    }
+  }
+
+  // One table cell; "" clears it.
+  function setTicketField(ticketKey: string, field: FieldDef, value: string) {
+    const ticket = ticketsRef.current.find((item) => item.key === ticketKey)
+    if (!ticket || (ticket.field_values?.[field.id] ?? "") === value) return
+    const withValue = (source: Ticket, next: string) => {
+      const values = { ...(source.field_values ?? {}) }
+      if (next) values[field.id] = next
+      else delete values[field.id]
+      const copy = { ...source }
+      if (Object.keys(values).length > 0) copy.field_values = values
+      else delete copy.field_values
+      return copy
+    }
+    const previous = ticket.field_values?.[field.id] ?? ""
+    setTickets((current) => current.map((item) => (item.key === ticketKey ? withValue(item, value) : item)))
+    saveTicketFields(ticketKey, { [field.id]: value }).catch((error: unknown) => {
+      setTickets((current) => current.map((item) => (item.key === ticketKey ? withValue(item, previous) : item)))
+      toast.error(`Couldn't save ${field.name}`, { description: error instanceof Error ? error.message : undefined })
+    })
+  }
+
   function setDueDate(ticketKey: string, due_date: string) {
     setTicketDate(ticketKey, "due_date", due_date)
   }
@@ -1039,6 +1090,8 @@ function useProjectsState() {
     setDueDate,
     setStartDate,
     setTicketDates,
+    setProjectFields,
+    setTicketField,
     setReviewer,
     approveClose,
     sendBackClose,
