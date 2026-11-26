@@ -8,8 +8,12 @@
 // browser runs them (lib/assistant/tools.ts) and calls this route again with
 // the results.
 //
-// Needs AWS credentials and a region in web/.env.local (see docs/demo-script.md).
-// Without them, GET reports ai: false and the chat uses the offline assistant.
+// On Vercel (NSB-96): AWS_ROLE_ARN + AWS_REGION, with the project's OIDC
+// Federation on. Each request trades its Vercel OIDC token for short-lived
+// credentials on a role that may only call this model (Buc2AgentTerraform
+// infra/services/nutty); no AWS keys exist. Locally: AWS credentials and a
+// region in web/.env.local (see docs/demo-script.md). With neither, GET reports
+// ai: false and the chat uses the offline assistant.
 // With BEDROCK_GUARDRAIL_ID set, Bedrock runs every question and reply through
 // that guardrail.
 import {
@@ -20,24 +24,40 @@ import {
   type Tool,
   type ToolInputSchema,
 } from "@aws-sdk/client-bedrock-runtime"
+import { fromWebToken } from "@aws-sdk/credential-provider-web-identity"
 
 import { ASSISTANT_SYSTEM_PROMPT, ASSISTANT_TOOLS } from "@/lib/assistant/tools"
 
 export const runtime = "nodejs"
 
-// Amazon's own models need no AWS Marketplace subscription, which the OSU
-// sandbox role isn't allowed to accept (so Claude models fail there)
-const MODEL = process.env.BEDROCK_MODEL_ID || "us.amazon.nova-pro-v1:0"
+// Nova Lite: about $0.06 / $0.24 per million tokens in / out, so a typical
+// question costs a few hundredths of a cent, and it handles the board tools.
+// Amazon's own models need no AWS Marketplace subscription. BEDROCK_MODEL_ID
+// switches model (the role must allow it too).
+const MODEL = process.env.BEDROCK_MODEL_ID || "us.amazon.nova-lite-v1:0"
+
+// What the chat header names: the model family, not the exact id.
+const modelLabel = () =>
+  /anthropic|claude/i.test(MODEL) ? "Claude" : /nova/i.test(MODEL) ? "Amazon Nova" : "a Bedrock model"
 
 const region = () => process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION
+
+const roleArn = () => process.env.AWS_ROLE_ARN
 
 const hasCredentials = () =>
   Boolean(
     region() &&
-      (process.env.AWS_BEARER_TOKEN_BEDROCK ||
+      (roleArn() ||
+        process.env.AWS_BEARER_TOKEN_BEDROCK ||
         process.env.AWS_ACCESS_KEY_ID ||
         process.env.AWS_PROFILE)
   )
+
+// Vercel puts the deployment's OIDC token on each function request; local
+// `vercel env pull` puts one in VERCEL_OIDC_TOKEN.
+function oidcToken(request: Request) {
+  return request.headers.get("x-vercel-oidc-token") || process.env.VERCEL_OIDC_TOKEN || ""
+}
 
 const guardrail = () =>
   process.env.BEDROCK_GUARDRAIL_ID
@@ -68,11 +88,34 @@ function visibleText(raw: string) {
     : text
 }
 
-// Created on first use so the site still builds and runs without AWS set up
-let client: BedrockRuntimeClient | undefined
+// Created on first use so the site still builds and runs without AWS set up.
+// With a role, a new token (Vercel rotates them) gets a new client; the SDK
+// caches the role's credentials until they expire.
+let client: { token: string; value: BedrockRuntimeClient } | undefined
+
+function clientFor(token: string) {
+  if (client && client.token === token) return client.value
+  const arn = roleArn()
+  const value = new BedrockRuntimeClient({
+    region: region(),
+    ...(arn && token
+      ? {
+          credentials: fromWebToken({
+            roleArn: arn,
+            webIdentityToken: token,
+            roleSessionName: "nutty",
+            durationSeconds: 900,
+            clientConfig: { region: region() },
+          }),
+        }
+      : {}),
+  })
+  client = { token, value }
+  return value
+}
 
 export function GET() {
-  return Response.json({ ai: hasCredentials(), guardrail: Boolean(guardrail()) })
+  return Response.json({ ai: hasCredentials(), guardrail: Boolean(guardrail()), model: modelLabel() })
 }
 
 export async function POST(request: Request) {
@@ -95,7 +138,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Send 1 to 200 messages" }, { status: 400 })
   }
 
-  client ??= new BedrockRuntimeClient({ region: region() })
+  // With a role but no token (OIDC Federation off on the project), say so
+  // instead of falling through to whatever credentials the server has.
+  const token = roleArn() ? oidcToken(request) : ""
+  if (roleArn() && !token) {
+    return Response.json(
+      { error: "AWS_ROLE_ARN is set but no Vercel OIDC token arrived. Turn on OIDC Federation for the project." },
+      { status: 503 }
+    )
+  }
+  const bedrock = clientFor(token)
   const abort = new AbortController()
 
   const encoder = new TextEncoder()
@@ -108,7 +160,7 @@ export async function POST(request: Request) {
       const blocks: { text?: string; toolUse?: { toolUseId: string; name: string; json: string } }[] = []
       let stopReason = "end_turn"
       try {
-        const response = await client!.send(
+        const response = await bedrock.send(
           new ConverseStreamCommand({
             modelId: MODEL,
             system: [{ text: ASSISTANT_SYSTEM_PROMPT }],
@@ -170,11 +222,12 @@ export async function POST(request: Request) {
         const name = (error as { name?: string }).name ?? ""
         const status = (error as { $metadata?: { httpStatusCode?: number } })
           .$metadata?.httpStatusCode
-        if (/CredentialsProvider|SSO|Token|ExpiredToken|UnrecognizedClient/i.test(name)) {
+        if (/CredentialsProvider|SSO|Token|ExpiredToken|UnrecognizedClient|InvalidIdentityToken/i.test(name)) {
           send({
             type: "error",
-            message:
-              "AWS sign-in expired. Run `aws sso login --profile nutshell` and try again.",
+            message: roleArn()
+              ? "Couldn't sign in to AWS with the site's Vercel token. Check AWS_ROLE_ARN and the role's trust policy."
+              : "AWS sign-in expired. Run `aws sso login --profile nutshell` and try again.",
           })
         } else if (name === "ThrottlingException") {
           send({

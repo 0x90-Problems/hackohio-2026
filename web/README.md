@@ -25,7 +25,7 @@ npm run build
 
 ## Deploy
 
-Vercel builds this app. Production needs `BOARD_API_URL` pointing at the AWS board API. Add AWS credentials and `BEDROCK_MODEL_ID` only when Nutty should call Amazon Nova. `BEDROCK_GUARDRAIL_ID` turns the Bedrock guardrail on.
+Vercel builds this app. Production needs `BOARD_API_URL` pointing at the AWS board API. For Nutty on Bedrock, turn on OIDC Federation and set `AWS_ROLE_ARN`, `AWS_REGION` and `BEDROCK_MODEL_ID` (no AWS keys; the role comes from Buc2AgentTerraform `infra/services/nutty`). `BEDROCK_GUARDRAIL_ID` turns the Bedrock guardrail on.
 
 Components live in `components/`. Shared words such as scopes and status values come from `shared/names.ts` at the repository root. Import those constants instead of typing the strings.
 

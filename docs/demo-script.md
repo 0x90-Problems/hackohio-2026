@@ -53,7 +53,9 @@ Present from the **live site**: https://hackohio-2026-eta.vercel.app (it needs i
 
 ## Real AI for the assistant (optional)
 
-Nutty runs Amazon Nova Pro on Amazon Bedrock (model `us.amazon.nova-pro-v1:0`) through the AWS SDK's Converse API, billed to the OSU AWS sandbox account. No Anthropic or Claude account is used. Without AWS settings the chat runs in offline mode.
+Nutty runs Amazon Nova Lite on Amazon Bedrock (model `us.amazon.nova-lite-v1:0`, about $0.06 / $0.24 per million tokens in / out) through the AWS SDK's Converse API. No Anthropic or Claude account is used. Without AWS settings the chat runs in offline mode.
+
+On the live site (NSB-96) there are no AWS keys: Vercel's OIDC token is exchanged for short-lived credentials on the `nutshell-prod-nutty` role (Buc2AgentTerraform `infra/services/nutty`), which can call only that model. Vercel needs OIDC Federation on and `AWS_ROLE_ARN`, `AWS_REGION` and `BEDROCK_MODEL_ID` set.
 
 Why Nova: the OSU sandbox (ISB Student 92) can't reliably run Claude models, because they need an AWS Marketplace subscription that the sandbox role isn't allowed to accept. Amazon's own models need none. To try another Bedrock model, set `BEDROCK_MODEL_ID` in `web/.env.local`.
 
@@ -74,4 +76,4 @@ To turn it on:
 
 3. Optional: create a Bedrock Guardrail (Bedrock → Guardrails) and add `BEDROCK_GUARDRAIL_ID=...` and `BEDROCK_GUARDRAIL_VERSION=1` to the same file. Bedrock applies it to every question and reply.
 
-The chat header then says "powered by Amazon Nova on AWS Bedrock". Never commit `web/.env.local`; git already ignores it.
+The chat header then says "powered by Amazon Nova on AWS Bedrock" (or Claude, if `BEDROCK_MODEL_ID` is an Anthropic model). Never commit `web/.env.local`; git already ignores it.
