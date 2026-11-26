@@ -1,13 +1,35 @@
 import Link from "next/link"
 
 import { ACTOR_TYPES } from "@/shared/names"
-import type { Ticket } from "@/lib/types"
+import type { Comment, Ticket } from "@/lib/types"
 import { CATEGORY_COLORS } from "@/lib/categories"
 import { cn } from "@/lib/utils"
 import { ActorBadge } from "@/components/actor-badge"
+import { MessageCircleIcon, PaperclipIcon } from "@/components/icons"
 import { DeleteCardButton } from "@/components/board/delete-card-button"
 import { ticketHref } from "@/components/board/ticket-modal"
 import { Badge } from "@/components/ui/badge"
+
+export type CardCounts = { comments: number; attachments: number }
+
+// Comments and attached files per ticket, from the comments the board already loaded. A file
+// attached more than once (another version, another comment) counts once.
+export function cardCounts(comments: readonly Comment[]): Map<string, CardCounts> {
+  const files = new Map<string, Set<string>>()
+  const counts = new Map<string, CardCounts>()
+  for (const comment of comments) {
+    const entry = counts.get(comment.ticket_key) ?? { comments: 0, attachments: 0 }
+    entry.comments += 1
+    const seen = files.get(comment.ticket_key) ?? new Set<string>()
+    for (const attachment of comment.attachments ?? []) seen.add(attachment.file_id)
+    files.set(comment.ticket_key, seen)
+    entry.attachments = seen.size
+    counts.set(comment.ticket_key, entry)
+  }
+  return counts
+}
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`
 
 // One card on the board. Agent-made tickets get a dashed border, so humans
 // and agents stay easy to tell apart at a glance. Delete sits beside the link
@@ -16,10 +38,12 @@ export function TicketCard({
   ticket,
   isNew,
   onDelete,
+  counts,
 }: {
   ticket: Ticket
   isNew?: boolean
   onDelete: (ticketKey: string) => void
+  counts?: CardCounts
 }) {
   const byAgent = ticket.created_by.type === ACTOR_TYPES.AGENT
   return (
@@ -69,6 +93,22 @@ export function TicketCard({
           </div>
         )}
         <ActorBadge actor={ticket.created_by} interactive={false} />
+        {counts && (counts.comments > 0 || counts.attachments > 0) && (
+          <div className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums" data-slot="card-counts">
+            {counts.comments > 0 && (
+              <span className="inline-flex items-center gap-1" aria-label={plural(counts.comments, "comment")} title={plural(counts.comments, "comment")}>
+                <MessageCircleIcon className="size-3.5" aria-hidden="true" />
+                {counts.comments}
+              </span>
+            )}
+            {counts.attachments > 0 && (
+              <span className="inline-flex items-center gap-1" aria-label={plural(counts.attachments, "attachment")} title={plural(counts.attachments, "attachment")}>
+                <PaperclipIcon className="size-3.5" aria-hidden="true" />
+                {counts.attachments}
+              </span>
+            )}
+          </div>
+        )}
       </Link>
       <DeleteCardButton
         ticketKey={ticket.key}
