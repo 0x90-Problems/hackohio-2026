@@ -39,10 +39,6 @@ export function HomeWelcome() {
       }}
     >
       <div className="mx-auto flex max-w-screen-2xl flex-col items-center gap-5 px-4 py-14 text-center sm:py-16">
-        <p className="font-mono text-xs tracking-[0.2em] text-white/55 uppercase">
-          {/* Empty for someone on no team: never another team's name. */}
-          {account.team}
-        </p>
         <h1 className="max-w-3xl font-heading text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
           Welcome back,{" "}
           <span className="text-brand-scarlet">{firstName}</span>. Your{" "}
