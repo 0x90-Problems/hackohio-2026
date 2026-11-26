@@ -17,7 +17,8 @@ import {
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-// Right-hand "Live activity" panel. Events marked new slide in from the top.
+// The project's Changelog tab: every move, comment and commit, newest first. Events marked new
+// slide in from the top.
 // Shows the newest page of events and adds older ones as you scroll to the bottom.
 export function LiveActivity({
   events,
@@ -61,13 +62,13 @@ export function LiveActivity({
   }, [more, shown, events.length])
 
   return (
-    <Card className="lg:sticky lg:top-20">
+    <Card>
       <CardHeader>
-        <CardTitle>Live activity</CardTitle>
+        <CardTitle>Changelog</CardTitle>
       </CardHeader>
       <CardContent>
         <div ref={area}>
-        <ScrollArea className="h-80 lg:h-[calc(100svh-14rem)] [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
+        <ScrollArea className="h-[calc(100svh-16rem)] min-h-80 [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
           {events.length === 0 ? (
             <EmptyState title="No activity yet" hint="Moves, comments and commits on this board show up here." />
           ) : (

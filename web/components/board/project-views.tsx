@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import type { Category, ProjectLayout, Ticket } from "@/lib/types"
 import type { FieldDef } from "@/lib/table-fields"
 import type { FieldDraft, Person } from "@/components/board/table-fields"
@@ -11,12 +11,13 @@ import { TimelineView } from "@/components/board/timeline-view"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-export type ProjectView = "board" | "table" | "calendar" | "timeline"
+// Changelog is every project's last tab: the board's activity, newest first.
+export type ProjectView = "board" | "table" | "calendar" | "timeline" | "changelog"
 
 export function projectViewOptions(layout: ProjectLayout | undefined): ProjectView[] {
-  if (layout === "table") return ["table", "board", "calendar"]
-  if (layout === "roadmap") return ["timeline", "board", "calendar"]
-  return ["board", "calendar"]
+  if (layout === "table") return ["table", "board", "calendar", "changelog"]
+  if (layout === "roadmap") return ["timeline", "board", "calendar", "changelog"]
+  return ["board", "calendar", "changelog"]
 }
 
 export function defaultProjectView(layout: ProjectLayout | undefined): ProjectView {
@@ -34,6 +35,7 @@ const VIEW_LABELS: Record<ProjectView, string> = {
   table: "Table",
   calendar: "Calendar",
   timeline: "Timeline",
+  changelog: "Changelog",
 }
 
 export function ticketOwnerId(ticket: Ticket) {
@@ -69,6 +71,7 @@ export function ProjectViews({
   onDelete,
   onFieldsChange,
   onFieldValue,
+  changelog,
 }: {
   tickets: Ticket[]
   categories: Category[]
@@ -86,6 +89,7 @@ export function ProjectViews({
   onDelete: (ticketKey: string) => void
   onFieldsChange?: (fields: FieldDraft[]) => Promise<boolean>
   onFieldValue?: (ticketKey: string, field: FieldDef, value: string) => void
+  changelog: ReactNode
 }) {
   const filteredTickets = filterProjectTickets(tickets, filters)
   const options = projectViewOptions(layout)
@@ -134,6 +138,7 @@ export function ProjectViews({
             </button>
           ))}
         </div>
+        {view !== "changelog" && (
         <label className="flex items-center gap-2 text-sm">
           Filter by owner
           <select
@@ -152,7 +157,9 @@ export function ProjectViews({
             ))}
           </select>
         </label>
+        )}
       </div>
+      {view === "changelog" && changelog}
       {view === "table" && (
         <TableView
           tickets={filteredTickets}

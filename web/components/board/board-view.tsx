@@ -47,7 +47,6 @@ import {
 } from "@/components/board/category-dialogs"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
 import { resolvedFieldDefs, resolvedProjectLayout } from "@/lib/templates"
-import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -131,7 +130,6 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   // Dragging a card near an edge scrolls the columns (and the page) toward it.
   const columnsArea = useRef<HTMLDivElement>(null)
   useDragScroll(columnsArea)
-  const [activityVisible, setActivityVisible] = useState(true)
 
   if (!project) {
     return (
@@ -161,14 +159,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   )
 
   return (
-    <main
-      className={cn(
-        "mx-auto grid max-w-screen-2xl gap-6 px-4 py-6 transition-[grid-template-columns] duration-300 ease-in-out",
-        activityVisible
-          ? "lg:grid-cols-[minmax(0,1fr)_420px]"
-          : "lg:grid-cols-[minmax(0,1fr)_40px]"
-      )}
-    >
+    <main className="mx-auto grid max-w-screen-2xl gap-6 px-4 py-6">
       <div className="flex min-w-0 flex-col gap-5">
         {/* Title row */}
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -306,16 +297,6 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5">
-            <HumanAvatar name="AB" /> Human: solid circle + initials
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <AgentTag /> Agent: dashed gray tag + who it acts for
-          </span>
-        </div>
-
         <ProjectViews
           tickets={tickets}
           categories={categories}
@@ -335,6 +316,14 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           onDelete={store.deleteTicket}
           onFieldsChange={(fields) => store.setProjectFields(projectKey, fields)}
           onFieldValue={store.setTicketField}
+          changelog={
+            <LiveActivity
+              events={activity}
+              newIds={store.newEventIds}
+              categories={categories}
+              tickets={tickets}
+            />
+          }
         />
 
         {/* Kanban columns exist only on the board view. A table project does not mount them. */}
@@ -570,61 +559,6 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         </div>
         )}
       </div>
-
-      <aside
-        className={cn(
-          "relative flex min-w-0 items-start",
-          activityVisible && "lg:pl-4"
-        )}
-      >
-        <div
-          className={cn(
-            "sticky top-20 flex h-[calc(100svh-6rem)] min-h-80 w-8 shrink-0 items-center justify-center",
-            activityVisible && "mr-2"
-          )}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 rounded-full border border-border/60 bg-transparent p-0 shadow-none hover:bg-transparent active:bg-transparent"
-            aria-label={
-              activityVisible
-                ? "Collapse live activity panel"
-                : "Expand live activity panel"
-            }
-            aria-expanded={activityVisible}
-            onClick={() => setActivityVisible((visible) => !visible)}
-          >
-            <motion.span
-              animate={{ rotate: activityVisible ? 0 : 180 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="flex"
-            >
-              <ChevronRightIcon aria-hidden="true" />
-            </motion.span>
-          </Button>
-        </div>
-        <AnimatePresence initial={false}>
-          {activityVisible && (
-            <motion.div
-              key="live-activity-panel"
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 12 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="min-w-0 flex-1"
-            >
-              <LiveActivity
-                events={activity}
-                newIds={store.newEventIds}
-                categories={categories}
-                tickets={tickets}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </aside>
 
       <TicketModalFromUrl
         projectKey={projectKey}
