@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
@@ -20,12 +20,9 @@ import {
 import { ACTOR_TYPES } from "@/shared/names"
 import type { Category } from "@/lib/types"
 import { CATEGORY_COLORS } from "@/lib/categories"
-import { users } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { LiveActivity } from "@/components/board/live-activity"
-import type { Person } from "@/components/board/table-fields"
-import { listBoardUsers } from "@/lib/connect-agent"
-import { useAuthUser } from "@/components/auth/auth-gate"
+import { useOrgPeople } from "@/lib/use-org-people"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
@@ -107,22 +104,8 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   const setView = (nextView: ProjectView) =>
     setViews((current) => ({ ...current, [projectKey]: nextView }))
   const [filters, setFilters] = useState<ProjectFilters>({ owner: "" })
-  // The org's people, for the owner filter and Person fields. You're always in it.
-  const account = useAuthUser()
-  const [loadedPeople, setLoadedPeople] = useState<Person[]>([])
-  useEffect(() => {
-    let cancelled = false
-    listBoardUsers()
-      .then((loaded) => !cancelled && setLoadedPeople(loaded))
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-  const people =
-    account && !loadedPeople.some((person) => person._id === account._id)
-      ? [...loadedPeople, { _id: account._id, name: account.name }]
-      : loadedPeople
+  // The org's people, for the owner filter, Person fields and ticket search. You're always in it.
+  const people = useOrgPeople()
   const [filter, setFilter] = useState<Filter>("all")
   const [editing, setEditing] = useState<Editing | null>(null)
   // Column a card is being dragged over, and the card being dragged
@@ -258,14 +241,14 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                     value: [
                       t.key,
                       t.title,
-                      users.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
-                      t.reviewer_id ? users.find((user) => user._id === t.reviewer_id)?.name : undefined,
+                      people.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
+                      t.reviewer_id ? people.find((user) => user._id === t.reviewer_id)?.name : undefined,
                     ].filter((item): item is string => Boolean(item)).join(" "),
                     keywords: [
                       t.title,
                       ...(t.tags ?? []),
-                      users.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
-                      t.reviewer_id ? users.find((user) => user._id === t.reviewer_id)?.name : undefined,
+                      people.find((user) => user._id === (t.created_by.type === ACTOR_TYPES.AGENT ? t.created_by.acting_for : t.created_by.id))?.name,
+                      t.reviewer_id ? people.find((user) => user._id === t.reviewer_id)?.name : undefined,
                     ].filter((item): item is string => Boolean(item)),
                     label: (
                       <>
