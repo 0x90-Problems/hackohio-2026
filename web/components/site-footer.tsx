@@ -1,7 +1,6 @@
 import Link from "next/link"
 
 import { Logo } from "@/components/logo"
-import { TEAM } from "@/lib/mock-data"
 
 const COLUMNS = [
   {
@@ -26,7 +25,7 @@ const COLUMNS = [
       { href: "/api", label: "OpenAPI reference" },
       {
         href: "https://github.com/0x90-Problems",
-        label: "GitHub · 0x90-Problems",
+        label: "GitHub",
       },
     ],
   },
@@ -59,7 +58,7 @@ export function SiteFooter() {
           ))}
         </div>
         <p className="border-t pt-6 text-xs text-muted-foreground">
-          © 2026 {TEAM}.
+          © 2026 NutShell.
         </p>
       </div>
     </footer>
