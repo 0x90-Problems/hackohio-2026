@@ -271,7 +271,7 @@ export function AppHeader() {
               <Button variant="ghost" className="gap-2" title={name}>
                 {/* Avatar only on phones; the menu names you. */}
                 <span className="max-w-40 truncate text-sm max-sm:sr-only">{name}</span>
-                <HumanAvatar name={name} />
+                <HumanAvatar name={name} userId={sessionUser._id} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">

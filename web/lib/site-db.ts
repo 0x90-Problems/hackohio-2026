@@ -1,5 +1,6 @@
 "use client"
 
+import { rememberPictures } from "@/lib/pictures"
 import { toast } from "sonner"
 
 import { readSession } from "@/lib/board-auth"
@@ -10,6 +11,8 @@ export type SiteOrganization = {
   name: string
   token_expiry_hours: number
   rules: Record<string, boolean>
+  /** A small data:image URL (NSB-97); absent when there's none. */
+  picture?: string
 }
 
 export type SiteApiKey = {
@@ -47,6 +50,7 @@ export async function loadSite(): Promise<SiteState> {
   const response = await fetch("/api/site", { cache: "no-store", headers: authHeaders() })
   const body = (await response.json()) as SiteState & { error?: { message?: string } }
   if (!response.ok) throw new Error(body.error?.message ?? "Could not load site settings")
+  rememberPictures(body.users)
   return reviveValue({
     organization: body.organization ?? null,
     teams: body.teams ?? [],

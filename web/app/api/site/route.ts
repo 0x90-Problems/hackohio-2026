@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { safePicture } from "@/lib/picture-data"
+
 import { copyContextHeaders, proxyBoard } from "@/lib/board-proxy"
 import { AGENT_CONNECTION } from "@/shared/names"
 
@@ -15,6 +17,8 @@ export const revalidate = 0
 type SitePostBody = {
   kind?: string
   organization?: { name: string; token_expiry_hours: number; rules: Record<string, boolean> }
+  /** The organization's picture (NSB-97): a small data:image URL, or null to remove it. */
+  picture?: string | null
   team?: { name: string; rename_from?: string }
   member?: { team: string; user_id: string; remove?: boolean }
   manager?: { team: string; user_id: string; manager: boolean }
@@ -129,6 +133,7 @@ export async function GET(request: Request) {
             org.rules && typeof org.rules === "object" && !Array.isArray(org.rules)
               ? (org.rules as Record<string, boolean>)
               : {},
+          ...(safePicture(org.picture) ? { picture: safePicture(org.picture) } : {}),
         }
       : null,
     teams: teamList.flatMap((item) => {
@@ -164,6 +169,7 @@ export async function GET(request: Request) {
           name,
           ...(typeof user.role === "string" ? { role: user.role } : {}),
           ...(user.admin === true ? { admin: true } : {}),
+          ...(safePicture(user.picture) ? { picture: safePicture(user.picture) } : {}),
           team,
           teams,
         },
@@ -193,6 +199,11 @@ export async function POST(request: Request) {
     body = (await request.json()) as SitePostBody
   } catch {
     return NextResponse.json({ error: { code: "invalid_input", message: "Body must be JSON" } }, { status: 400 })
+  }
+
+  if (body.kind === "organizationPicture" && (body.picture === null || typeof body.picture === "string")) {
+    const result = await boardJson(request, "/organization", { method: "PATCH", body: { picture: body.picture } })
+    return relay(result, "Could not save the organization's picture")
   }
 
   if (body.kind === "organization" && body.organization?.name) {

@@ -20,6 +20,8 @@ import { useProjects } from "@/components/projects/projects-store"
 import { useBoardDirectory } from "@/lib/use-board-directory"
 import { authorAgentName, visibleAgentName } from "@/lib/agent-label"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
+import { PicturePicker } from "@/components/profile/picture-picker"
+import { saveMyPicture, usePicture } from "@/lib/pictures"
 import { EmptyState } from "@/components/illustrations"
 import { ScopeBadge } from "@/components/scope-badge"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +58,7 @@ export function ProfileView({
   const { activity, tickets, comments, boardAgents } = useProjects()
   const directory = useBoardDirectory()
   const user = findUser(userId, account, directory.people)
+  const picture = usePicture(userId)
   // The same event can arrive twice (saved locally and in MongoDB): count it once
   const { own, byAgents } = useMemo(() => {
     const seen = new Set<string>()
@@ -114,7 +117,7 @@ export function ProfileView({
     <div className="flex flex-col gap-6">
       {/* Who they are */}
       <header className="flex items-center gap-4">
-        <HumanAvatar name={user.name} size="lg" className="size-16 text-xl" />
+        <HumanAvatar name={user.name} userId={userId} size="lg" className="size-16 text-xl" />
         <div className="min-w-0">
           <h1
             className={cn(
@@ -136,6 +139,16 @@ export function ProfileView({
               .join(" · ")}
           </p>
           {user.role && <p className="mt-0.5 text-sm">{user.role}</p>}
+          {isYou && (
+            <div className="mt-2">
+              <PicturePicker
+                label="your picture"
+                current={picture}
+                onSave={(next) => saveMyPicture(userId, next)}
+                preview={(next) => <HumanAvatar name={user.name} picture={next} size="lg" className="size-10" />}
+              />
+            </div>
+          )}
         </div>
       </header>
 

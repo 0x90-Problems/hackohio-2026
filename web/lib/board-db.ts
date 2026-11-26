@@ -7,6 +7,7 @@ import { refusedReason } from "@/lib/session-expiry"
 import { boardContextHeaders } from "@/lib/team-choice"
 import { mergeBoardRecords, ticketFromApi } from "@/lib/board-merge"
 import { fieldDefsOf } from "@/lib/table-fields"
+import { rememberPictures } from "@/lib/pictures"
 import type { ApprovalMode } from "@/shared/names"
 import type { Agent, Category, Comment, Event, Project, Ticket } from "@/lib/types"
 
@@ -43,6 +44,7 @@ export async function loadBoard(): Promise<BoardRecords> {
     if (reason) endSession(reason)
     throw new Error(body.error?.message ?? "Could not load the board")
   }
+  rememberPictures(body.users)
   // Normalize API shapes (columns → categories, project_key, actor names).
   return mergeBoardRecords(
     {

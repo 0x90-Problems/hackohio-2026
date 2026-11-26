@@ -384,7 +384,7 @@ function MemberRow({ user, agents, extra }: { user: User; agents: Agent[]; extra
         onClick={() => openProfile?.(user._id)}
         className="rounded-full transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
       >
-        <HumanAvatar name={user.name} size="lg" />
+        <HumanAvatar name={user.name} userId={user._id} size="lg" />
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2">

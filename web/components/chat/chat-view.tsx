@@ -1045,7 +1045,7 @@ function Composer({
                 }}
                 className={cn("flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm", index === highlight && "bg-muted")}
               >
-                {person.type === "agent" ? <AgentTag /> : <HumanAvatar name={person.name} />}
+                {person.type === "agent" ? <AgentTag /> : <HumanAvatar name={person.name} userId={person.id} />}
                 <span className="truncate">{person.name}</span>
               </button>
             </li>
@@ -1306,7 +1306,7 @@ function PeoplePicker({
               <li key={principal}>
                 <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted">
                   <Checkbox checked={chosen.has(principal)} onCheckedChange={() => onToggle(principal)} />
-                  {person.type === "agent" ? <AgentTag /> : <HumanAvatar name={person.name} />}
+                  {person.type === "agent" ? <AgentTag /> : <HumanAvatar name={person.name} userId={person.id} />}
                   <span className="truncate">{person.name}</span>
                 </label>
               </li>
