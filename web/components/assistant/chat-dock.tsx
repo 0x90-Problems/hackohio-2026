@@ -72,7 +72,7 @@ const MAX_ROUNDS = 8
 // "Ask Nutty" button in the bottom-right corner of every page. It opens
 // a chat with Nutty, an agent acting for you: it answers
 // questions about tickets and makes changes on the board, which show up there
-// as done by "Nutty". Uses Amazon Nova on Bedrock when the server has AWS
+// as done by "Nutty". Uses a Bedrock model (Amazon Nova by default) when the server has AWS
 // set up (app/api/chat), otherwise a built-in offline assistant.
 export function ChatDock() {
   const pathname = usePathname()
@@ -80,6 +80,7 @@ export function ChatDock() {
   const account = useAuthUser()
   const [open, setOpen] = useState(false)
   const [ai, setAi] = useState<boolean | null>(null)
+  const [model, setModel] = useState("Amazon Nova")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [draft, setDraft] = useState("")
   const [busy, setBusy] = useState(false)
@@ -105,7 +106,10 @@ export function ChatDock() {
   useEffect(() => {
     fetch("/api/chat")
       .then((r) => r.json())
-      .then((d: { ai?: boolean }) => setAi(Boolean(d.ai)))
+      .then((d: { ai?: boolean; model?: string }) => {
+        setAi(Boolean(d.ai))
+        if (d.model) setModel(d.model)
+      })
       .catch(() => setAi(false))
   }, [])
 
@@ -285,7 +289,7 @@ export function ChatDock() {
                   {ai === null
                     ? "connecting…"
                     : ai
-                      ? "powered by Amazon Nova on AWS Bedrock"
+                      ? `powered by ${model} on AWS Bedrock`
                       : "answering from the board on this device"}
                 </span>
               </div>
