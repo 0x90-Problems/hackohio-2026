@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { TicketFiles } from "@/components/files/ticket-files"
 import { AttachButton, AttachmentsProvider, ComposerDrafts, MessageAttachments, useComposerFiles } from "@/components/chat/chat-files"
 import { A2uiBlockView } from "@/components/a2ui/a2ui-block-view"
@@ -21,13 +21,12 @@ import {
   agentTokens,
   getAgent,
   getUser,
-  users,
 } from "@/lib/mock-data"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { visibleAgentName } from "@/lib/agent-label"
 import { useBoardDirectory } from "@/lib/use-board-directory"
+import { useOrgPeople } from "@/lib/use-org-people"
 import { useProjects } from "@/components/projects/projects-store"
-import { listBoardUsers } from "@/lib/connect-agent"
 import { absoluteTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { ActorBadge, AgentTag, HumanAvatar } from "@/components/actor-badge"
@@ -161,30 +160,9 @@ function TicketDetail({
   newCommentIds: Set<string>
 } & TicketActions) {
   const [draft, setDraft] = useState("")
-  const [people, setPeople] = useState<{ _id: string; name: string }[]>(() => users.map((user) => ({ _id: user._id, name: user.name })))
-  useEffect(() => {
-    let cancelled = false
-    listBoardUsers()
-      .then((loaded) => {
-        if (cancelled || loaded.length === 0) return
-        setPeople((current) => {
-          const known = new Set(current.map((person) => person._id))
-          return [...current, ...loaded.filter((person) => !known.has(person._id))]
-        })
-      })
-      .catch(() => {
-        // The sample directory still fills the reviewer list.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  // The organization's people, and you (even before the directory loads). Never sample users.
+  const reviewerOptions = useOrgPeople()
   const account = useAuthUser()
-  // The signed-in person can always be picked, even before the directory loads
-  const reviewerOptions =
-    account && !people.some((person) => person._id === account._id)
-      ? [...people, { _id: account._id, name: account.name }]
-      : people
   const creator = ticket.created_by
   // Demo agents are in mock-data; real ones come from the live directory,
   // or from MongoDB through the board load when the directory isn't reachable
