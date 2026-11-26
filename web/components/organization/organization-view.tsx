@@ -120,7 +120,8 @@ export function OrganizationView() {
     : null
   const myAgents = store.boardAgents.filter((a) => a.owner_id === account?._id && !a.revoked)
   const me = site?.users.find((u) => u._id === account?._id)
-  const myTeam = account?.team || (me ? teamsOf(me)[0] : undefined)
+  // From this organization's records: the account's own team can be another org's (NSB-98).
+  const myTeam = me ? me.team || teamsOf(me)[0] : undefined
 
   const flow = [
     {

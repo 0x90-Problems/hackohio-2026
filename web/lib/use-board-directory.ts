@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 
-import { listBoardAgents, listBoardUsers } from "@/lib/connect-agent"
+import { listBoardAgents, listBoardUsers, type BoardPerson } from "@/lib/connect-agent"
 import type { Agent } from "@/lib/types"
 
-type Person = { _id: string; name: string }
+type Person = BoardPerson
 
 let peopleCache: Person[] | null = null
 let peoplePending: Promise<Person[]> | null = null

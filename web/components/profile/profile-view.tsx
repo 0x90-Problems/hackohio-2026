@@ -9,6 +9,7 @@ import {
   activityWeeks,
   agentsOf,
   findUser,
+  teamsLabel,
   heatLevel,
   splitActivity,
   type DayCell,
@@ -131,7 +132,7 @@ export function ProfileView({
             {nameAction && <span className="ml-2 inline-flex align-middle">{nameAction}</span>}
           </h1>
           <p className="truncate text-sm text-muted-foreground">
-            {[user.auth_username && `@${user.auth_username}`, user.team]
+            {[user.auth_username && `@${user.auth_username}`, teamsLabel(user)]
               .filter(Boolean)
               .join(" · ")}
           </p>
