@@ -27,7 +27,7 @@ import type { Person } from "@/components/board/table-fields"
 import { listBoardUsers } from "@/lib/connect-agent"
 import { useAuthUser } from "@/components/auth/auth-gate"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
-import { TicketCard } from "@/components/board/ticket-card"
+import { TicketCard, cardCounts } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
 import { useDragScroll } from "@/components/board/use-drag-scroll"
 import {
@@ -149,6 +149,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
 
   // Every tag used on this board, offered as suggestions when tagging
   const tagSuggestions = store.tagsOf(projectKey)
+  const counts = cardCounts(store.comments)
 
   const visible = filterProjectTickets(
     tickets.filter(
@@ -529,7 +530,7 @@ export function BoardView({ projectKey }: { projectKey: string }) {
                                 }}
                                 className="cursor-grab active:cursor-grabbing"
                               >
-                                <TicketCard ticket={ticket} isNew={isNew} onDelete={store.deleteTicket} />
+                                <TicketCard ticket={ticket} isNew={isNew} onDelete={store.deleteTicket} counts={counts.get(ticket.key)} />
                               </div>
                             </motion.div>
                           )
