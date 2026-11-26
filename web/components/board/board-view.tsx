@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { AnimatePresence, LayoutGroup, motion } from "motion/react"
@@ -23,6 +23,9 @@ import { CATEGORY_COLORS } from "@/lib/categories"
 import { users } from "@/lib/mock-data"
 import { cn } from "@/lib/utils"
 import { LiveActivity } from "@/components/board/live-activity"
+import type { Person } from "@/components/board/table-fields"
+import { listBoardUsers } from "@/lib/connect-agent"
+import { useAuthUser } from "@/components/auth/auth-gate"
 import { NewTicketDialog } from "@/components/board/new-ticket-dialog"
 import { TicketCard } from "@/components/board/ticket-card"
 import { TicketModalFromUrl, ticketHref } from "@/components/board/ticket-modal"
@@ -43,7 +46,7 @@ import {
   DeleteCategoryDialog,
 } from "@/components/board/category-dialogs"
 import { projectKeyOf, useProjects } from "@/components/projects/projects-store"
-import { resolvedProjectFields, resolvedProjectLayout } from "@/lib/templates"
+import { resolvedFieldDefs, resolvedProjectLayout } from "@/lib/templates"
 import { AgentTag, HumanAvatar } from "@/components/actor-badge"
 import {
   Breadcrumb,
@@ -104,6 +107,22 @@ export function BoardView({ projectKey }: { projectKey: string }) {
   const setView = (nextView: ProjectView) =>
     setViews((current) => ({ ...current, [projectKey]: nextView }))
   const [filters, setFilters] = useState<ProjectFilters>({ owner: "" })
+  // The org's people, for the owner filter and Person fields. You're always in it.
+  const account = useAuthUser()
+  const [loadedPeople, setLoadedPeople] = useState<Person[]>([])
+  useEffect(() => {
+    let cancelled = false
+    listBoardUsers()
+      .then((loaded) => !cancelled && setLoadedPeople(loaded))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const people =
+    account && !loadedPeople.some((person) => person._id === account._id)
+      ? [...loadedPeople, { _id: account._id, name: account.name }]
+      : loadedPeople
   const [filter, setFilter] = useState<Filter>("all")
   const [editing, setEditing] = useState<Editing | null>(null)
   // Column a card is being dragged over, and the card being dragged
@@ -300,9 +319,9 @@ export function BoardView({ projectKey }: { projectKey: string }) {
         <ProjectViews
           tickets={tickets}
           categories={categories}
-          fields={resolvedProjectFields(project)}
+          fields={resolvedFieldDefs(project)}
           layout={layout}
-          owners={users}
+          owners={people}
           view={view}
           onViewChange={setView}
           filters={filters}
@@ -314,6 +333,8 @@ export function BoardView({ projectKey }: { projectKey: string }) {
           onDatesChange={store.setTicketDates}
           onMoveCategory={(slug, index) => store.moveCategory(projectKey, slug, index)}
           onDelete={store.deleteTicket}
+          onFieldsChange={(fields) => store.setProjectFields(projectKey, fields)}
+          onFieldValue={store.setTicketField}
         />
 
         {/* Kanban columns exist only on the board view. A table project does not mount them. */}

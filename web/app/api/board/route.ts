@@ -32,6 +32,7 @@ export async function POST(request: Request) {
     reason?: string
     columns?: { slug: string; name: string; color: string }[]
     moveTicketsTo?: string
+    fields?: unknown
     projectKey?: string
     project?: { name: string; key: string; template?: string; team?: string }
     ticket?: {
@@ -96,6 +97,12 @@ export async function POST(request: Request) {
   }
   if (body.kind === "sendBack" && body.key) {
     return forward(`/tickets/${encodeURIComponent(body.key)}/send-back`, "POST", body.reason ? { reason: body.reason } : {})
+  }
+  if (body.kind === "projectFields" && body.key && Array.isArray(body.fields)) {
+    return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", { fields: body.fields })
+  }
+  if (body.kind === "ticketFields" && body.key && body.fields && typeof body.fields === "object") {
+    return forward(`/tickets/${encodeURIComponent(body.key)}`, "PATCH", { fields: body.fields })
   }
   if (body.kind === "projectColumns" && body.key && body.columns) {
     return forward(`/projects/${encodeURIComponent(body.key)}`, "PATCH", {

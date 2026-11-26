@@ -76,7 +76,8 @@ test("a table project opens as grouped rows", () => {
   assert.match(table, /data-layout="table"/)
   assert.match(table, /No tickets/)
   assert.doesNotMatch(table, /truncate/)
-  assert.doesNotMatch(table, /overflow-x-auto/)
+  // Many fields scroll sideways (NSB-94), but a title still wraps instead of being cut off.
+  assert.match(table, /min-w-64 px-4 py-2 font-medium whitespace-normal">Title/)
   assert.match(views, /layout === "table"/)
   assert.match(views, /defaultProjectView/)
   assert.match(board, /resolvedProjectLayout/)
