@@ -1,3 +1,4 @@
+import { rememberPictures } from "@/lib/pictures"
 import { AGENT_CONNECTION, type AgentConnection, type Scope } from "@/shared/names"
 import { readAgentUsage, type AgentUsage } from "@/lib/agent-usage"
 import { clearSession, readSession } from "@/lib/board-auth"
@@ -123,6 +124,7 @@ export async function listBoardUsers(): Promise<{ _id: string; name: string }[]>
   if (!response.ok) return []
   const body = (await response.json()) as unknown
   if (!Array.isArray(body)) return []
+  rememberPictures(body)
   return body.flatMap((item) => {
     if (item === null || typeof item !== "object") return []
     const user = item as { _id?: unknown; name?: unknown }

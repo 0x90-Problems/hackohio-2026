@@ -18,6 +18,8 @@ import { useOpenProfile } from "@/components/profile/profile-dialog"
 import { useProjects } from "@/components/projects/projects-store"
 import { RemovePersonDialog } from "@/components/teams/remove-person-dialog"
 import { loadSite, saveOrganization, type SiteState } from "@/lib/site-db"
+import { saveOrgPicture } from "@/lib/pictures"
+import { PicturePicker } from "@/components/profile/picture-picker"
 import { absoluteTime, timeAgo } from "@/lib/format"
 import { ROLE_LABELS, orgCounts, orgMembers, teamsOf, type OrgMember } from "@/lib/org-members"
 import { canRemovePerson } from "@/lib/remove-person"
@@ -87,6 +89,8 @@ export function OrganizationView() {
   )
   // Teams and people from the board. Null until it loads.
   const [site, setSite] = useState<Pick<SiteState, "teams" | "users"> | null>(null)
+  // The organization's picture (NSB-97); org admins change it under Details.
+  const [orgPicture, setOrgPicture] = useState<string | undefined>(undefined)
   const [reload, setReload] = useState(0)
   const [removing, setRemoving] = useState<Person | null>(null)
 
@@ -96,6 +100,7 @@ export function OrganizationView() {
       .then((loaded) => {
         if (cancelled) return
         setSite({ teams: loaded.teams, users: loaded.users })
+        setOrgPicture(loaded.organization?.picture)
         // Only the first load fills the form, so a reload never undoes an unsaved name.
         if (reload > 0 || !loaded.organization) return
         setOrgName(loaded.organization.name)
@@ -134,7 +139,7 @@ export function OrganizationView() {
       icon: UserIcon,
       content: (
         <span className="inline-flex items-center gap-1.5">
-          <HumanAvatar name={account?.name ?? ""} /> {account?.name}
+          <HumanAvatar name={account?.name ?? ""} userId={account?._id} /> {account?.name}
         </span>
       ),
     },
@@ -181,7 +186,12 @@ export function OrganizationView() {
     <main className="mx-auto flex max-w-screen-xl flex-col gap-6 px-4 py-6">
       <div className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-          <Building2Icon className="size-6" aria-hidden="true" />
+          {orgPicture ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a small inline data: URL from the board
+            <img src={orgPicture} alt="" className="size-8 rounded-md object-cover" data-slot="org-picture" />
+          ) : (
+            <Building2Icon className="size-6" aria-hidden="true" />
+          )}
           Organization
         </h1>
         <p className="text-muted-foreground">
@@ -252,6 +262,23 @@ export function OrganizationView() {
                 ) : null}
               </div>
             </form>
+            {admin ? (
+              <div className="flex flex-col gap-2">
+                <Label>Organization picture</Label>
+                <PicturePicker
+                  label="the organization's picture"
+                  current={orgPicture}
+                  onSave={async (next) => {
+                    await saveOrgPicture(next)
+                    setOrgPicture(next ?? undefined)
+                  }}
+                  preview={(next) =>
+                    // eslint-disable-next-line @next/next/no-img-element -- a small inline data: URL
+                    next ? <img src={next} alt="New organization picture" className="size-10 rounded-md object-cover" /> : null
+                  }
+                />
+              </div>
+            ) : null}
             <dl className="flex gap-10">
               {[
                 { label: "Teams", value: counts?.teams },
@@ -415,7 +442,7 @@ function MembersCard({
                     onClick={() => openProfile?.(member.person._id)}
                     className="inline-flex items-center gap-2 rounded-md text-left font-medium hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
                   >
-                    <HumanAvatar name={member.person.name} />
+                    <HumanAvatar name={member.person.name} userId={member.person._id} />
                     {member.person.name}
                   </button>
                 </TableCell>

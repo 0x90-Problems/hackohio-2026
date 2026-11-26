@@ -229,7 +229,7 @@ function OrgMembers({ org, admin }: { org: OrgSummary; admin: boolean }) {
                 <TableRow key={member.user_id} className="duration-200 animate-in fade-in motion-reduce:animate-none">
                   <TableCell>
                     <span className="flex items-center gap-2">
-                      <HumanAvatar name={member.name} />
+                      <HumanAvatar name={member.name} userId={member.user_id} />
                       <span className="flex flex-col">
                         <span className="font-medium">{member.name}</span>
                         <span className="text-xs text-muted-foreground">@{member.username}</span>

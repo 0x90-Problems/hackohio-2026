@@ -9,7 +9,8 @@ import type { Actor, Ticket } from "@/lib/types"
 import { getAgent, getUser } from "@/lib/mock-data"
 import { useBoardDirectory } from "@/lib/use-board-directory"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { usePicture } from "@/lib/pictures"
 import { Badge } from "@/components/ui/badge"
 
 export function initials(name: string) {
@@ -17,17 +18,25 @@ export function initials(name: string) {
 }
 
 // A solid circle with initials. Only humans get one.
+// With a userId (or a picture), their profile picture fills the circle; initials until it loads.
 export function HumanAvatar({
   name,
+  userId,
+  picture,
   size = "sm",
   className,
 }: {
   name: string
+  userId?: string
+  picture?: string
   size?: "sm" | "default" | "lg"
   className?: string
 }) {
+  const known = usePicture(userId)
+  const src = picture ?? known
   return (
     <Avatar size={size} className={className}>
+      {src ? <AvatarImage src={src} alt="" /> : null}
       <AvatarFallback className="bg-foreground font-semibold text-background">
         {initials(name)}
       </AvatarFallback>
@@ -147,7 +156,7 @@ export function ActorBadge({
       )}
     >
       <PersonName userId={actor.id} interactive={interactive}>
-        <HumanAvatar name={name} className="shrink-0" />
+        <HumanAvatar name={name} userId={actor.id} className="shrink-0" />
         <span className={wrap ? "min-w-0 break-words" : "truncate"}>{name}</span>
       </PersonName>
     </span>
@@ -189,7 +198,7 @@ export function TicketOwnerBadge({ ticket }: { ticket: Ticket }) {
 
   return ownerName ? (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-sm">
-      <HumanAvatar name={ownerName} />
+      <HumanAvatar name={ownerName} userId={ownerId} />
       <span className="truncate">{ownerName}</span>
     </span>
   ) : (
