@@ -4,8 +4,8 @@
 // pop-up is the app's own centred dialog, so it isn't squeezed inside the ticket window.
 
 import { useState } from "react"
-import { createComponentImplementation } from "@a2ui/react/v0_9"
-import { ModalApi } from "@a2ui/web_core/v0_9"
+import { createComponentImplementation } from "@a2ui/react"
+import { ModalApi } from "@a2ui/web_core/catalogs/basic/v1"
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 

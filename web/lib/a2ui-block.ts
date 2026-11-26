@@ -2,13 +2,15 @@
  * A2UI blocks on comments (NSB-90): a small structured block (cards, lists, tabs, a pop-up with
  * details, NutShell images) that people and agents can add under a comment's text.
  *
- * Blocks use A2UI v0.9 components, but only the read-only subset below, with literal values (no
- * data bindings, templates or functions beyond opening a link). Everything an agent or person
+ * Blocks use A2UI v1.0 components, but only the read-only subset below, with literal values (no
+ * data bindings, templates or functions beyond opening a link). Blocks written for v0.9 (the
+ * first version NutShell took) are still accepted and upgraded to v1.0 by upgradeBlock. Everything an agent or person
  * sends is checked here before it's stored; the web app checks it again before rendering.
  * Dependency-free so the web app can keep an identical copy (web/lib/a2ui-block.ts in the web app; src/a2ui-block.ts in the board backend).
  */
 
-export const A2UI_VERSION = "v0.9";
+export const A2UI_VERSION = "1.0";
+export const LEGACY_VERSION = "v0.9";
 export const MAX_COMPONENTS = 100;
 export const MAX_BLOCK_BYTES = 32_000;
 export const MAX_TEXT = 4000;
@@ -21,17 +23,18 @@ export type A2uiBlock = { version: typeof A2UI_VERSION; components: A2uiComponen
 
 export class BlockError extends Error {}
 
-const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** The A2UI components a comment block may use. */
+export const ALLOWED_COMPONENTS = ["Text", "Image", "Icon", "Row", "Column", "List", "Card", "Tabs", "Modal", "Divider", "Button"]
+
+// v1.0 ids are identifiers (UAX #31); NutShell takes the ASCII ones.
+const ID = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const ICON = /^[A-Za-z0-9]{1,40}$/;
 // Images come only from NutShell's own signed-in file links: outside images would tell another
 // site who viewed the comment.
 const IMAGE_URL = /^\/api\/files\/fil_[0-9a-z]{6,40}\/view$/;
 const EVENT_NAME = /^[A-Za-z0-9_.-]{1,40}$/;
 
-/** The A2UI components a comment block may use. */
-export const ALLOWED_COMPONENTS = ["Text", "Image", "Icon", "Row", "Column", "List", "Card", "Tabs", "Modal", "Divider", "Button"]
-
-const COMMON = ["id", "component", "accessibility", "weight"];
+const COMMON = ["id", "component", "@accessibility", "weight"];
 const ALLOWED: Record<string, string[]> = {
   Text: [...COMMON, "text", "variant"],
   Image: [...COMMON, "url", "description", "fit", "variant"],
@@ -46,7 +49,7 @@ const ALLOWED: Record<string, string[]> = {
   Button: [...COMMON, "child", "variant", "action"],
 };
 const ENUMS: Record<string, Record<string, readonly string[]>> = {
-  Text: { variant: ["h1", "h2", "h3", "h4", "h5", "caption", "body"] },
+  Text: { variant: ["caption", "body"] },
   Image: { fit: ["contain", "cover", "fill", "none", "scaleDown"], variant: ["icon", "avatar", "smallFeature", "mediumFeature", "largeFeature", "header"] },
   Row: { justify: ["center", "end", "spaceAround", "spaceBetween", "spaceEvenly", "start", "stretch"], align: ["start", "center", "end", "stretch"] },
   Column: { justify: ["start", "center", "end", "spaceBetween", "spaceAround", "spaceEvenly", "stretch"], align: ["center", "end", "start", "stretch"] },
@@ -64,7 +67,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function literal(value: unknown, where: string, max: number): string {
-  if (typeof value !== "string") fail(`${where} must be plain text (data bindings aren't allowed)`);
+  if (typeof value !== "string") fail(`${where} must be plain text (@path bindings aren't allowed)`);
   const text = value as string;
   if (text.length > max) fail(`${where} is at most ${max} characters`);
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) fail(`${where} has control characters`);
@@ -72,7 +75,7 @@ function literal(value: unknown, where: string, max: number): string {
 }
 
 function ref(value: unknown, where: string): string {
-  if (typeof value !== "string" || !ID.test(value)) fail(`${where} must be a component id`);
+  if (typeof value !== "string" || !ID.test(value)) fail(`${where} must be a component id: letters, digits and _, not starting with a digit`);
   return value as string;
 }
 
@@ -105,9 +108,9 @@ function checkAction(action: unknown, where: string): void {
   }
   if (keys[0] === "functionCall") {
     const call = act.functionCall;
-    if (!isRecord(call) || call.call !== "openUrl") fail(`${where}.action.functionCall may only call openUrl`);
+    if (!isRecord(call) || call["@call"] !== "openUrl") fail(`${where}.action.functionCall may only call openUrl ({ "@call": "openUrl", "args": { "url": ... } })`);
     const fc = call as Record<string, unknown>;
-    if (Object.keys(fc).some((key) => !["call", "args", "returnType"].includes(key))) fail(`${where}.action.functionCall has unknown fields`);
+    if (Object.keys(fc).some((key) => key !== "@call" && key !== "args")) fail(`${where}.action.functionCall has unknown fields`);
     const args = fc.args;
     if (!isRecord(args) || Object.keys(args).length !== 1 || typeof args.url !== "string" || !safeLink(args.url)) {
       fail(`${where} may only open an https link or a NutShell page`);
@@ -136,10 +139,10 @@ function checkComponent(raw: unknown, index: number): { component: A2uiComponent
   if (item.weight !== undefined && (typeof item.weight !== "number" || !Number.isFinite(item.weight) || item.weight < 0 || item.weight > 100)) {
     fail(`${where}: weight must be a number from 0 to 100`);
   }
-  if (item.accessibility !== undefined) {
-    const a11y = item.accessibility;
-    if (!isRecord(a11y) || Object.keys(a11y).some((key) => key !== "label" && key !== "description")) fail(`${where}: accessibility takes label and description`);
-    for (const key of ["label", "description"]) if ((a11y as Record<string, unknown>)[key] !== undefined) literal((a11y as Record<string, unknown>)[key], `${where}.accessibility.${key}`, MAX_LABEL);
+  if (item["@accessibility"] !== undefined) {
+    const a11y = item["@accessibility"];
+    if (!isRecord(a11y) || Object.keys(a11y).some((key) => key !== "label" && key !== "description")) fail(`${where}: @accessibility takes label and description`);
+    for (const key of ["label", "description"]) if ((a11y as Record<string, unknown>)[key] !== undefined) literal((a11y as Record<string, unknown>)[key], `${where}.@accessibility.${key}`, MAX_LABEL);
   }
   const children: string[] = [];
   switch (kind) {
@@ -185,12 +188,67 @@ function checkComponent(raw: unknown, index: number): { component: A2uiComponent
   return { component: item as A2uiComponent, children };
 }
 
+const HEADING = /^h([1-5])$/;
+
+// v0.9 ids could have - and start with a digit; v1.0 ids can't. Each becomes a v1.0 id, kept unique.
+function upgradeIds(components: unknown[]): Map<string, string> {
+  const ids = components.map((item) => (isRecord(item) && typeof item.id === "string" ? item.id : null));
+  const taken = new Set(ids.filter((id): id is string => id !== null && ID.test(id)));
+  const map = new Map<string, string>();
+  for (const id of ids) {
+    if (id === null || ID.test(id) || map.has(id) || id.length > 64) continue;
+    const base = id.replace(/[^A-Za-z0-9_]/g, "_").replace(/^(?=[0-9])/, "_").slice(0, 60);
+    let next = base;
+    for (let n = 2; taken.has(next); n += 1) next = `${base}_${n}`;
+    taken.add(next);
+    map.set(id, next);
+  }
+  return map;
+}
+
+function upgradeComponent(raw: unknown, ids: Map<string, string>): unknown {
+  if (!isRecord(raw)) return raw;
+  const item: Record<string, unknown> = { ...raw };
+  const id = (value: unknown) => (typeof value === "string" ? (ids.get(value) ?? value) : value);
+  item.id = id(item.id);
+  for (const key of ["child", "trigger", "content"]) if (key in item) item[key] = id(item[key]);
+  if (Array.isArray(item.children)) item.children = item.children.map(id);
+  if (Array.isArray(item.tabs)) item.tabs = item.tabs.map((tab) => (isRecord(tab) && "child" in tab ? { ...tab, child: id(tab.child) } : tab));
+  if ("accessibility" in item) {
+    item["@accessibility"] = item.accessibility;
+    delete item.accessibility;
+  }
+  // v1.0 Text has no heading variants; a heading is markdown instead.
+  const heading = item.component === "Text" && typeof item.variant === "string" ? HEADING.exec(item.variant) : null;
+  if (heading && typeof item.text === "string") {
+    item.text = `${"#".repeat(Number(heading[1]))} ${item.text}`;
+    delete item.variant;
+  }
+  const action = item.action;
+  if (isRecord(action) && isRecord(action.functionCall) && "call" in action.functionCall) {
+    const { call, args } = action.functionCall;
+    item.action = { functionCall: { "@call": call, args } };
+  }
+  return item;
+}
+
 /**
- * Checks a block and returns it as stored. Throws BlockError with a message a person or agent can
- * act on. Rules: version v0.9; at most 100 components and 32 KB; one tree under "root" where every
+ * A v0.9 block rewritten as v1.0 (ids made identifiers, fields renamed, heading variants as markdown). Anything else is
+ * returned as it came, for checkBlock to judge. Safe on blocks stored before v1.0.
+ */
+export function upgradeBlock(raw: unknown): unknown {
+  if (!isRecord(raw) || raw.version !== LEGACY_VERSION || !Array.isArray(raw.components)) return raw;
+  const ids = upgradeIds(raw.components);
+  return { ...raw, version: A2UI_VERSION, components: raw.components.map((item) => upgradeComponent(item, ids)) };
+}
+
+/**
+ * Checks a block and returns it as stored (always v1.0). Throws BlockError with a message a person
+ * or agent can act on. Rules: version 1.0 (or v0.9, upgraded first); at most 100 components and 32 KB; one tree under "root" where every
  * reference points at a component and every component is used exactly once.
  */
-export function checkBlock(raw: unknown): A2uiBlock {
+export function checkBlock(input: unknown): A2uiBlock {
+  const raw = upgradeBlock(input);
   if (!isRecord(raw)) fail("ui must be an object: { version, components }");
   const block = raw as Record<string, unknown>;
   if (Object.keys(block).some((key) => key !== "version" && key !== "components")) fail("ui takes only version and components");

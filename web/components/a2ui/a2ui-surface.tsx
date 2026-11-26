@@ -1,19 +1,20 @@
 "use client"
 
-// Renders one checked A2UI block (NSB-90) with the A2UI React renderer. Loaded only in the browser
+// Renders one checked A2UI v1.0 block (NSB-90) with the A2UI React renderer. Loaded only in the browser
 // (the basic components are custom elements). Read-only: no action handler is given, so nothing a
 // block does is sent anywhere; buttons can only open a pop-up or an https / NutShell link.
 
 import { useEffect, useMemo, useState } from "react"
-import { A2uiSurface, MarkdownComponentContext, type MarkdownComponentProps } from "@a2ui/react/v0_9"
-import { Catalog, MessageProcessor, basicCatalog, injectBasicCatalogStyles } from "@a2ui/web_core/v0_9"
+import { A2uiSurface, MarkdownComponentContext, type MarkdownComponentProps } from "@a2ui/react"
+import { Catalog, MessageProcessor } from "@a2ui/web_core"
+import { basicCatalog, injectBasicCatalogStyles } from "@a2ui/web_core/catalogs/basic/v1"
 
 import { NutshellIcon } from "@/components/a2ui/nutshell-icon"
 import { NutshellModal } from "@/components/a2ui/nutshell-modal"
 import { MarkdownView } from "@/components/markdown-view"
-import { ALLOWED_COMPONENTS, type A2uiBlock } from "@/lib/a2ui-block"
+import { A2UI_VERSION, ALLOWED_COMPONENTS, type A2uiBlock } from "@/lib/a2ui-block"
 
-const CATALOG_ID = "https://nutshell.0x90problems.dev/a2ui/comment-blocks/v0_9.json"
+const CATALOG_ID = "https://nutshell.0x90problems.dev/a2ui/comment-blocks/v1_0.json"
 
 let catalog: Catalog<never> | null = null
 function commentCatalog() {
@@ -46,8 +47,8 @@ export default function A2uiBlockSurface({ block }: { block: A2uiBlock }) {
   const processor = useMemo(() => {
     const processor = new MessageProcessor([commentCatalog()])
     processor.processMessages([
-      { version: "v0.9", createSurface: { surfaceId, catalogId: CATALOG_ID } },
-      { version: "v0.9", updateComponents: { surfaceId, components: JSON.parse(content) } },
+      { version: A2UI_VERSION, createSurface: { surfaceId, catalogId: CATALOG_ID } },
+      { version: A2UI_VERSION, updateComponents: { surfaceId, components: JSON.parse(content) } },
     ] as never)
     return processor
   }, [content, surfaceId])

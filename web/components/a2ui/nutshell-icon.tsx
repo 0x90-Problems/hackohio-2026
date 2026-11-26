@@ -3,8 +3,8 @@
 // A2UI's Icon drawn with NutShell's icon set (NSB-90). A2UI's own Icon uses an icon font NutShell
 // doesn't load (and its content policy blocks outside fonts), so it showed the icon's name as text.
 
-import { createComponentImplementation } from "@a2ui/react/v0_9"
-import { IconApi } from "@a2ui/web_core/v0_9"
+import { createComponentImplementation } from "@a2ui/react"
+import { IconApi } from "@a2ui/web_core/catalogs/basic/v1"
 import {
   Accessibility, ArrowLeft, ArrowRight, Bell, BellOff, Calendar, CalendarDays, Camera, Check, CircleAlert, CircleHelp, CircleUser,
   CreditCard, Download, Ellipsis, EllipsisVertical, Eye, EyeOff, FastForward, Folder, Heart, HeartOff, House, Image, Info, Lock,
@@ -31,9 +31,11 @@ export function iconFor(name: unknown): LucideIcon | null {
   return typeof name === "string" ? (ICONS[name] ?? null) : null
 }
 
-export const NutshellIcon = createComponentImplementation(IconApi, ({ props }) => {
-  const label = typeof props.accessibility?.label === "string" ? props.accessibility.label : undefined
+// The renderer puts the @accessibility label on the element given accessibilityRef; without a
+// label the icon is decoration.
+export const NutshellIcon = createComponentImplementation(IconApi, ({ props, accessibilityRef }) => {
+  const labelled = typeof props.accessibility?.label === "string"
   const Glyph = iconFor(props.name)
-  if (!Glyph) return <span aria-hidden={!label} aria-label={label} className="inline-block size-1.5 shrink-0 rounded-full bg-muted-foreground" />
-  return <Glyph className="size-4 shrink-0 text-muted-foreground" aria-hidden={!label} aria-label={label} role={label ? "img" : undefined} />
+  if (!Glyph) return <span ref={accessibilityRef} aria-hidden={!labelled} role={labelled ? "img" : undefined} className="inline-block size-1.5 shrink-0 rounded-full bg-muted-foreground" />
+  return <Glyph ref={accessibilityRef} className="size-4 shrink-0 text-muted-foreground" aria-hidden={!labelled} role={labelled ? "img" : undefined} />
 })
